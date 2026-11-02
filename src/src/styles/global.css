@@ -1,0 +1,1475 @@
+/* ==========================================================================
+   YAZIR PİLAVCISI — ULTRA-PREMIUM GOLD & ONYX THEME ENGINE
+   Lüks Altın Sarısı, Siyah, Beyaz ve Şık Gri Tonları
+   ========================================================================== */
+
+:root {
+  /* ALTIN SARISI PALETİ (Gerçek Metalik ve Sıcak Altın) */
+  --gold: #D4AF37;
+  --gold-bright: #F5C842;
+  --gold-dark: #A37F14;
+  --gold-hover: #E0BC45;
+  --gold-bg: rgba(212, 175, 55, 0.12);
+  --gold-bg-hover: rgba(212, 175, 55, 0.22);
+  --gold-text: #996F08;
+  --gold-border: rgba(212, 175, 55, 0.35);
+  --gold-border-strong: rgba(212, 175, 55, 0.7);
+  --gold-gradient: linear-gradient(135deg, #F5D372 0%, #D4AF37 50%, #A37F14 100%);
+  --gold-gradient-hover: linear-gradient(135deg, #FFE494 0%, #E5C34D 50%, #B89218 100%);
+  --gold-glow: 0 0 25px rgba(212, 175, 55, 0.38);
+  --gold-glow-subtle: 0 4px 20px rgba(212, 175, 55, 0.15);
+
+  /* AÇIK TEMA (LIGHT MODE - İnci Beyazı & Sıcak Krem) */
+  --bg: #FAF8F5;
+  --bg-alt: #F3EFE7;
+  --card-bg: #FFFFFF;
+  --surface: #F8F5EE;
+  --line: #E8E2D5;
+  --line-strong: #D5CCBC;
+  --text: #191612;
+  --text-muted: #6B6353;
+  --orange: #EA580C;
+  --danger: #DC2626;
+  --danger-bg: #FEE2E2;
+  --danger-text: #991B1B;
+  --success: #16A34A;
+  --success-bg: #DCFCE7;
+  --success-text: #166534;
+  --shadow-sm: 0 2px 8px rgba(25, 22, 18, 0.04);
+  --shadow: 0 6px 20px rgba(25, 22, 18, 0.07);
+  --shadow-lg: 0 16px 36px rgba(25, 22, 18, 0.12);
+  --input-bg: #FFFFFF;
+  --input-border: #D5CCBC;
+  --input-text: #191612;
+  --header-bg: rgba(250, 248, 245, 0.88);
+  --header-blur: 16px;
+  --admin-sidebar-bg: #110F0D;
+  --admin-sidebar-text: #F8F5EE;
+  --admin-main-bg: #F5F1E8;
+  --r: 16px;
+  --r-sm: 10px;
+  --r-lg: 24px;
+}
+
+[data-theme="dark"] {
+  /* KOYU TEMA (DARK MODE - Asil Siyah & Kömür & Altın Vurgular) */
+  --bg: #0C0A08;
+  --bg-alt: #14120F;
+  --card-bg: #181512;
+  --surface: #221D18;
+  --line: #322A21;
+  --line-strong: #4A3E31;
+  --text: #FBF8F1;
+  --text-muted: #B8AFA0;
+  --gold: #E5BE42;
+  --gold-bright: #FBD45E;
+  --gold-dark: #A88316;
+  --gold-hover: #F8CB4B;
+  --gold-bg: rgba(229, 190, 66, 0.14);
+  --gold-bg-hover: rgba(229, 190, 66, 0.25);
+  --gold-text: #FBD45E;
+  --gold-border: rgba(229, 190, 66, 0.35);
+  --gold-border-strong: rgba(229, 190, 66, 0.75);
+  --orange: #F97316;
+  --danger: #EF4444;
+  --danger-bg: #3F1515;
+  --danger-text: #FCA5A5;
+  --success: #22C55E;
+  --success-bg: #14351D;
+  --success-text: #86EFAC;
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.7);
+  --input-bg: #151310;
+  --input-border: #3A3227;
+  --input-text: #FBF8F1;
+  --header-bg: rgba(12, 10, 8, 0.88);
+  --header-blur: 16px;
+  --admin-sidebar-bg: #0A0807;
+  --admin-sidebar-text: #FBF8F1;
+  --admin-main-bg: #110F0D;
+}
+
+/* ==========================================================================
+   RESET & TYPOGRAPHY
+   ========================================================================== */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'DM Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+h1, h2, h3, h4, h5, h6, .price, .kpi b {
+  font-family: 'Bricolage Grotesque', 'DM Sans', sans-serif;
+  line-height: 1.2;
+  margin: 0 0 0.5em;
+  color: var(--text);
+  letter-spacing: -0.015em;
+}
+
+h1 { font-size: clamp(2.1rem, 5vw, 3.4rem); font-weight: 800; }
+h2 { font-size: clamp(1.5rem, 3.5vw, 2.3rem); font-weight: 800; }
+h3 { font-size: 1.25rem; font-weight: 700; }
+h4 { font-size: 1.1rem; font-weight: 700; }
+
+a { color: inherit; text-decoration: none; transition: color 0.2s ease; }
+p { margin: 0.4em 0 1em; }
+.muted { color: var(--text-muted); }
+.small { font-size: 0.875rem; }
+.center { text-align: center; }
+
+/* Custom Luxury Gold Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-alt);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--gold-border);
+  border-radius: 999px;
+  border: 2px solid var(--bg-alt);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gold);
+}
+
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+}
+
+/* ==========================================================================
+   BUTTONS (Altın Sarısı & Lüks Butonlar)
+   ========================================================================== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.78em 1.6em;
+  font: 700 0.95rem 'DM Sans', sans-serif;
+  cursor: pointer;
+  text-decoration: none;
+  text-align: center;
+  white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  user-select: none;
+}
+
+.btn.sm {
+  padding: 0.48em 1.1em;
+  font-size: 0.85rem;
+}
+
+.btn.lg {
+  padding: 0.95em 2.2em;
+  font-size: 1.05rem;
+}
+
+/* Altın Buton */
+.btn.gold {
+  background: var(--gold-gradient);
+  color: #0F0C08 !important;
+  font-weight: 800;
+  box-shadow: 0 4px 14px rgba(212, 175, 55, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+.btn.gold:hover {
+  background: var(--gold-gradient-hover);
+  box-shadow: 0 6px 20px rgba(212, 175, 55, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  transform: translateY(-2px);
+}
+.btn.gold:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(212, 175, 55, 0.3);
+}
+
+/* Hayalet Buton (Ghost) */
+.btn.ghost {
+  background: transparent;
+  color: var(--text);
+  border: 1.5px solid var(--line-strong);
+  box-shadow: none;
+}
+.btn.ghost:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+  background: var(--gold-bg);
+  transform: translateY(-1px);
+}
+
+/* Koyu Buton */
+.btn.dark {
+  background: #181512;
+  color: #FAF8F5;
+  border: 1px solid var(--line-strong);
+}
+.btn.dark:hover {
+  background: #25201B;
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+/* Tehlike Butonu */
+.btn.danger {
+  background: var(--danger);
+  color: #FFFFFF;
+}
+.btn.danger:hover {
+  background: #B91C1C;
+  transform: translateY(-1px);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* Theme Toggle Button */
+.theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  color: var(--text);
+  padding: 0.45em 0.85em;
+  border-radius: 999px;
+  font: 700 0.85rem 'DM Sans', sans-serif;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.theme-toggle-btn:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+  background: var(--gold-bg);
+  transform: rotate(4deg);
+}
+
+/* ==========================================================================
+   PUBLIC LAYOUT & GLASSMORPHISM NAVBAR
+   ========================================================================== */
+.site {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* Üst Navbar (Glassmorphic Header) */
+.top {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 0.8rem 2.5rem;
+  background: var(--header-bg);
+  backdrop-filter: blur(var(--header-blur));
+  -webkit-backdrop-filter: blur(var(--header-blur));
+  border-bottom: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+  transition: all 0.3s ease;
+}
+
+.top.scrolled {
+  padding: 0.6rem 2.5rem;
+  border-bottom: 1px solid var(--gold-border);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+/* Logo Brand Link */
+.top .logo-link {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  transition: transform 0.25s ease;
+}
+.top .logo-link:hover {
+  transform: scale(1.03);
+}
+
+/* Navigation Links */
+.top nav {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.top nav a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.95rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  position: relative;
+  transition: all 0.22s ease;
+}
+
+.top nav a svg {
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.top nav a:hover {
+  color: var(--gold);
+  background: var(--gold-bg);
+}
+
+.top nav a:hover svg {
+  transform: translateY(-2px);
+  color: var(--gold);
+}
+
+.top nav a.active {
+  color: var(--gold-bright);
+  background: var(--gold-bg);
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px var(--gold-border);
+}
+
+.top nav a.active svg {
+  color: var(--gold-bright);
+}
+
+/* User pill in header */
+.user-menu-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4em 0.9em;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+  transition: all 0.2s ease;
+}
+.user-menu-pill:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+/* Cart Button */
+.cart-header-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1.25rem;
+  border-radius: 999px;
+  background: var(--gold-gradient);
+  color: #0F0C08 !important;
+  font-weight: 800;
+  font-size: 0.9rem;
+  box-shadow: 0 4px 15px rgba(212, 175, 55, 0.35);
+  transition: all 0.22s ease;
+}
+.cart-header-btn:hover {
+  background: var(--gold-gradient-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(212, 175, 55, 0.5);
+}
+.cart-badge {
+  background: #0F0C08;
+  color: #FBD45E;
+  padding: 0.15em 0.55em;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+/* Hamburger Button */
+.burger {
+  display: none;
+  background: transparent;
+  border: 1.5px solid var(--line-strong);
+  color: var(--text);
+  font-size: 1.25rem;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+.burger:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+  background: var(--gold-bg);
+}
+
+/* ==========================================================================
+   HERO SECTION (Lüks & Gösterişli Karşılama)
+   ========================================================================== */
+.hero {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  align-items: center;
+  gap: 3.5rem;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 4.5rem 2rem 3.5rem;
+  position: relative;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -100px;
+  right: -50px;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(212, 175, 55, 0.14) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.hero-txt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  z-index: 1;
+}
+
+.hero-txt .pill {
+  margin-bottom: 1.2rem;
+}
+
+.hero-txt h1 {
+  margin-bottom: 0.8rem;
+  background: linear-gradient(135deg, var(--text) 60%, var(--gold) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hero-txt p {
+  font-size: 1.15rem;
+  color: var(--text-muted);
+  max-width: 580px;
+  margin-bottom: 2rem;
+  line-height: 1.7;
+}
+
+.hero-card {
+  z-index: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.hero-image-frame {
+  position: relative;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  border: 2px solid var(--gold-border);
+  box-shadow: var(--shadow-lg), var(--gold-glow-subtle);
+  background: var(--card-bg);
+  transition: transform 0.4s ease;
+}
+.hero-image-frame:hover {
+  transform: translateY(-6px) scale(1.02);
+  border-color: var(--gold);
+}
+
+.hero-badge-floating {
+  position: absolute;
+  bottom: -20px;
+  right: 20px;
+  background: var(--card-bg);
+  border: 1.5px solid var(--gold);
+  border-radius: var(--r);
+  padding: 1rem 1.4rem;
+  box-shadow: var(--shadow-lg), var(--gold-glow-subtle);
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  animation: floatSlow 4s ease-in-out infinite;
+}
+
+@keyframes floatSlow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+/* ==========================================================================
+   SECTIONS & GRIDS
+   ========================================================================== */
+.sec {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 4rem 2rem;
+  width: 100%;
+}
+
+.sec.alt {
+  background: var(--bg-alt);
+  max-width: 100%;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.sec.alt > div {
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.sec-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 2.2rem;
+  border-bottom: 2px solid var(--line);
+  padding-bottom: 0.8rem;
+}
+
+.sec-h h2 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.sec-h a {
+  font-weight: 700;
+  color: var(--gold);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.95rem;
+}
+.sec-h a:hover {
+  text-decoration: underline;
+  color: var(--gold-bright);
+}
+
+/* Grid Düzenleri */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.8rem;
+}
+
+.grid3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.8rem;
+}
+
+.grid4 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.5rem;
+}
+
+/* ==========================================================================
+   PRODUCT CARDS (Modern & Altın Detaylı Ürün Kartları)
+   ========================================================================== */
+.pcard {
+  background: var(--card-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  position: relative;
+}
+
+.pcard:hover {
+  transform: translateY(-6px);
+  border-color: var(--gold-border-strong);
+  box-shadow: var(--shadow-lg), var(--gold-glow-subtle);
+}
+
+.pcard .ph {
+  width: 100%;
+  aspect-ratio: 16/10;
+  background: var(--surface);
+  border: 0;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pcard .ph img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+
+.pcard:hover .ph img {
+  transform: scale(1.07);
+}
+
+.pcard .pbody {
+  padding: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.pcard h3 {
+  font-size: 1.2rem;
+  margin-bottom: 0.35rem;
+  color: var(--text);
+  transition: color 0.2s ease;
+}
+
+.pcard:hover h3 {
+  color: var(--gold);
+}
+
+.pcard p.muted {
+  font-size: 0.88rem;
+  line-height: 1.5;
+  margin-bottom: 1.1rem;
+  flex-grow: 1;
+}
+
+.pcard .prow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-top: auto;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line);
+}
+
+.price {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--gold);
+  letter-spacing: -0.02em;
+}
+
+/* Out of stock */
+.pcard.out {
+  opacity: 0.65;
+  filter: grayscale(0.5);
+}
+.pcard.out::after {
+  content: 'TÜKENDİ';
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: rgba(220, 38, 38, 0.9);
+  color: white;
+  padding: 0.25em 0.8em;
+  font-size: 0.75rem;
+  font-weight: 800;
+  border-radius: 999px;
+  letter-spacing: 0.05em;
+}
+
+/* Portion / Variant Segment Buttons */
+.seg {
+  display: inline-flex;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  padding: 3px;
+  border-radius: 999px;
+  gap: 2px;
+  margin-bottom: 1rem;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.seg button {
+  background: transparent;
+  border: 0;
+  padding: 0.38em 0.85em;
+  border-radius: 999px;
+  font: 700 0.82rem 'DM Sans', sans-serif;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.18s ease;
+}
+
+.seg button:hover {
+  color: var(--text);
+}
+
+.seg button.on {
+  background: var(--gold-gradient);
+  color: #0F0C08 !important;
+  font-weight: 800;
+  box-shadow: 0 2px 8px rgba(212, 175, 55, 0.3);
+}
+
+/* Wide segment for category selector */
+.seg.wide {
+  display: flex;
+  width: 100%;
+  gap: 0.4rem;
+  padding: 6px;
+  background: var(--card-bg);
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 2.2rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.seg.wide::-webkit-scrollbar { display: none; }
+
+.seg.wide button {
+  padding: 0.65em 1.4em;
+  font-size: 0.95rem;
+}
+
+/* ==========================================================================
+   STEPS (Nasıl Sipariş Verilir)
+   ========================================================================== */
+.steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+.steps > div {
+  background: var(--card-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 2.2rem 1.8rem;
+  position: relative;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.25s ease;
+}
+
+.steps > div:hover {
+  border-color: var(--gold);
+  transform: translateY(-4px);
+  box-shadow: var(--shadow), var(--gold-glow-subtle);
+}
+
+.steps > div b.step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: var(--gold-gradient);
+  color: #0F0C08;
+  border-radius: 50%;
+  font-size: 1.3rem;
+  font-weight: 800;
+  margin-bottom: 1.2rem;
+  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.35);
+}
+
+.steps h3 {
+  margin-bottom: 0.6rem;
+  font-size: 1.2rem;
+}
+
+/* Bulk Order Banner */
+.sec.bulk {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.15) 0%, rgba(26, 23, 18, 0.9) 100%), #14110C;
+  color: #FAF8F5;
+  border-radius: var(--r-lg);
+  padding: 3.5rem 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2.5rem;
+  border: 1.5px solid var(--gold-border);
+  box-shadow: var(--shadow-lg), var(--gold-glow-subtle);
+  margin-top: 3rem;
+  margin-bottom: 3rem;
+}
+
+.sec.bulk h2 {
+  color: #FBD45E;
+  margin-bottom: 0.6rem;
+}
+.sec.bulk p {
+  color: #D5CCBC;
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+/* Reviews blockquote */
+blockquote {
+  background: var(--card-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 1.8rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  transition: all 0.25s ease;
+}
+blockquote:hover {
+  border-color: var(--gold-border-strong);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow);
+}
+blockquote cite {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--gold);
+  margin-top: auto;
+}
+
+/* ==========================================================================
+   ORDER PAGE & CART (Müşteri Sipariş Sayfası)
+   ========================================================================== */
+.page {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2.5rem 2rem 4rem;
+  width: 100%;
+}
+
+.page.two {
+  display: grid;
+  grid-template-columns: 1.35fr 0.85fr;
+  gap: 3rem;
+  align-items: start;
+}
+
+.page.narrow {
+  max-width: 680px;
+}
+
+/* Cart Panel (Sepet) */
+.cart {
+  background: var(--card-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 2rem;
+  box-shadow: var(--shadow);
+  position: sticky;
+  top: 90px;
+}
+
+.cart h2 {
+  font-size: 1.4rem;
+  border-bottom: 2px solid var(--line);
+  padding-bottom: 0.8rem;
+  margin-bottom: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.crow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.crow.total {
+  border-top: 2px solid var(--gold);
+  border-bottom: 0;
+  padding-top: 1.2rem;
+  margin-top: 0.5rem;
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+.crow.total b {
+  color: var(--gold);
+  font-size: 1.4rem;
+}
+
+/* Quantity selector */
+.qty {
+  display: inline-flex;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.qty button {
+  background: transparent;
+  border: 0;
+  width: 28px;
+  height: 28px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease;
+}
+.qty button:hover {
+  background: var(--gold-bg);
+  color: var(--gold);
+}
+.qty-input {
+  width: 32px;
+  border: 0;
+  background: transparent;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+/* Order Type Cards */
+.order-type-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.order-type-card {
+  background: var(--card-bg);
+  border: 2px solid var(--line);
+  border-radius: var(--r);
+  padding: 1.2rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.5rem;
+  transition: all 0.22s ease;
+}
+.order-type-card:hover {
+  border-color: var(--gold);
+  background: var(--gold-bg);
+}
+.order-type-card.selected {
+  border-color: var(--gold);
+  background: var(--gold-bg);
+  box-shadow: 0 0 15px rgba(212, 175, 55, 0.25);
+}
+.order-type-card b {
+  font-size: 1.05rem;
+  color: var(--text);
+}
+
+/* Form Styling */
+.form {
+  display: grid;
+  gap: 1.2rem;
+}
+
+.form label {
+  display: grid;
+  gap: 0.45rem;
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: var(--text);
+}
+
+.form input, .form textarea, .form select {
+  background: var(--input-bg);
+  border: 1.5px solid var(--input-border);
+  border-radius: var(--r-sm);
+  padding: 0.75em 1em;
+  font: inherit;
+  color: var(--input-text);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.form input:focus, .form textarea:focus, .form select:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.2);
+  outline: none;
+}
+
+fieldset {
+  border: 1.5px solid var(--line);
+  border-radius: var(--r);
+  padding: 1.4rem;
+  display: grid;
+  gap: 0.8rem;
+}
+fieldset legend {
+  padding: 0 0.6rem;
+  font-weight: 700;
+  color: var(--gold);
+  font-size: 0.95rem;
+}
+
+label.radio {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  cursor: pointer;
+  padding: 0.5rem 0.8rem;
+  border-radius: var(--r-sm);
+  transition: background 0.15s ease;
+}
+label.radio:hover {
+  background: var(--surface);
+}
+label.radio input[type="radio"] {
+  accent-color: var(--gold);
+  width: 18px;
+  height: 18px;
+}
+
+/* ==========================================================================
+   ADMIN PANEL LAYOUT (Lüks Siyah & Altın Sarısı Yönetim Paneli)
+   ========================================================================== */
+.admin {
+  display: grid;
+  grid-template-columns: 270px 1fr;
+  min-height: 100vh;
+  background: var(--admin-main-bg);
+}
+
+.side {
+  background: var(--admin-sidebar-bg);
+  color: var(--admin-sidebar-text);
+  border-right: 1px solid var(--line);
+  padding: 1.5rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.side .logo-box {
+  padding: 0.5rem 0.8rem 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 0.6rem;
+}
+
+.side a {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--r-sm);
+  color: #B5AC9A;
+  font-weight: 600;
+  font-size: 0.93rem;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.side a svg {
+  color: #8A816E;
+  transition: all 0.2s ease;
+}
+
+.side a:hover {
+  color: #FFFFFF;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.side a:hover svg {
+  color: var(--gold-bright);
+  transform: translateX(2px);
+}
+
+.side a.active {
+  background: var(--gold-bg);
+  color: var(--gold-bright);
+  font-weight: 700;
+  border-left: 3px solid var(--gold);
+}
+
+.side a.active svg {
+  color: var(--gold-bright);
+}
+
+.side a i.badge {
+  margin-left: auto;
+  background: var(--gold-gradient);
+  color: #0F0C08;
+  padding: 0.2em 0.6em;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  font-style: normal;
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.5);
+  animation: pulseGold 2s infinite;
+}
+
+@keyframes pulseGold {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+.side-foot {
+  margin-top: auto;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+.side-foot small {
+  color: #8A816E;
+  margin-bottom: 0.2rem;
+}
+.side-foot a {
+  padding: 0.4rem 0.6rem;
+  color: #C5BCAC;
+  font-size: 0.85rem;
+}
+.side-foot button.linkbtn {
+  background: transparent;
+  border: 0;
+  color: #EF4444;
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  border-radius: var(--r-sm);
+  transition: background 0.15s ease;
+}
+.side-foot button.linkbtn:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.admin .main {
+  padding: 2.2rem 2.8rem;
+  overflow-y: auto;
+  max-width: 1600px;
+}
+
+/* ==========================================================================
+   KANBAN & ORDERS BOARD (Sipariş Paneli)
+   ========================================================================== */
+.kanban {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.4rem;
+  align-items: start;
+}
+
+.kcol {
+  background: var(--card-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 160px);
+}
+
+.khead {
+  padding: 1rem 1.2rem;
+  background: var(--surface);
+  border-bottom: 1.5px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 700;
+  font-size: 1rem;
+}
+.khead .count {
+  background: var(--gold-bg);
+  color: var(--gold);
+  border: 1px solid var(--gold-border);
+  padding: 0.15em 0.65em;
+  border-radius: 999px;
+  font-size: 0.85rem;
+}
+
+.kbody {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  overflow-y: auto;
+}
+
+.kcard {
+  background: var(--bg);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 1.1rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  transition: all 0.2s ease;
+  position: relative;
+}
+.kcard:hover {
+  border-color: var(--gold);
+  box-shadow: var(--shadow), var(--gold-glow-subtle);
+  transform: translateY(-2px);
+}
+
+.kcard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.kcard-num {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--gold);
+}
+.kcard-time {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+/* ==========================================================================
+   MASA & RESTORAN DÜZENİ (TABLES ADMIN)
+   ========================================================================== */
+.table-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1.5rem;
+}
+
+.table-card {
+  background: var(--card-bg);
+  border: 2px solid var(--line);
+  border-radius: var(--r);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  position: relative;
+  transition: all 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.table-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Masa Şekilleri */
+.table-card.shape-round {
+  border-radius: 32px;
+}
+.table-card.shape-rect {
+  border-radius: 14px;
+}
+.table-card.shape-square {
+  border-radius: 18px;
+}
+
+/* Masa Durum Renkleri ve Glow Efektleri */
+.table-card.status-empty {
+  border-color: rgba(16, 185, 129, 0.4);
+}
+.table-card.status-empty:hover {
+  border-color: #10B981;
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.25);
+}
+
+.table-card.status-occupied {
+  border-color: rgba(212, 175, 55, 0.6);
+  background: linear-gradient(180deg, var(--card-bg) 0%, rgba(212, 175, 55, 0.05) 100%);
+}
+.table-card.status-occupied:hover {
+  border-color: var(--gold);
+  box-shadow: 0 6px 20px rgba(212, 175, 55, 0.35);
+}
+
+.table-card.status-bill {
+  border-color: rgba(239, 68, 68, 0.6);
+  background: linear-gradient(180deg, var(--card-bg) 0%, rgba(239, 68, 68, 0.05) 100%);
+}
+.table-card.status-bill:hover {
+  border-color: #EF4444;
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.3);
+}
+
+.table-num-badge {
+  font-size: 1.8rem;
+  font-weight: 800;
+  font-family: 'Bricolage Grotesque', sans-serif;
+  color: var(--text);
+  line-height: 1;
+}
+
+/* ==========================================================================
+   KPIs & STATS
+   ========================================================================== */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.2rem;
+  margin-bottom: 2rem;
+}
+
+.kpi {
+  background: var(--card-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+}
+.kpi:hover {
+  border-color: var(--gold);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow), var(--gold-glow-subtle);
+}
+.kpi span {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.kpi b {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--text);
+}
+.kpi b.gold-text {
+  color: var(--gold);
+}
+
+/* Badges & Pills */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35em 0.85em;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.pill.ok {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10B981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+.pill.no {
+  background: rgba(239, 68, 68, 0.15);
+  color: #EF4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* ==========================================================================
+   FOOTER
+   ========================================================================== */
+.foot {
+  background: #0E0C0A;
+  color: #FAF8F5;
+  border-top: 2px solid var(--gold-border);
+  padding: 4.5rem 2rem 2.5rem;
+  margin-top: auto;
+}
+
+.foot-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr;
+  gap: 3.5rem;
+}
+
+.foot h4 {
+  color: var(--gold-bright);
+  font-size: 1.15rem;
+  margin-bottom: 1.2rem;
+}
+
+.foot p {
+  color: #B8AFA0;
+  margin: 0.4em 0;
+  font-size: 0.95rem;
+}
+
+.foot a {
+  color: #D5CCBC;
+  transition: color 0.2s ease;
+}
+.foot a:hover {
+  color: var(--gold);
+}
+
+.hrow {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid #2A241C;
+  padding: 0.4em 0;
+}
+
+/* ==========================================================================
+   RESPONSIVE
+   ========================================================================== */
+@media (max-width: 960px) {
+  .burger { display: flex; margin-left: auto; }
+  .top nav {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    background: var(--header-bg);
+    backdrop-filter: blur(20px);
+    padding: 1.5rem 2rem;
+    gap: 0.8rem;
+    border-bottom: 2px solid var(--gold-border);
+    box-shadow: var(--shadow-lg);
+  }
+  .top nav.open { display: flex; animation: slideDown 0.25s ease; }
+  .hero { grid-template-columns: 1fr; padding: 2.5rem 1.5rem; gap: 2.5rem; }
+  .page.two { grid-template-columns: 1fr; }
+  .cart { position: static; }
+  .admin { grid-template-columns: 1fr; }
+  .side { position: static; height: auto; flex-direction: row; flex-wrap: wrap; }
+  .side-foot { display: none; }
+  .kanban { grid-template-columns: 1fr; }
+  .foot-inner { grid-template-columns: 1fr; gap: 2.5rem; }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
