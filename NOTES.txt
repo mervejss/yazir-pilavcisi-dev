@@ -1,0 +1,23 @@
+Leaflet migration package
+
+Changed:
+- src/lib/osmMaps.ts (new helper module)
+- src/components/maps/RouteMap.tsx (Leaflet + OSRM)
+- src/components/maps/LiveOpsMap.tsx (Leaflet live markers)
+
+The existing CourierApp.tsx and admin LiveMap.tsx can remain unchanged:
+their props and callbacks for RouteMap / LiveOpsMap are preserved.
+The uploaded page files were source extracts with line-number annotations, not clean original TSX files,
+so they are intentionally not copied as replacement files.
+
+Setup:
+1. npm install leaflet
+2. npm install -D @types/leaflet
+3. Add import 'leaflet/dist/leaflet.css' to src/main.tsx
+4. Add import './components/maps/leaflet-overrides.css' (adjust relative path) to src/main.tsx
+5. Ensure the map container has a definite height; .map-canvas is height:100%.
+
+Operational note:
+Public Nominatim and OSRM endpoints are best-effort public services, not production SLA services.
+Nominatim has strict usage policy; cache geocoding results and avoid bulk requests.
+For production traffic, consider self-hosting or a commercial OSM-based routing/geocoding service.
