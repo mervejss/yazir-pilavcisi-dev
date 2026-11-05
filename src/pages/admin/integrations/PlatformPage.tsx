@@ -6,6 +6,7 @@ import { callPlatform, platformByCode, type PlatformField } from '@/lib/platform
 import { useIntegrations, usePlatformEvents } from '@/hooks/useIntegrations';
 import Switch from '@/components/ui/Switch';
 import Icon from '@/components/ui/Icon';
+import { PlatformReviewsSection } from './PlatformReviews';
 
 export const STATUS_TEXT: Record<string, { label: string; cls: string }> = {
   not_connected: { label: 'Bağlı değil', cls: 'off' },
@@ -56,6 +57,7 @@ export default function PlatformPage({ code }: { code: string }) {
   const [secretInfo, setSecretInfo] = useState<any>(null);
   const [showAll, setShowAll] = useState(false);
   const { events } = usePlatformEvents(code, !showAll);
+  const [diag, setDiag] = useState<any>(null);
   const [orderStats, setOrderStats] = useState<{ today: number; open: number } | null>(null);
 
   useEffect(() => { if (row) { setCfg(row.config || {}); setDirty(false); } }, [row?.updated_at, row?.platform]);
@@ -94,7 +96,9 @@ export default function PlatformPage({ code }: { code: string }) {
     const r = await callPlatform(code, action, body);
     setBusy(null);
     if (r.ok) toast.success(`${label}: tamam`); else toast.error(r.error || `${label} başarısız`);
+    if (r.db_warning) toast.error(`Sunucu kaydı yazılamadı: ${r.db_warning}`, { duration: 12000 });
     refetch();
+    if (meta.implemented) callPlatform(code, 'status').then((s) => setSecretInfo(s));
     return r;
   };
 
@@ -133,6 +137,9 @@ export default function PlatformPage({ code }: { code: string }) {
       {row.last_error && (
         <div className="int-note err"><Icon name="info" size={16} /> Son hata: {row.last_error}</div>
       )}
+      {secretInfo?.db_error && (
+        <div className="int-note err"><Icon name="info" size={16} /> Sunucu veritabanı erişim hatası: {secretInfo.db_error}</div>
+      )}
       <div className="int-note">
         <Icon name="lock" size={16} /> Gizli anahtarlar (API key/secret) <b>buraya girilmez</b> ve veritabanında tutulmaz; Supabase → Edge Functions → Secrets bölümünden tanımlanır.
         {meta.secrets.length > 0 && <> Gerekli değişkenler: {meta.secrets.map((s) => <code key={s}>{s}</code>)}</>}
@@ -168,9 +175,52 @@ export default function PlatformPage({ code }: { code: string }) {
             <dt>Durum</dt><dd><span className={`st-pill ${st.cls}`}>{st.label}</span></dd>
             <dt>Son başarılı işlem</dt><dd>{fmtDT(row.last_ok_at)}</dd>
             <dt>Ardışık hata</dt><dd>{row.error_count}</dd>
-            <dt>Ortam</dt><dd>{cfg.environment === 'prod' ? 'Canlı' : 'Test'}</dd>
+            <dt>Ortam (sunucunun kullandığı)</dt><dd>{secretInfo?.environment ? (secretInfo.environment === 'prod' ? 'Canlı' : 'Test') : '…'}{secretInfo?.base_url && <small className="muted"> {secretInfo.base_url}</small>}</dd>
           </dl>
-          <div className="int-actions"><Btn action="test_connection" label="Bağlantıyı test et" /></div>
+          <div className="int-actions">
+            <Btn action="test_connection" label="Bağlantıyı test et" />
+            {code === 'trendyol' && (
+              <button type="button" className="btn ghost sm" disabled={!!busy} onClick={async () => { const r = await run('diagnose', 'Tanılama'); if (r?.ok) setDiag(r.result); }}>
+                {busy === 'diagnose' ? '…' : 'Tanılama'}
+              </button>
+            )}
+            {code === 'trendyol' && (
+              <button type="button" className="btn ghost sm" disabled={!!busy} onClick={async () => { const r = await run('peek_packages', 'Paket yapısı'); if (r?.ok) setDiag({ verdict: 'Paket yapısı (kişisel veriler maskeli)', environment: 'prod', base: '', outbound_ip: '', user_agent: '', probes: [], raw: r.result }); }}>
+                {busy === 'peek_packages' ? '…' : 'Paket yapısını göster'}
+              </button>
+            )}
+            {code === 'trendyol' && (
+              <button type="button" className="btn ghost sm" disabled={!!busy} onClick={async () => { const r = await run('probe_actions', 'Durum yolları'); if (r?.ok) setDiag({ raw: r.result }); }}>
+                {busy === 'probe_actions' ? 'Taranıyor…' : 'Durum yollarını tara'}
+              </button>
+            )}
+            {code === 'trendyol' && diag?.raw?.winners && Object.keys(diag.raw.winners).length > 0 && (
+              <button type="button" className="btn gold sm" disabled={!!busy} onClick={async () => { const r = await run('probe_actions', 'Durum yolları kaydet', { apply: true }); if (r?.ok) setDiag({ raw: r.result }); }}>
+                Durum yollarını kaydet
+              </button>
+            )}
+            {code === 'trendyol' && diag?.winners && Object.keys(diag.winners).length > 0 && (
+              <button type="button" className="btn gold sm" disabled={!!busy} onClick={async () => { const r = await run('diagnose', 'Yolları kaydet', { apply: true }); if (r?.ok) setDiag(r.result); }}>
+                Çalışan yolları kaydet
+              </button>
+            )}
+          </div>
+          {diag?.raw && <pre className="small" style={{ whiteSpace: 'pre-wrap', maxHeight: 360, overflow: 'auto' }}>{JSON.stringify(diag.raw, null, 2)}</pre>}
+          {diag && !diag.raw && (
+            <div className="int-note" style={{ marginTop: '.5rem' }}>
+              <p style={{ margin: 0 }}><b>{diag.verdict}</b></p>
+              <p className="small muted" style={{ margin: '.3rem 0' }}>Ortam: {diag.environment} ({diag.base}) · Çıkış IP: <code>{diag.outbound_ip}</code> · User-Agent: <code>{diag.user_agent}</code></p>
+              <div style={{ overflowX: 'auto' }}>
+                <table className="small" style={{ width: '100%' }}>
+                  <tbody>
+                    {diag.probes.map((p: any, i: number) => (
+                      <tr key={i}><td>{p.exists ? '✅' : '❌'}</td><td><b>{p.status || 'ağ'}</b></td><td><code>{p.path}</code></td><td className="muted">{p.snippet}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
           <p className="small muted">Bu platformdaki bir hata yalnızca bu sayfanın durumunu etkiler; diğer platformların siparişleri akmaya devam eder.</p>
         </section>
 
@@ -182,6 +232,7 @@ export default function PlatformPage({ code }: { code: string }) {
           <div className="int-actions">
             <Btn action="sync_menu" label="Menüyü eşitle" />
             {code === 'trendyol' && <Btn action="push_working_hours" label="Çalışma saatlerini gönder" />}
+            {code === 'trendyol' && <Btn action="push_availability" label="Ürün açık/kapalı durumlarını gönder" />}
           </div>
         </section>
 
@@ -194,8 +245,9 @@ export default function PlatformPage({ code }: { code: string }) {
             <dt>Açık siparişler</dt><dd>{orderStats?.open ?? '…'}</dd>
           </dl>
           <div className="int-actions">
-            <Btn action="sync_orders" label="Siparişleri şimdi çek" />
+            <Btn action="sync_orders" label="Siparişleri şimdi çek / durumları eşitle" />
             <Link to="/admin/siparisler" className="btn ghost sm">Siparişler panosu</Link>
+            <Link to="/admin/gecmis-siparisler" className="btn ghost sm">Geçmiş siparişler</Link>
           </div>
         </section>
 
@@ -239,6 +291,8 @@ export default function PlatformPage({ code }: { code: string }) {
           </div>
         )}
       </section>
+
+      <PlatformReviewsSection code={code} index={7} />
     </>
   );
 }

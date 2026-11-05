@@ -24,6 +24,7 @@ import StaffLoginPage from '@/pages/auth/StaffLoginPage';
 import AdminLayout from '@/pages/admin/AdminLayout';
 import Dashboard from '@/pages/admin/Dashboard';
 import OrdersBoard from '@/pages/admin/OrdersBoard';
+import PastOrders from '@/pages/admin/PastOrders';
 import MenuAdmin from '@/pages/admin/MenuAdmin';
 import TablesAdmin from '@/pages/admin/TablesAdmin';
 import CouriersAdmin from '@/pages/admin/CouriersAdmin';
@@ -47,6 +48,7 @@ import CustomersAdmin from '@/pages/admin/CustomersAdmin';
 import CouponsAdmin from '@/pages/admin/CouponsAdmin';
 import AuditAdmin from '@/pages/admin/AuditAdmin';
 import BackupsAdmin from '@/pages/admin/BackupsAdmin';
+import ReviewsAdmin from '@/pages/admin/ReviewsAdmin';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
@@ -100,6 +102,7 @@ export default function App() {
             >
                 <Route index element={<Dashboard />} />
                 <Route path="siparisler" element={<OrdersBoard />} />
+                <Route path="gecmis-siparisler" element={<PastOrders />} />
                 <Route path="menu" element={<MenuAdmin />} />
                 <Route path="galeri" element={<GalleryAdmin />} />
                 <Route path="musteriler" element={<CustomersAdmin />} />
@@ -120,6 +123,7 @@ export default function App() {
                 <Route path="entegrasyonlar/getir" element={<GetirYemekPage />} />
                 <Route path="entegrasyonlar/diger" element={<OtherPlatformsPage />} />
                 <Route path="google-yorumlar" element={<GoogleReviewsAdmin />} />
+                <Route path="yorumlar" element={<ReviewsAdmin />} />
             </Route>
 
             {/* Courier App Route */}

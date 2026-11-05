@@ -10,6 +10,9 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import Modal from '@/components/ui/Modal';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import LoyaltyCard from '@/components/LoyaltyCard';
+import { useMyReviews, type ReviewableOrder } from '@/hooks/useMyReviews';
+import ReviewModal from '@/components/reviews/ReviewModal';
+import Stars from '@/components/ui/Stars';
 import toast from 'react-hot-toast';
 
 export default function ProfilePage() {
@@ -19,7 +22,12 @@ export default function ProfilePage() {
   const addItem = useCartStore((s) => s.addItem);
   const navigate = useNavigate();
 
-  const [tab, setTab] = useState<'orders' | 'addresses' | 'info'>('orders');
+  const [tab, setTab] = useState<'orders' | 'addresses' | 'info' | 'reviews'>(() =>
+    new URLSearchParams(window.location.search).get('tab') === 'reviews' ? 'reviews' : 'orders',
+  );
+  const myReviews = useMyReviews();
+  const [reviewOrder, setReviewOrder] = useState<ReviewableOrder | null>(null);
+  const reviewByOrder = (id: string) => myReviews.rows.find((r) => r.order_id === id) || null;
 
   // Profile Edit State
   const [editingInfo, setEditingInfo] = useState(false);
@@ -227,6 +235,11 @@ export default function ProfilePage() {
         >
           📦 Geçmiş Siparişlerim ({orders.length})
         </button>
+        {!myReviews.unavailable && (
+          <button type="button" className={tab === 'reviews' ? 'on' : ''} onClick={() => setTab('reviews')}>
+            ⭐ Değerlendirmelerim{myReviews.pending.length > 0 ? ` (${myReviews.pending.length} bekliyor)` : ''}
+          </button>
+        )}
         <button
           type="button"
           className={tab === 'addresses' ? 'on' : ''}
@@ -336,10 +349,78 @@ export default function ProfilePage() {
                     >
                       🔁 Tüm Siparişi Tekrarla
                     </button>
+                    {o.status === 'delivered' && (o as any).source === 'web' && !myReviews.unavailable && (() => {
+                      const rv = reviewByOrder(o.id);
+                      if (!rv) return null;
+                      return (
+                        <button type="button" className={`btn sm ${rv.review_id ? 'ghost' : 'gold'} rv-order-btn`} onClick={() => setReviewOrder(rv)}>
+                          {rv.review_id ? <>⭐ {(((rv.taste_rating || 0) + (rv.service_rating || 0) + (rv.delivery_rating || 0)) / (rv.delivery_rating ? 3 : 2)).toFixed(1)} · Yorumu düzenle</> : '⭐ Siparişi değerlendir'}
+                        </button>
+                      );
+                    })()}
                   </div>
                 </div>
               ))}
             </div>
+          )}
+        </section>
+      )}
+
+      {/* TAB: DEĞERLENDİRMELERİM */}
+      {tab === 'reviews' && (
+        <section className="rv-mine">
+          {myReviews.loading ? (
+            <LoadingSpinner text="Yükleniyor..." />
+          ) : myReviews.rows.length === 0 ? (
+            <div className="card center" style={{ padding: '3rem 1rem' }}>
+              <h3>Henüz değerlendirebileceğiniz bir siparişiniz yok</h3>
+              <p className="muted">Web sitesinden verdiğiniz siparişler teslim edildikten sonra burada görünür.</p>
+              <Link to="/menu" className="btn gold" style={{ marginTop: '1rem' }}>Menüyü İncele & Sipariş Ver</Link>
+            </div>
+          ) : (
+            <>
+              {myReviews.pending.length > 0 && (
+                <>
+                  <h3 className="rv-mine-h">⏳ Değerlendirme bekleyenler</h3>
+                  <div className="rv-mine-grid">
+                    {myReviews.pending.map((o, i) => (
+                      <article key={o.order_id} className="rv-mine-card pending" style={{ ['--i' as any]: i }}>
+                        <div><b>Sipariş #{o.order_no}</b><small className="muted">{formatDateTime(o.delivered_at || o.created_at)}</small></div>
+                        <p className="small muted">{o.items || ''}</p>
+                        <button type="button" className="btn gold sm" onClick={() => setReviewOrder(o)}>⭐ Değerlendir</button>
+                      </article>
+                    ))}
+                  </div>
+                </>
+              )}
+              {myReviews.done.length > 0 && (
+                <>
+                  <h3 className="rv-mine-h">✅ Yorumlarım</h3>
+                  <div className="rv-mine-grid">
+                    {myReviews.done.map((o, i) => {
+                      const overall = ((o.taste_rating || 0) + (o.service_rating || 0) + (o.delivery_rating || 0)) / (o.delivery_rating ? 3 : 2);
+                      return (
+                        <article key={o.order_id} className="rv-mine-card" style={{ ['--i' as any]: i }}>
+                          <div className="orow">
+                            <b>Sipariş #{o.order_no}</b>
+                            <span className="rv-score"><Stars rating={overall} size={16} /> <b>{overall.toFixed(1)}</b></span>
+                          </div>
+                          <div className="rv-minis">
+                            <span className="rv-mini">😋 {o.taste_rating?.toFixed(1)}</span>
+                            {o.delivery_rating != null && <span className="rv-mini">🛵 {o.delivery_rating.toFixed(1)}</span>}
+                            <span className="rv-mini">🤝 {o.service_rating?.toFixed(1)}</span>
+                            {!o.is_published && <span className="rv-mini hid">Yönetici tarafından gizlendi</span>}
+                          </div>
+                          {o.comment && <p className="rv-body">{o.comment}</p>}
+                          {o.admin_reply && <div className="rv-reply"><b>🍚 İşletme yanıtı</b><p>{o.admin_reply}</p></div>}
+                          <button type="button" className="btn ghost sm" onClick={() => setReviewOrder(o)}>✏️ Düzenle / Sil</button>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </>
           )}
         </section>
       )}
@@ -531,6 +612,7 @@ export default function ProfilePage() {
           </div>
         </form>
       </Modal>
+      <ReviewModal order={reviewOrder} onClose={() => setReviewOrder(null)} onSaved={myReviews.refetch} />
     </main>
   );
 }

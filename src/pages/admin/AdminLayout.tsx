@@ -25,6 +25,7 @@ const ALL = ['owner', 'sub_admin', 'operator'];
 const NAV_ITEMS: NavItem[] = [
   { to: '/admin', label: 'Özet', icon: 'layout', roles: ALL, end: true },
   { to: '/admin/siparisler', label: 'Siparişler', icon: 'clipboard', roles: ALL },
+  { to: '/admin/gecmis-siparisler', label: 'Geçmiş Siparişler', icon: 'clipboard', roles: ALL },
   { to: '/admin/masalar', label: 'Masa Düzeni', icon: 'grid', roles: ALL },
   { to: '/admin/kuryeler', label: 'Kurye Yönetimi', icon: 'truck', roles: ALL },
   { to: '/admin/harita', label: 'Canlı Harita', icon: 'map', roles: ALL },
@@ -34,6 +35,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/admin/galeri', label: 'Galeri Yönetimi', icon: 'image', roles: ALL },
   { to: '/admin/analiz', label: 'Raporlar & Analiz', icon: 'chart', roles: ['owner'] },
   { to: '/admin/geribildirim', label: 'Geri Bildirim', icon: 'message', roles: ALL },
+  { to: '/admin/yorumlar', label: 'Müşteri Yorumları', icon: 'star', roles: ['owner', 'sub_admin', 'operator'] },
   { to: '/admin/google-yorumlar', label: 'Google Yorumları', icon: 'star', roles: ['owner'] },
   { to: '/admin/kullanicilar', label: 'Personel & Roller', icon: 'users', roles: ['owner'] },
   { to: '/admin/gecmis', label: 'İşlem Geçmişi', icon: 'clipboard', roles: ['owner'] },

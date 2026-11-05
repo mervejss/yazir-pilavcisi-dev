@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useAuthStore } from '@/stores/authStore';
 import { printOrderTicket } from '@/lib/printTicket';
 import { useOrders, type OrderWithItems } from '@/hooks/useOrders';
 import { useCouriers } from '@/hooks/useCouriers';
@@ -20,10 +22,15 @@ const COLUMNS = [
   { key: 'preparing', label: 'Hazırlanıyor' },
   { key: 'assigned_way', label: 'Kuryede / Yolda' },
   { key: 'delivered', label: 'Teslim Edildi' },
+  { key: 'cancelled', label: 'İptal Edildi' },
 ];
 
 export default function OrdersBoard() {
-  const { orders, refetch } = useOrders({ realtime: true });
+  // İş günü 03:00'te başlar. Pano: açık siparişler + BUGÜN teslim edilen/iptal edilenler. Öncekiler "Geçmiş Siparişler"e geçer.
+  const todayStart = businessDayStart();
+  const { orders, refetch } = useOrders({ realtime: true, boardSince: todayStart.toISOString() });
+  const profile = useAuthStore((s) => s.profile);
+  const [syncing, setSyncing] = useState(false);
   const { couriers } = useCouriers();
   const { requests: courierRequests, resolve: resolveRequest } = useCourierRequests();
   const { products } = useMenu();
@@ -39,7 +46,13 @@ export default function OrdersBoard() {
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [dragId, setDragId] = useState<string | null>(null);
   const [overCol, setOverCol] = useState<string | null>(null);
-  const todayStart = businessDayStart();
+  // Kart üzerindeki "kaç dakikadır bekliyor" rozeti dakikada iki kez tazelenir
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const iv = setInterval(() => setTick((t) => t + 1), 30000);
+    return () => clearInterval(iv);
+  }, []);
+  const ageMin = (iso: string) => Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
 
   const sourceCounts = orders.reduce<Record<string, number>>((m, o) => { m[o.source] = (m[o.source] || 0) + 1; return m; }, {});
   const visibleOrders = sourceFilter === 'all' ? orders : orders.filter((o) => o.source === sourceFilter);
@@ -58,12 +71,30 @@ export default function OrdersBoard() {
       const ord = orders.find((x) => x.id === orderId);
       if (ord && isPlatformSource(ord.source)) {
         callPlatform(ord.source, 'order_status', { order_id: orderId, status, note }).then((r) => {
-          if (!r.ok) toast.error(`${SOURCE_LABELS[ord.source] || ord.source} bildirilemedi: ${r.error}`, { duration: 7000 });
+          if (!r.ok) { toast.error(`${SOURCE_LABELS[ord.source] || ord.source} bildirilemedi: ${r.error}`, { duration: 7000 }); return; }
+          const res = r.result || {};
+          if (res.skipped) toast(res.skipped, { icon: 'ℹ️', duration: 6000 });
+          else if (res.warning) toast(res.warning, { icon: '⚠️', duration: 9000 });
+          refetch();
         });
       }
     } catch (err: any) {
       toast.error(err.message || 'Durum değiştirilemedi');
     }
+  };
+
+  /** Trendyol'daki güncel durumları şimdi çek ve siteye yansıt (otomatik eşitleme zaten 30 sn'de bir çalışır) */
+  const handleSyncNow = async () => {
+    setSyncing(true);
+    const r = await callPlatform('trendyol', 'sync_orders');
+    setSyncing(false);
+    if (!r.ok) return void toast.error(r.error || 'Trendyol ile eşitlenemedi');
+    const x = r.result || {};
+    toast.success(`Trendyol eşitlendi · ${x.created || 0} yeni · ${x.status_updated || 0} durum güncellendi${x.failed ? ` · ${x.failed} hata` : ''}`);
+    if (x.missing_count) {
+      toast(`${x.missing_count} açık sipariş Trendyol listesinde yok: ${(x.missing || []).map((m: any) => '#' + m.order_no).join(', ')}. Bunları elle kapatabilirsiniz.`, { icon: '⚠️', duration: 12000 });
+    }
+    refetch();
   };
 
   const handleAssignCourier = async (orderId: string, courierId: string | null) => {
@@ -81,7 +112,7 @@ export default function OrdersBoard() {
   };
 
   const colOfStatus = (st: string) =>
-    st === 'new' ? 'new' : st === 'preparing' ? 'preparing' : ['ready', 'assigned', 'on_the_way'].includes(st) ? 'assigned_way' : st === 'delivered' ? 'delivered' : '';
+    st === 'new' ? 'new' : st === 'preparing' ? 'preparing' : ['ready', 'assigned', 'on_the_way'].includes(st) ? 'assigned_way' : st === 'delivered' ? 'delivered' : st === 'cancelled' ? 'cancelled' : '';
 
   /** Kartı sütuna bırakınca durumu ilerlet (geri alma yok; sunucu geçişi ayrıca doğrular) */
   const handleDropOnColumn = (colKey: string) => {
@@ -90,6 +121,7 @@ export default function OrdersBoard() {
     setOverCol(null);
     if (!o || colOfStatus(o.status) === colKey) return;
     if (colKey === 'new') return void toast.error('Sipariş "Yeni" aşamasına geri alınamaz');
+    if (colKey === 'cancelled') return void toast.error('İptal için kartın üzerindeki "İptal" düğmesini kullanın (gerekçe gerekir)');
     if (colKey === 'preparing') {
       if (o.status === 'new') return void handleStatusChange(o.id, 'preparing');
       return void toast.error('Sipariş geri alınamaz');
@@ -100,10 +132,8 @@ export default function OrdersBoard() {
       return;
     }
     if (colKey === 'delivered') {
-      if (o.status === 'new' || o.status === 'preparing') return void toast.error('Önce hazırlanıp yola çıkmalı');
-      if (o.order_type === 'delivery' && o.status !== 'on_the_way') {
-        return void toast.error('Paket yola çıkmadan teslim edilemez — önce kurye atayıp "Yola çıktı" yapın');
-      }
+      // Kurye zorunlu değil: hazır / kuryeye atandı / yolda olan sipariş doğrudan teslim edilebilir
+      if (o.status === 'new' || o.status === 'preparing') return void toast.error('Önce "Hazır" yapılmalı');
       handleStatusChange(o.id, 'delivered');
     }
   };
@@ -141,16 +171,24 @@ export default function OrdersBoard() {
         <div>
           <h1>Siparişler</h1>
           <p className="muted" style={{ margin: 0 }}>
-            Gerçek zamanlı canlı sipariş panosu. Kartları sürükleyip sütunlara bırakarak durumu ilerletebilirsiniz. Sesli uyarı sağ alttaki 🔔 düğmesinden ayarlanır.
+            Canlı sipariş panosu: açık siparişler ve BUGÜN biten siparişler. Gün (03:00) bittiğinde teslim edilen/iptal edilen siparişler otomatik olarak "Geçmiş Siparişler"e geçer. Trendyol siparişlerinin durumu Trendyol ile otomatik eşitlenir; kurye girmek zorunlu değildir, sonradan da girilebilir.
           </p>
         </div>
-        <button
-          type="button"
-          className="btn gold"
-          onClick={() => setAddModalOpen(true)}
-        >
-          <Icon name="plus" size={18} /> Yeni Sipariş
-        </button>
+        <div className="prow" style={{ gap: '0.5rem', flexWrap: 'wrap' }}>
+          <Link to="/admin/gecmis-siparisler" className="btn ghost">🗂️ Geçmiş Siparişler</Link>
+          {profile?.role === 'owner' && (
+            <button type="button" className="btn ghost" disabled={syncing} onClick={handleSyncNow} title="Trendyol'daki güncel durumları şimdi çek">
+              {syncing ? 'Eşitleniyor…' : '🟠 Trendyol ile eşitle'}
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn gold"
+            onClick={() => setAddModalOpen(true)}
+          >
+            <Icon name="plus" size={18} /> Yeni Sipariş
+          </button>
+        </div>
       </div>
 
       <div className="src-filter" role="tablist" aria-label="Sipariş kaynağı">
@@ -164,7 +202,8 @@ export default function OrdersBoard() {
         ))}
       </div>
 
-      <div className="kanban">
+      <div className="kanban-wrap">
+      <div className="kanban kb5">
         {COLUMNS.map((col) => {
           let list: OrderWithItems[] = [];
           if (col.key === 'new') {
@@ -175,13 +214,18 @@ export default function OrdersBoard() {
             list = visibleOrders.filter((o) => ['ready', 'assigned', 'on_the_way'].includes(o.status));
           } else if (col.key === 'delivered') {
             list = visibleOrders.filter(
-              (o) => o.status === 'delivered' && new Date(o.created_at) >= todayStart,
+              (o) => o.status === 'delivered' && new Date(o.delivered_at || o.created_at) >= todayStart,
+            );
+          } else if (col.key === 'cancelled') {
+            list = visibleOrders.filter(
+              (o) => o.status === 'cancelled' && new Date(o.cancelled_at || o.created_at) >= todayStart,
             );
           }
 
           return (
             <div
               key={col.key}
+              data-col={col.key}
               className={`col${overCol === col.key && dragId ? ' drop-over' : ''}`}
               onDragOver={(e) => {
                 if (!dragId) return;
@@ -197,8 +241,9 @@ export default function OrdersBoard() {
               }}
             >
               <h3>
-                {col.label} <i>{list.length}</i>
+                <span>{col.label}</span> <i>{list.length}</i>
               </h3>
+              {list.length === 0 && <div className="col-empty">Sipariş yok</div>}
               {list.map((o) => {
                 const assignedCourier = couriers.find((c) => c.courier_id === o.courier_id);
 
@@ -220,13 +265,23 @@ export default function OrdersBoard() {
                     <div className="orow ocard-top">
                       <span className="ocard-no">
                         <b>#{o.order_no}</b>
-                        <span className="muted small">{hhmm(o.created_at)}</span>
+                        <span className="muted small">
+                          {hhmm(o.created_at)}
+                          {!['delivered', 'cancelled'].includes(o.status) && (
+                            new Date(o.created_at) < todayStart
+                              ? <em className="ocard-age late" title="Önceki iş gününden kalan açık sipariş">Dünden kalan</em>
+                              : <em className={`ocard-age${ageMin(o.created_at) >= 30 ? ' late' : ageMin(o.created_at) >= 15 ? ' warn' : ''}`}>{ageMin(o.created_at)} dk</em>
+                          )}
+                        </span>
                       </span>
                       <span className="ocard-src"><SourceChip source={o.source} compact /></span>
                     </div>
                     <div className="orow ocard-sub">
                       <span className="chip typechip">{ORDER_TYPE_LABELS[o.order_type] || o.order_type}</span>
                       {o.external_ref && <span className="muted small" title="Platform sipariş numarası">{o.external_ref}</span>}
+                      {o.platform_status && isPlatformSource(o.source) && (
+                        <span className="chip po-pstatus" title="Platformdaki güncel durum">{SOURCE_EMOJI[o.source] || '•'} {o.platform_status}</span>
+                      )}
                     </div>
 
                     {(o.pin_code || o.order_code || o.call_center_phone || o.platform_app) && (
@@ -266,28 +321,26 @@ export default function OrdersBoard() {
                       ))}
                     </ul>
 
-                    <div className="orow">
+                    <div className="orow ocard-pay">
                       <span className="chip">
                         {PAYMENT_METHOD_LABELS[o.payment_method || ''] || o.payment_method || '—'}
                       </span>
-                      <b className="price" style={{ fontSize: '1.1rem' }}>
-                        {tl(o.total)}
-                      </b>
+                      <b className="price ocard-price">{tl(o.total)}</b>
                     </div>
 
                     {o.note && <div className="note small">{o.note}</div>}
+                    {o.status === 'cancelled' && o.cancel_reason && <div className="note small">İptal: {o.cancel_reason}</div>}
 
                     {/* Kurye Seçimi */}
-                    {o.order_type === 'delivery' && !['delivered', 'cancelled'].includes(o.status) && (
-                      <div style={{ marginTop: '0.4rem' }}>
+                    {o.order_type === 'delivery' && !['new', 'cancelled'].includes(o.status) && (
+                      <div className="ocard-courier">
                         <select
                           value={o.courier_id || ''}
                           onChange={(e) =>
                             handleAssignCourier(o.id, e.target.value ? e.target.value : null)
                           }
-                          style={{ fontSize: '0.85rem', padding: '0.4em' }}
                         >
-                          <option value="">Kurye Seç</option>
+                          <option value="">{o.status === 'delivered' || o.status === 'on_the_way' ? 'Kurye (isteğe bağlı)' : 'Kurye Seç (isteğe bağlı)'}</option>
                           {couriers.map((c) => (
                             <option key={c.courier_id} value={c.courier_id}>
                               {c.full_name} {c.is_online ? '(Çevrimiçi)' : '(Çevrimdışı)'}
@@ -327,11 +380,10 @@ export default function OrdersBoard() {
                     )}
 
                     {/* Aksiyon Butonları */}
-                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.4rem' }}>
+                    <div className="ocard-actions">
                       <button
                         type="button"
                         className="btn ghost sm"
-                        style={{ padding: '0.4em 0.8em', fontSize: '0.8rem' }}
                         title="Mutfak / kurye fişi yazdır"
                         onClick={() =>
                           printOrderTicket(
@@ -349,7 +401,6 @@ export default function OrdersBoard() {
                         <button
                           type="button"
                           className="btn dark sm"
-                          style={{ flex: 1 }}
                           onClick={() => handleStatusChange(o.id, 'preparing')}
                         >
                           Hazırlanıyor'a al
@@ -360,7 +411,6 @@ export default function OrdersBoard() {
                         <button
                           type="button"
                           className="btn dark sm"
-                          style={{ flex: 1 }}
                           onClick={() =>
                             handleStatusChange(o.id, o.courier_id ? 'assigned' : 'ready')
                           }
@@ -371,21 +421,27 @@ export default function OrdersBoard() {
 
                       {['ready', 'assigned'].includes(o.status) &&
                         (o.order_type === 'delivery' ? (
-                          <button
-                            type="button"
-                            className="btn dark sm"
-                            style={{ flex: 1 }}
-                            disabled={!o.courier_id}
-                            title={o.courier_id ? '' : 'Önce kurye atayın'}
-                            onClick={() => handleStatusChange(o.id, 'on_the_way')}
-                          >
-                            {o.courier_id ? 'Yola çıktı' : 'Önce kurye ata'}
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              className="btn dark sm"
+                              title="Kurye seçmeden de yola çıkabilirsiniz; kuryeyi sonradan girebilirsiniz"
+                              onClick={() => handleStatusChange(o.id, 'on_the_way')}
+                            >
+                              Yola çıktı
+                            </button>
+                            <button
+                              type="button"
+                              className="btn gold sm"
+                              onClick={() => handleStatusChange(o.id, 'delivered')}
+                            >
+                              Teslim edildi
+                            </button>
+                          </>
                         ) : (
                           <button
                             type="button"
                             className="btn gold sm"
-                            style={{ flex: 1 }}
                             onClick={() => handleStatusChange(o.id, 'delivered')}
                           >
                             {o.order_type === 'dine_in' ? 'Servis edildi' : 'Teslim edildi'}
@@ -396,7 +452,6 @@ export default function OrdersBoard() {
                         <button
                           type="button"
                           className="btn gold sm"
-                          style={{ flex: 1 }}
                           onClick={() => handleStatusChange(o.id, 'delivered')}
                         >
                           Teslim edildi
@@ -408,8 +463,7 @@ export default function OrdersBoard() {
                           <button
                             type="button"
                             className="btn ghost sm"
-                            style={{ padding: '0.4em 0.8em', fontSize: '0.8rem' }}
-                            onClick={() => {
+                                onClick={() => {
                               setEditOrder(o);
                               setEditItems(
                                 o.items.map((i) => ({
@@ -423,8 +477,7 @@ export default function OrdersBoard() {
                           </button>
                           <button
                             type="button"
-                            className="btn sm"
-                            style={{ background: '#43221c', color: '#ff9c8a', padding: '0.4em 0.8em', fontSize: '0.8rem' }}
+                            className="btn sm oc-cancel"
                             onClick={() => setCancelModalOrder(o)}
                           >
                             İptal
@@ -438,6 +491,7 @@ export default function OrdersBoard() {
             </div>
           );
         })}
+      </div>
       </div>
 
       {/* İptal Modal */}

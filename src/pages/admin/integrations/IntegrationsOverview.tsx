@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { PLATFORMS } from '@/lib/platforms';
 import { useIntegrations } from '@/hooks/useIntegrations';
 import { STATUS_TEXT, fmtDT } from './PlatformPage';
+import { PlatformReviewsOverview } from './PlatformReviews';
 
 export default function IntegrationsOverview() {
   const { rows, loading } = useIntegrations();
@@ -51,6 +52,7 @@ export default function IntegrationsOverview() {
           })}
         </div>
       )}
+      <PlatformReviewsOverview />
     </>
   );
 }

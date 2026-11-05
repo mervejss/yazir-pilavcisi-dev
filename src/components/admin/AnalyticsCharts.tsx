@@ -17,6 +17,7 @@ interface Row {
   created_at: string;
   total: number;
   source: string;
+  items: { name: string; qty: number; price: number }[];
 }
 
 const fmt = new Intl.DateTimeFormat('en-GB', {
@@ -39,15 +40,15 @@ function Bars({ values, labels, color = 'var(--gold)', format = (v: number) => S
   const max = Math.max(1, ...values);
   const w = 100 / values.length;
   return (
-    <div className="ch-bars" style={{ height }}>
-      {values.map((v, i) => (
-        <div key={i} className="ch-bar-col" style={{ width: `${w}%` }} title={`${labels[i]}: ${format(v)}`}>
-          <span className="ch-bar-val">{v > 0 && values.length <= 12 ? format(v) : ''}</span>
-          <div className="ch-bar" style={{ height: `${(v / max) * 100}%`, background: color }} />
-          <small>{labels[i]}</small>
-        </div>
-      ))}
-    </div>
+      <div className="ch-bars" style={{ height }}>
+        {values.map((v, i) => (
+            <div key={i} className="ch-bar-col" style={{ width: `${w}%` }} title={`${labels[i]}: ${format(v)}`}>
+              <span className="ch-bar-val">{v > 0 && values.length <= 12 ? format(v) : ''}</span>
+              <div className="ch-bar" style={{ height: `${(v / max) * 100}%`, background: color }} />
+              <small>{labels[i]}</small>
+            </div>
+        ))}
+      </div>
   );
 }
 
@@ -60,29 +61,28 @@ function LineCompare({ cur, prev, labels }: { cur: number[]; prev: number[]; lab
   const path = (a: number[]) => a.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
   const step = Math.ceil(n / 8);
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="ch-line" role="img" aria-label="Ciro karşılaştırması">
-      {[0, 0.25, 0.5, 0.75, 1].map((t) => (
-        <g key={t}>
-          <line x1={P} x2={W - P} y1={y(max * t)} y2={y(max * t)} stroke="var(--line)" />
-          <text x={4} y={y(max * t) + 4} fontSize="10" fill="var(--text-muted)">{tl(max * t).replace(',00', '')}</text>
-        </g>
-      ))}
-      <path d={path(prev)} fill="none" stroke="#9a968a" strokeWidth="2" strokeDasharray="5 4" />
-      <path d={path(cur)} fill="none" stroke="var(--gold-deep)" strokeWidth="3" />
-      {cur.map((v, i) => (
-        <circle key={i} cx={x(i)} cy={y(v)} r="3.5" fill="var(--gold)" stroke="#14110c">
-          <title>{labels[i]}: {tl(v)} (önceki: {tl(prev[i] || 0)})</title>
-        </circle>
-      ))}
-      {labels.map((l, i) => (i % step === 0 ? <text key={i} x={x(i)} y={H - 8} fontSize="10" textAnchor="middle" fill="var(--text-muted)">{l}</text> : null))}
-    </svg>
+      <svg viewBox={`0 0 ${W} ${H}`} className="ch-line" role="img" aria-label="Ciro karşılaştırması">
+        {[0, 0.25, 0.5, 0.75, 1].map((t) => (
+            <g key={t}>
+              <line x1={P} x2={W - P} y1={y(max * t)} y2={y(max * t)} stroke="var(--line)" />
+              <text x={4} y={y(max * t) + 4} fontSize="10" fill="var(--text-muted)">{tl(max * t).replace(',00', '')}</text>
+            </g>
+        ))}
+        <path d={path(prev)} fill="none" stroke="#9a968a" strokeWidth="2" strokeDasharray="5 4" />
+        <path d={path(cur)} fill="none" stroke="var(--gold-deep)" strokeWidth="3" />
+        {cur.map((v, i) => (
+            <circle key={i} cx={x(i)} cy={y(v)} r="3.5" fill="var(--gold)" stroke="#14110c">
+              <title>{labels[i]}: {tl(v)} (önceki: {tl(prev[i] || 0)})</title>
+            </circle>
+        ))}
+        {labels.map((l, i) => (i % step === 0 ? <text key={i} x={x(i)} y={H - 8} fontSize="10" textAnchor="middle" fill="var(--text-muted)">{l}</text> : null))}
+      </svg>
   );
 }
 
-export default function AnalyticsCharts() {
+export default function AnalyticsCharts({ platformFilter = 'all' }: { platformFilter?: string }) {
   const [period, setPeriod] = useState<Period>('30');
   const [rows, setRows] = useState<Row[]>([]);
-  const [top, setTop] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [metric, setMetric] = useState<'orders' | 'revenue'>('orders');
 
@@ -99,33 +99,83 @@ export default function AnalyticsCharts() {
     let off = false;
     (async () => {
       setLoading(true);
-      const all: Row[] = [];
+
+      const liveRows: any[] = [];
       for (let page = 0; page < 12; page++) {
         const { data, error } = await supabase
-          .from('orders')
-          .select('created_at,total,source')
-          .neq('status', 'cancelled')
-          .gte('created_at', range.prevFrom.toISOString())
-          .order('created_at', { ascending: true })
-          .range(page * 1000, page * 1000 + 999);
+            .from('orders')
+            .select('created_at, total, source, pin_code, external_payload, order_items(product_name, quantity, unit_price)')
+            .neq('status', 'cancelled')
+            .gte('created_at', range.prevFrom.toISOString())
+            .order('created_at', { ascending: true })
+            .range(page * 1000, page * 1000 + 999);
         if (error || !data) break;
-        all.push(...(data as unknown as Row[]).map((r) => ({ ...r, total: Number(r.total) })));
+        liveRows.push(...data);
         if (data.length < 1000) break;
       }
-      const { data: tp } = await supabase.rpc('report_top_products', { p_from: range.from.toISOString(), p_to: range.to.toISOString(), p_limit: 8 });
+
+      const impRows: any[] = [];
+      for (let page = 0; page < 12; page++) {
+        const { data, error } = await supabase
+            .from('past_import_orders_v')
+            .select('ordered_at, total, platform, order_no, status, items')
+            .gte('ordered_at', range.prevFrom.toISOString().replace('T', ' ').slice(0, 19))
+            .order('ordered_at', { ascending: true })
+            .range(page * 1000, page * 1000 + 999);
+        if (error || !data) break;
+        impRows.push(...data);
+        if (data.length < 1000) break;
+      }
+
       if (off) return;
-      setRows(all);
-      setTop((tp as any[]) || []);
+
+      const liveNos = new Set<string>();
+      const parsedLive: Row[] = liveRows.map((o: any) => {
+        if (o.pin_code) liveNos.add(String(o.pin_code));
+        if (o.external_payload?.orderNumber) liveNos.add(String(o.external_payload.orderNumber));
+        if (o.order_no) liveNos.add(String(o.order_no));
+
+        return {
+          created_at: o.created_at,
+          total: Number(o.total) || 0,
+          source: o.source || 'web',
+          items: (o.order_items || []).map((i: any) => ({
+            name: i.product_name,
+            qty: Number(i.quantity) || 1,
+            price: Number(i.unit_price) || 0
+          }))
+        };
+      });
+
+      const stateOfText = (t: string) => {
+        const s = (t || '').toLocaleLowerCase('tr');
+        return (s.includes('iptal') || s.includes('cancel') || s.includes('unsupplied')) ? 'cancelled' : 'delivered';
+      };
+
+      const parsedImp: Row[] = impRows
+          .filter((o: any) => !liveNos.has(String(o.order_no)) && stateOfText(o.status) !== 'cancelled')
+          .map((o: any) => ({
+            created_at: String(o.ordered_at).includes('T') ? o.ordered_at : o.ordered_at.replace(' ', 'T'),
+            total: Number(o.total) || 0,
+            source: o.platform || 'other',
+            items: (o.items || []).map((i: any) => ({
+              name: i.name,
+              qty: Number(i.qty) || 1,
+              price: Number(i.unit_price) || 0
+            }))
+          }));
+
+      setRows([...parsedLive, ...parsedImp]);
       setLoading(false);
     })();
-    return () => {
-      off = true;
-    };
+    return () => { off = true; };
   }, [range]);
 
   const calc = useMemo(() => {
-    const cur = rows.filter((r) => new Date(r.created_at) >= range.from);
-    const prev = rows.filter((r) => new Date(r.created_at) < range.from);
+    const filteredRows = platformFilter === 'all' ? rows : rows.filter(r => r.source === platformFilter);
+
+    const cur = filteredRows.filter((r) => new Date(r.created_at) >= range.from);
+    const prev = filteredRows.filter((r) => new Date(r.created_at) < range.from);
     const sum = (a: Row[]) => a.reduce((s, r) => s + r.total, 0);
 
     const hourCnt = Array(24).fill(0), hourRev = Array(24).fill(0);
@@ -134,6 +184,8 @@ export default function AnalyticsCharts() {
     const dayCur = new Map<string, number>();
     const monthRev = new Map<string, number>();
     const src = new Map<string, { n: number; rev: number }>();
+    const prodMap = new Map<string, { quantity: number; revenue: number }>();
+
     cur.forEach((r) => {
       const p = parts(r.created_at);
       hourCnt[p.hour]++; hourRev[p.hour] += r.total;
@@ -141,11 +193,18 @@ export default function AnalyticsCharts() {
       heat[p.wd][p.hour]++;
       dayCur.set(p.day, (dayCur.get(p.day) || 0) + r.total);
       monthRev.set(p.month, (monthRev.get(p.month) || 0) + r.total);
+
       const s = src.get(r.source) || { n: 0, rev: 0 };
       s.n++; s.rev += r.total; src.set(r.source, s);
+
+      r.items.forEach(i => {
+        const v = prodMap.get(i.name) || { quantity: 0, revenue: 0 };
+        v.quantity += i.qty;
+        v.revenue += i.qty * i.price;
+        prodMap.set(i.name, v);
+      });
     });
 
-    // Gün gün seri (bugün ise saat saat)
     let labels: string[] = [], curSeries: number[] = [], prevSeries: number[] = [];
     if (period === 'today') {
       labels = Array.from({ length: 24 }, (_, i) => `${i}:00`);
@@ -166,117 +225,123 @@ export default function AnalyticsCharts() {
         prevSeries.push(pd.get(pk) || 0);
       }
     }
+
     const months = [...monthRev.entries()].sort(([a], [b]) => a.localeCompare(b));
     const maxHeat = Math.max(1, ...heat.flat());
+    const top = [...prodMap.entries()]
+        .map(([product_name, stats]) => ({ product_name, ...stats }))
+        .sort((a, b) => b.quantity - a.quantity)
+        .slice(0, 8);
+
     return {
       curN: cur.length, prevN: prev.length, curRev: sum(cur), prevRev: sum(prev),
       hourCnt, hourRev, wdCnt, wdRev, heat, maxHeat, labels, curSeries, prevSeries, months,
       src: [...src.entries()].sort((a, b) => b[1].rev - a[1].rev),
-      peak: hourCnt.indexOf(Math.max(...hourCnt)),
+      peak: hourCnt.indexOf(Math.max(...hourCnt)), top
     };
-  }, [rows, range, period]);
+  }, [rows, range, period, platformFilter]);
 
   const dRev = delta(calc.curRev, calc.prevRev);
   const dN = delta(calc.curN, calc.prevN);
   const avg = calc.curN ? calc.curRev / calc.curN : 0;
   const avgPrev = calc.prevN ? calc.prevRev / calc.prevN : 0;
   const dAvg = delta(avg, avgPrev);
-  const maxTop = Math.max(1, ...top.map((t) => Number(t.quantity)));
+  const maxTop = Math.max(1, ...calc.top.map((t) => t.quantity));
   const maxSrc = Math.max(1, ...calc.src.map(([, v]) => v.rev));
 
   return (
-    <section className="ch-wrap">
-      <div className="ch-head">
-        <div>
-          <h2 style={{ margin: 0 }}>📊 Grafikler ve Karşılaştırma</h2>
-          <p className="muted small" style={{ margin: 0 }}>Seçilen dönem, hemen öncesindeki aynı uzunluktaki dönemle karşılaştırılır.</p>
+      <section className="ch-wrap">
+        <div className="ch-head">
+          <div>
+            <h2 style={{ margin: 0 }}>📊 Grafikler ve Karşılaştırma</h2>
+            <p className="muted small" style={{ margin: 0 }}>Seçilen dönem, hemen öncesindeki aynı uzunluktaki dönemle karşılaştırılır.</p>
+          </div>
+          <div className="seg">
+            {PERIODS.map((p) => (
+                <button key={p.key} type="button" className={period === p.key ? 'on' : ''} onClick={() => setPeriod(p.key)}>{p.label}</button>
+            ))}
+          </div>
         </div>
-        <div className="seg">
-          {PERIODS.map((p) => (
-            <button key={p.key} type="button" className={period === p.key ? 'on' : ''} onClick={() => setPeriod(p.key)}>{p.label}</button>
-          ))}
-        </div>
-      </div>
 
-      {loading ? (
-        <p className="muted center" style={{ padding: '2rem' }}>Grafikler hazırlanıyor…</p>
-      ) : (
-        <>
-          <div className="ch-kpis">
-            <div className="ch-kpi"><small>Ciro</small><b>{tl(calc.curRev)}</b><span className={dRev.up ? 'up' : 'down'}>{dRev.txt}</span><em>önceki: {tl(calc.prevRev)}</em></div>
-            <div className="ch-kpi"><small>Sipariş</small><b>{calc.curN}</b><span className={dN.up ? 'up' : 'down'}>{dN.txt}</span><em>önceki: {calc.prevN}</em></div>
-            <div className="ch-kpi"><small>Ortalama sepet</small><b>{tl(avg)}</b><span className={dAvg.up ? 'up' : 'down'}>{dAvg.txt}</span><em>önceki: {tl(avgPrev)}</em></div>
-            <div className="ch-kpi"><small>En yoğun saat</small><b>{calc.curN ? `${calc.peak}:00` : '—'}</b><span className="up">{calc.curN ? `${calc.hourCnt[calc.peak]} sipariş` : ''}</span><em>seçili dönemde</em></div>
-          </div>
+        {loading ? (
+            <p className="muted center" style={{ padding: '2rem' }}>Grafikler hazırlanıyor…</p>
+        ) : (
+            <>
+              <div className="ch-kpis">
+                <div className="ch-kpi"><small>Ciro</small><b>{tl(calc.curRev)}</b><span className={dRev.up ? 'up' : 'down'}>{dRev.txt}</span><em>önceki: {tl(calc.prevRev)}</em></div>
+                <div className="ch-kpi"><small>Sipariş</small><b>{calc.curN}</b><span className={dN.up ? 'up' : 'down'}>{dN.txt}</span><em>önceki: {calc.prevN}</em></div>
+                <div className="ch-kpi"><small>Ortalama sepet</small><b>{tl(avg)}</b><span className={dAvg.up ? 'up' : 'down'}>{dAvg.txt}</span><em>önceki: {tl(avgPrev)}</em></div>
+                <div className="ch-kpi"><small>En yoğun saat</small><b>{calc.curN ? `${calc.peak}:00` : '—'}</b><span className="up">{calc.curN ? `${calc.hourCnt[calc.peak]} sipariş` : ''}</span><em>seçili dönemde</em></div>
+              </div>
 
-          <div className="ch-card">
-            <h3>{period === 'today' ? 'Saatlik ciro' : 'Günlük ciro'} <span className="ch-legend"><i style={{ background: 'var(--gold-deep)' }} /> Bu dönem <i style={{ background: '#9a968a' }} /> Önceki dönem</span></h3>
-            <LineCompare cur={calc.curSeries} prev={calc.prevSeries} labels={calc.labels} />
-          </div>
+              <div className="ch-card">
+                <h3>{period === 'today' ? 'Saatlik ciro' : 'Günlük ciro'} <span className="ch-legend"><i style={{ background: 'var(--gold-deep)' }} /> Bu dönem <i style={{ background: '#9a968a' }} /> Önceki dönem</span></h3>
+                <LineCompare cur={calc.curSeries} prev={calc.prevSeries} labels={calc.labels} />
+              </div>
 
-          <div className="ch-grid2">
-            <div className="ch-card">
-              <h3>Saat bazlı {metric === 'orders' ? 'sipariş' : 'ciro'}
-                <span className="seg"><button type="button" className={metric === 'orders' ? 'on' : ''} onClick={() => setMetric('orders')}>Adet</button><button type="button" className={metric === 'revenue' ? 'on' : ''} onClick={() => setMetric('revenue')}>Ciro</button></span>
-              </h3>
-              <Bars values={metric === 'orders' ? calc.hourCnt : calc.hourRev} labels={Array.from({ length: 24 }, (_, i) => String(i))} format={metric === 'orders' ? (v) => `${v} sipariş` : tl} />
-            </div>
-            <div className="ch-card">
-              <h3>Haftanın günleri</h3>
-              <Bars values={metric === 'orders' ? calc.wdCnt : calc.wdRev} labels={DAYS} color="#2563eb" format={metric === 'orders' ? (v) => `${v} sipariş` : tl} />
-            </div>
-          </div>
-
-          <div className="ch-grid2">
-            <div className="ch-card">
-              <h3>🔥 En çok satanlar</h3>
-              {top.length === 0 && <p className="muted small">Veri yok.</p>}
-              {top.map((t) => (
-                <div key={t.product_id || t.product_name} className="ch-hbar">
-                  <span className="n" title={t.product_name}>{t.product_name}</span>
-                  <div><i style={{ width: `${(Number(t.quantity) / maxTop) * 100}%` }} /></div>
-                  <b>{t.quantity} adet</b>
-                  <small>{tl(Number(t.revenue))}</small>
+              <div className="ch-grid2">
+                <div className="ch-card">
+                  <h3>Saat bazlı {metric === 'orders' ? 'sipariş' : 'ciro'}
+                    <span className="seg"><button type="button" className={metric === 'orders' ? 'on' : ''} onClick={() => setMetric('orders')}>Adet</button><button type="button" className={metric === 'revenue' ? 'on' : ''} onClick={() => setMetric('revenue')}>Ciro</button></span>
+                  </h3>
+                  <Bars values={metric === 'orders' ? calc.hourCnt : calc.hourRev} labels={Array.from({ length: 24 }, (_, i) => String(i))} format={metric === 'orders' ? (v) => `${v} sipariş` : tl} />
                 </div>
-              ))}
-            </div>
-            <div className="ch-card">
-              <h3>Sipariş kaynakları (ciro)</h3>
-              {calc.src.length === 0 && <p className="muted small">Veri yok.</p>}
-              {calc.src.map(([k, v]) => (
-                <div key={k} className="ch-hbar">
-                  <span className="n">{SOURCE_LABELS[k] || k}</span>
-                  <div><i style={{ width: `${(v.rev / maxSrc) * 100}%`, background: SOURCE_COLORS[k] || 'var(--gold)' }} /></div>
-                  <b>{v.n} adet</b>
-                  <small>{tl(v.rev)}</small>
+                <div className="ch-card">
+                  <h3>Haftanın günleri</h3>
+                  <Bars values={metric === 'orders' ? calc.wdCnt : calc.wdRev} labels={DAYS} color="#2563eb" format={metric === 'orders' ? (v) => `${v} sipariş` : tl} />
                 </div>
-              ))}
-            </div>
-          </div>
+              </div>
 
-          <div className="ch-card">
-            <h3>Yoğunluk haritası <small className="muted">(gün × saat, koyu = daha çok sipariş)</small></h3>
-            <div className="ch-heat">
-              <div className="ch-heat-row head"><span />{Array.from({ length: 24 }, (_, h) => <i key={h}>{h}</i>)}</div>
-              {calc.heat.map((row, d) => (
-                <div key={d} className="ch-heat-row">
-                  <span>{DAYS[d]}</span>
-                  {row.map((v, h) => (
-                    <i key={h} title={`${DAYS[d]} ${h}:00 — ${v} sipariş`} style={{ background: v ? `rgba(212,175,55,${0.15 + (v / calc.maxHeat) * 0.85})` : 'var(--surface)' }}>{v || ''}</i>
+              <div className="ch-grid2">
+                <div className="ch-card">
+                  <h3>🔥 En çok satanlar</h3>
+                  {calc.top.length === 0 && <p className="muted small">Veri yok.</p>}
+                  {calc.top.map((t) => (
+                      <div key={t.product_name} className="ch-hbar">
+                        <span className="n" title={t.product_name}>{t.product_name}</span>
+                        <div><i style={{ width: `${(t.quantity / maxTop) * 100}%` }} /></div>
+                        <b>{t.quantity} adet</b>
+                        <small>{tl(t.revenue)}</small>
+                      </div>
                   ))}
                 </div>
-              ))}
-            </div>
-          </div>
+                <div className="ch-card">
+                  <h3>Sipariş kaynakları (ciro)</h3>
+                  {calc.src.length === 0 && <p className="muted small">Veri yok.</p>}
+                  {calc.src.map(([k, v]) => (
+                      <div key={k} className="ch-hbar">
+                        <span className="n">{SOURCE_LABELS[k] || k}</span>
+                        <div><i style={{ width: `${(v.rev / maxSrc) * 100}%`, background: SOURCE_COLORS[k] || 'var(--gold)' }} /></div>
+                        <b>{v.n} adet</b>
+                        <small>{tl(v.rev)}</small>
+                      </div>
+                  ))}
+                </div>
+              </div>
 
-          {period === '365' && calc.months.length > 0 && (
-            <div className="ch-card">
-              <h3>Aylık ciro</h3>
-              <Bars values={calc.months.map(([, v]) => v)} labels={calc.months.map(([m]) => m.slice(5) + '/' + m.slice(2, 4))} color="#16a34a" format={tl} />
-            </div>
-          )}
-        </>
-      )}
-    </section>
+              <div className="ch-card">
+                <h3>Yoğunluk haritası <small className="muted">(gün × saat, koyu = daha çok sipariş)</small></h3>
+                <div className="ch-heat">
+                  <div className="ch-heat-row head"><span />{Array.from({ length: 24 }, (_, h) => <i key={h}>{h}</i>)}</div>
+                  {calc.heat.map((row, d) => (
+                      <div key={d} className="ch-heat-row">
+                        <span>{DAYS[d]}</span>
+                        {row.map((v, h) => (
+                            <i key={h} title={`${DAYS[d]} ${h}:00 — ${v} sipariş`} style={{ background: v ? `rgba(212,175,55,${0.15 + (v / calc.maxHeat) * 0.85})` : 'var(--surface)' }}>{v || ''}</i>
+                        ))}
+                      </div>
+                  ))}
+                </div>
+              </div>
+
+              {period === '365' && calc.months.length > 0 && (
+                  <div className="ch-card">
+                    <h3>Aylık ciro</h3>
+                    <Bars values={calc.months.map(([, v]) => v)} labels={calc.months.map(([m]) => m.slice(5) + '/' + m.slice(2, 4))} color="#16a34a" format={tl} />
+                  </div>
+              )}
+            </>
+        )}
+      </section>
   );
 }

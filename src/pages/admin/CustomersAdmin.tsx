@@ -5,6 +5,8 @@ import { useAuthStore } from '@/stores/authStore';
 import { tl, hhmm } from '@/lib/helpers';
 import { ORDER_STATUS_LABELS, PAYMENT_METHOD_LABELS } from '@/lib/constants';
 import Modal from '@/components/ui/Modal';
+import CustomerAnalyticsPanel from '@/components/analytics/CustomerAnalyticsPanel';
+import CustomerInsights from '@/components/analytics/CustomerInsights';
 
 interface Cust {
   id: string;
@@ -39,6 +41,7 @@ export default function CustomersAdmin() {
   const [coupons, setCoupons] = useState<any[]>([]);
   const [couponPick, setCouponPick] = useState('');
   const [openOrder, setOpenOrder] = useState<string | null>(null);
+  const [tab, setTab] = useState<'list' | 'analytics'>('list');
 
   const load = async () => {
     const { data, error } = await supabase.rpc('admin_customers');
@@ -140,6 +143,13 @@ export default function CustomersAdmin() {
     a.click();
   };
 
+  /** Analiz sekmesindeki bir müşteriye tıklanınca detay penceresini aç */
+  const openById = (id: string) => {
+    const c = list.find((x) => x.id === id);
+    if (c) open(c);
+    else toast.error('Müşteri kaydı bulunamadı');
+  };
+
   if (loading) return <p className="muted center">Müşteriler yükleniyor…</p>;
 
   return (
@@ -147,12 +157,21 @@ export default function CustomersAdmin() {
       <div className="bar mx-bar">
         <div>
           <h1>Müşteriler</h1>
-          <p className="muted" style={{ margin: 0 }}>Müşteri listesi, sipariş geçmişi, sadakat puanı ve kupon tanımlama</p>
+          <p className="muted" style={{ margin: 0 }}>Müşteri listesi, davranış analizi, sipariş geçmişi, sadakat puanı ve kupon tanımlama</p>
         </div>
         <div className="mx-bar-actions"><button type="button" className="btn ghost sm" onClick={exportCsv}>⬇ CSV</button></div>
       </div>
       {missing && <div className="note">Müşteri paneli için <code>sql/15_coupons_loyalty.sql</code> dosyasını Supabase SQL Editor'de çalıştırın.</div>}
 
+      <div className="ad-tabs main-tabs">
+        <button type="button" className={tab === 'list' ? 'on' : ''} onClick={() => setTab('list')}>👥 Müşteri listesi</button>
+        <button type="button" className={tab === 'analytics' ? 'on' : ''} onClick={() => setTab('analytics')}>📊 Müşteri analizi</button>
+      </div>
+
+      {tab === 'analytics' && <CustomerAnalyticsPanel onOpenCustomer={openById} />}
+
+      {tab === 'list' && (
+        <>
       <div className="ad-stats">
         <div className="ad-stat static"><small>Toplam müşteri</small><b>{stats.total}</b><span>kayıtlı</span></div>
         <div className="ad-stat static ok"><small>Aktif (30 gün)</small><b>{stats.active}</b><span>sipariş verdi</span></div>
@@ -194,6 +213,8 @@ export default function CustomersAdmin() {
           </tbody>
         </table>
       </div>
+        </>
+      )}
 
       <Modal open={!!sel} onClose={() => setSel(null)} size="xl">
         {sel && (
@@ -249,6 +270,8 @@ export default function CustomersAdmin() {
                 )}
               </section>
             </div>
+
+            <CustomerInsights customerId={sel.id} />
 
             <section className="pe-sec" style={{ marginTop: '1rem' }}>
               <h4>🧾 Sipariş geçmişi ({orders.length})</h4>

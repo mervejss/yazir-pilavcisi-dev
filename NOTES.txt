@@ -21,3 +21,14 @@ Operational note:
 Public Nominatim and OSRM endpoints are best-effort public services, not production SLA services.
 Nominatim has strict usage policy; cache geocoding results and avoid bulk requests.
 For production traffic, consider self-hosting or a commercial OSM-based routing/geocoding service.
+
+
+v24 — Kurye & müşteri analizi
+Yeni/değişen dosyalar:
+- sql/20_courier_customer_analytics.sql (YENİ — Supabase'de çalıştırın)
+- src/lib/analytics.ts, src/types/analytics.ts, src/hooks/useAnalytics.ts
+- src/components/analytics/* (Charts, RangePicker, CustomerAnalyticsPanel, CustomerInsights, CourierSelfStats)
+- src/components/admin/CourierDetailModal.tsx
+- src/pages/admin/CouriersAdmin.tsx (yeniden yazıldı), CustomersAdmin.tsx, OrdersBoard.tsx
+- src/pages/courier/CourierApp.tsx (hero + Performans sekmesi)
+- src/styles/global.css (dosya sonuna v24 bloğu eklendi)

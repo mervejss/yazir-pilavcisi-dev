@@ -7,6 +7,7 @@ import { AUDIENCE_LABELS, conditionLines, discountLabel, isoToLocalInput, random
 import Modal from '@/components/ui/Modal';
 import Switch from '@/components/ui/Switch';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
+import CouponReport from '@/components/admin/CouponReport';
 
 interface Coupon {
   id: string;
@@ -87,6 +88,7 @@ export default function CouponsAdmin() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [custQ, setCustQ] = useState('');
   const [filter, setFilter] = useState<'all' | 'ok' | 'off'>('all');
+  const [view, setView] = useState<'list' | 'report'>('list');
 
   const load = useCallback(async () => {
     const { data, error } = await supabase.from('coupons').select('*').order('created_at', { ascending: false });
@@ -202,6 +204,18 @@ export default function CouponsAdmin() {
 
   if (loading) return <p className="muted center">Yükleniyor…</p>;
 
+  if (view === 'report') {
+    return (
+      <>
+        <div className="bar mx-bar">
+          <div><h1>Kupon &amp; Kampanya Yönetimi</h1></div>
+          <div className="mx-bar-actions"><button type="button" className="btn ghost sm" onClick={() => setView('list')}>← Kuponlara dön</button></div>
+        </div>
+        <CouponReport />
+      </>
+    );
+  }
+
   return (
     <>
       <div className="bar mx-bar">
@@ -210,6 +224,7 @@ export default function CouponsAdmin() {
           <p className="muted" style={{ margin: 0 }}>Kupon kodları, saat/gün bazlı ve kontenjanlı kampanyalar. "Sitede göster" açık olanlar müşteri sitesindeki Kampanyalar bölümünde görünür.</p>
         </div>
         <div className="mx-bar-actions">
+          <button type="button" className="btn ghost sm" onClick={() => setView('report')}>📈 Kullanım Raporu</button>
           <a className="btn ghost sm" href="/kampanyalar" target="_blank" rel="noreferrer">Kampanyalar sayfası ↗</a>
           {canWrite && <button type="button" className="btn gold sm" onClick={() => openNew()}>+ Yeni Kupon</button>}
         </div>

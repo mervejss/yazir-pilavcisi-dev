@@ -6,13 +6,39 @@ export interface OrderWithItems extends Order {
     items: OrderItem[];
 }
 
-export function useOrders(options?: { realtime?: boolean; statusFilter?: string[] }) {
+const ACTIVE_STATUSES = ['new', 'preparing', 'ready', 'assigned', 'on_the_way'];
+
+/**
+ * options.boardSince (ISO): "Siparişler panosu" modu. Açık siparişlerin TAMAMI + bu andan sonra teslim edilen / iptal edilen
+ * siparişler gelir. Önceki iş günlerinin biten siparişleri panoya gelmez (→ Geçmiş Siparişler sayfasında listelenir).
+ */
+export function useOrders(options?: { realtime?: boolean; statusFilter?: string[]; boardSince?: string }) {
     // Her render'da yeni dizi gelse bile sonsuz yenileme döngüsü olmasın diye değer anahtarı kullanılır
     const filterKey = (options?.statusFilter || []).join(',');
+    const boardSince = options?.boardSince || '';
     const [orders, setOrders] = useState<OrderWithItems[]>([]);
     const [loading, setLoading] = useState(true);
 
     const fetchOrders = useCallback(async () => {
+        const withItems = (rows: any[]) => rows.map((o) => ({ ...o, items: o.order_items || [] })) as OrderWithItems[];
+
+        if (boardSince) {
+            const [open, finished] = await Promise.all([
+                supabase.from('orders').select('*, order_items(*)').in('status', ACTIVE_STATUSES)
+                    .order('created_at', { ascending: false }).limit(300),
+                supabase.from('orders').select('*, order_items(*)').in('status', ['delivered', 'cancelled'])
+                    .or(`delivered_at.gte.${boardSince},cancelled_at.gte.${boardSince}`)
+                    .order('created_at', { ascending: false }).limit(300),
+            ]);
+            if (!open.error && !finished.error) {
+                const merged = [...((open.data as any[]) || []), ...((finished.data as any[]) || [])];
+                merged.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+                setOrders(withItems(merged));
+            }
+            setLoading(false);
+            return;
+        }
+
         let query = supabase
             .from('orders')
             .select('*, order_items(*)')
@@ -24,16 +50,9 @@ export function useOrders(options?: { realtime?: boolean; statusFilter?: string[
         }
 
         const { data } = await query;
-        if (data) {
-            setOrders(
-                (data as any[]).map((o) => ({
-                    ...o,
-                    items: o.order_items || [],
-                })),
-            );
-        }
+        if (data) setOrders(withItems(data as any[]));
         setLoading(false);
-    }, [filterKey]);
+    }, [filterKey, boardSince]);
 
     useEffect(() => {
         fetchOrders();
@@ -46,7 +65,7 @@ export function useOrders(options?: { realtime?: boolean; statusFilter?: string[
                 .on(
                     'postgres_changes',
                     { event: '*', schema: 'public', table: 'orders' },
-                    (payload) => {
+                    () => {
                         // Sesli uyarı yalnızca panel kökündeki (AdminLayout) tek abonelikte çalar; çift bip olmasın
                         fetchOrders();
                     }

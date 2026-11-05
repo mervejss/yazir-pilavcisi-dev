@@ -11,10 +11,11 @@ import Icon from '@/components/ui/Icon';
 import Logo from '@/components/ui/Logo';
 import ThemeToggle from '@/components/ui/ThemeToggle';
 import AlertHost from '@/components/alerts/AlertHost';
+import CourierSelfStats from '@/components/analytics/CourierSelfStats';
 import { useAlertStore } from '@/stores/alertStore';
 import toast from 'react-hot-toast';
 
-type Tab = 'all' | 'mine' | 'history';
+type Tab = 'all' | 'mine' | 'history' | 'stats';
 
 interface COrder {
   id: string;
@@ -344,6 +345,19 @@ export default function CourierApp() {
         <button type="button" className="icon-btn cr-out" onClick={handleSignOut} aria-label="Çıkış"><Icon name="logout" size={18} /></button>
       </header>
 
+      {/* Karşılama + bugünün özeti */}
+      <section className="cr-hero">
+        <div className="cr-hero-hi">
+          <small>{new Date().getHours() < 12 ? 'Günaydın' : new Date().getHours() < 18 ? 'İyi günler' : 'İyi akşamlar'}</small>
+          <h2>{(profile?.full_name || 'Kurye').split(' ')[0]} 👋</h2>
+        </div>
+        <div className="cr-hero-stats">
+          <div><b>{todayHist.length}</b><small>Bugün teslim</small></div>
+          <div><b>{mine.length}</b><small>Üzerimde</small></div>
+          <div><b>{tl(todayCash)}</b><small>Bugün tahsilat</small></div>
+        </div>
+      </section>
+
       {/* Konum paylaşımı: en üstte aç/kapat */}
       <section className={`cr-share${online ? ' on' : ''}`}>
         <div className="cr-share-txt">
@@ -370,7 +384,7 @@ export default function CourierApp() {
       {online && <div className="cr-bgnote">Konumun sürekli iletilmesi için bu sayfayı açık bırakın ve ekranı kilitlemeyin. Tarayıcılar kilitli/arka plan durumunda GPS'i durdurabilir.</div>}
 
       {/* Yoldaki sipariş: üstte canlı mini harita */}
-      {activeOnWay && tab !== 'history' && !sheet && (
+      {activeOnWay && tab !== 'history' && tab !== 'stats' && !sheet && (
         <section className="cr-live">
           <div className="cr-live-head">
             <b><Icon name="truck" size={17} /> Yoldaki paket #{activeOnWay.order_no}</b>
@@ -413,6 +427,8 @@ export default function CourierApp() {
           </>
         )}
 
+        {tab === 'stats' && profile && <CourierSelfStats courierId={profile.id} />}
+
         {!loading && tab === 'history' && (
           <>
             <div className="cr-stats">
@@ -447,6 +463,9 @@ export default function CourierApp() {
         </button>
         <button type="button" className={tab === 'history' ? 'on' : ''} onClick={() => setTab('history')}>
           <Icon name="clock" size={22} /><span>Geçmiş</span>
+        </button>
+        <button type="button" className={tab === 'stats' ? 'on' : ''} onClick={() => setTab('stats')}>
+          <Icon name="chart" size={22} /><span>Performans</span>
         </button>
       </nav>
 
