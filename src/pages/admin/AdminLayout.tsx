@@ -34,6 +34,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/admin/kuponlar', label: 'Kupon & Kampanya', icon: 'zap', roles: ['owner', 'sub_admin'] },
   { to: '/admin/galeri', label: 'Galeri Yönetimi', icon: 'image', roles: ALL },
   { to: '/admin/analiz', label: 'Raporlar & Analiz', icon: 'chart', roles: ['owner'] },
+  { to: '/admin/finans', label: 'Finans & Net Kâr', icon: 'wallet', roles: ['owner'] },
   { to: '/admin/geribildirim', label: 'Geri Bildirim', icon: 'message', roles: ALL },
   { to: '/admin/yorumlar', label: 'Müşteri Yorumları', icon: 'star', roles: ['owner', 'sub_admin', 'operator'] },
   { to: '/admin/google-yorumlar', label: 'Google Yorumları', icon: 'star', roles: ['owner'] },

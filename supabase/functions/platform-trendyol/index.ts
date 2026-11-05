@@ -8,6 +8,7 @@
 // canlıya almadan önce DOĞRULANMALIDIR. Yollar tek yerde toplandığı için düzeltmek tek satırdır;
 // ayrıca integrations.config.endpoints ile ezilebilir.
 import { authorize, CORS, json, logEvent, msg, resolveAdmin, touchPlatform } from '../_shared/common.ts';
+import { financePaymentOrders, financeProbe, financeSync, makeFinCtx } from './finance.ts';
 
 const PLATFORM = 'trendyol';
 const BASES: Record<string, string> = {
@@ -108,18 +109,22 @@ Deno.serve(async (req) => {
       case 'category_availability': result = await call(ctx, 'category_status', { id: body.external_id }, { status: body.available ? 'AVAILABLE' : 'UNAVAILABLE' }); break;
       case 'push_availability': result = await pushAvailability(ctx, db); break;
       case 'package_status':  result = await packageStatus(ctx, db, body); break;
+      // v32: Muhasebe & Finans (Cari Hesap Ekstresi) — bkz. finance.ts
+      case 'finance_probe':          result = await financeProbe(makeFinCtx(cfg, ctx.auth, ctx.supplierId)); break;
+      case 'finance_sync':           result = await financeSync(makeFinCtx(cfg, ctx.auth, ctx.supplierId), db, body); break;
+      case 'finance_payment_orders': result = await financePaymentOrders(makeFinCtx(cfg, ctx.auth, ctx.supplierId), db); break;
       default: return json({ ok: false, error: 'Bilinmeyen işlem: ' + action }, 400);
     }
 
     const quiet = az.via === 'cron' && action === 'sync_orders' && !result?.created && !result?.status_updated && !result?.failed;
     const w1 = quiet ? null : await logEvent(db, PLATFORM, action === 'sync_orders' ? 'in' : 'out', action, { ms: Date.now() - t0, payload: summarize(result) });
-    const w2 = action !== 'reviews' && action !== 'diagnose' && action !== 'probe_actions' ? await touchPlatform(db, PLATFORM, true) : null;
+    const w2 = action !== 'reviews' && action !== 'diagnose' && action !== 'probe_actions' && !action.startsWith('finance_') ? await touchPlatform(db, PLATFORM, true) : null;
     return json({ ok: true, result, db_warning: w1 || w2 || undefined });
   } catch (e) {
     // Hata YALNIZCA bu platformun kaydına yazılır. Kayıt yazılamazsa nedeni de yanıtla döner.
     const m = msg(e);
     const w1 = await logEvent(db, PLATFORM, 'out', action, { error: m });
-    const w2 = await touchPlatform(db, PLATFORM, false, m);
+    const w2 = action.startsWith('finance_') ? null : await touchPlatform(db, PLATFORM, false, m); // finans hatası sipariş bağlantısını 'hatalı' göstermesin
     return json({ ok: false, error: m, db_warning: w1 || w2 || undefined }, 200);
   }
 });

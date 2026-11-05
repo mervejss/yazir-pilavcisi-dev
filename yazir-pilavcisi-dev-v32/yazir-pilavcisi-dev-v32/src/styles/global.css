@@ -1345,8 +1345,37 @@ h1 { font-weight: 800; }
 
 /* ---------- Ürün kartları ---------- */
 .grid { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1.3rem; }
-.pcard { border-radius: 18px; transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease; }
-.pcard:hover { transform: translateY(-5px); border-color: var(--gold); box-shadow: var(--gold-glow); }
+/* Ürün kartı görsel alanı için relative konum ekleyin */
+.pcard {
+  position: relative;
+}
+
+.pcard .ph {
+  position: relative; /* Şeritlerin (ribbon) doğru köşeye konumlanması için şarttır */
+  overflow: hidden;
+  display: block;
+  width: 100%;
+}
+
+/* Tüm rozet/şeritlerin ortak stilleri (büyük görünmesini engeller) */
+.pcard .ribbon {
+  position: absolute;
+  top: 10px;
+  left: 10px; /* veya sağ üst için right: 10px */
+  z-index: 2;
+  padding: 0.25em 0.75em;
+  font-size: 0.75rem;
+  font-weight: 800;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.78);
+  color: #fff;
+}
+
+/* Günün ürünü etiketine özel renk ve stil */
+.pcard .ribbon.day {
+  background: var(--gold-grad, #d4af37);
+  color: #14110c;
+}
 .ph { position: relative; overflow: hidden; padding: 0; }
 .ph .prod-img-box img, .ph img { transition: transform 0.5s ease; }
 .pcard:hover .ph img { transform: scale(1.07); }

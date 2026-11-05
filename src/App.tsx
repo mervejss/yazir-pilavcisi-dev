@@ -35,6 +35,7 @@ import SettingsAdmin from '@/pages/admin/SettingsAdmin';
 import LiveMap from '@/pages/admin/LiveMap';
 import GalleryAdmin from '@/pages/admin/GalleryAdmin';
 import GoogleReviewsAdmin from '@/pages/admin/GoogleReviewsAdmin';
+import FinanceAdmin from '@/pages/admin/FinanceAdmin';
 
 // Courier pages
 import CourierApp from '@/pages/courier/CourierApp';
@@ -113,6 +114,7 @@ export default function App() {
                 <Route path="kuryeler" element={<CouriersAdmin />} />
                 <Route path="harita" element={<LiveMap />} />
                 <Route path="analiz" element={<Analytics />} />
+                <Route path="finans" element={<FinanceAdmin />} />
                 <Route path="geribildirim" element={<FeedbackAdmin />} />
                 <Route path="kullanicilar" element={<UsersAdmin />} />
                 <Route path="ayarlar" element={<SettingsAdmin />} />
