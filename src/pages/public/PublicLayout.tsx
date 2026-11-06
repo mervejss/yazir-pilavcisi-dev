@@ -37,6 +37,13 @@ export default function PublicLayout() {
   }, [pathname]);
 
   useEffect(() => {
+    if (!navOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setNavOpen(false);
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [navOpen]);
+
+  useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -74,7 +81,21 @@ export default function PublicLayout() {
               <span>Profilim</span>
             </NavLink>
           )}
+          {/* Mobilde giriş / kayıt / çıkış menünün içinde (üst çubukta yer kalmadığı için) */}
+          <div className="nav-auth" style={{ ['--i' as any]: LINKS.length + 1 }}>
+            {user ? (
+              <button type="button" className="btn ghost" onClick={handleSignOut}>
+                <Icon name="logout" size={16} /> Çıkış yap
+              </button>
+            ) : (
+              <>
+                <Link to="/giris" className="btn ghost">Giriş yap</Link>
+                <Link to="/kayit" className="btn gold">Kayıt ol</Link>
+              </>
+            )}
+          </div>
         </nav>
+        {navOpen && <div className="nav-backdrop" onClick={() => setNavOpen(false)} aria-hidden="true" />}
 
         <div className="top-actions">
           <ThemeToggle />
@@ -84,7 +105,7 @@ export default function PublicLayout() {
               <Link to="/profil" className="user-menu-pill" title="Profilim">
                 <Icon name="user" size={15} /> {profile?.full_name ? profile.full_name.split(' ')[0] : 'Hesabım'}
               </Link>
-              <button type="button" className="icon-circle" onClick={handleSignOut} title="Çıkış yap" aria-label="Çıkış yap">
+              <button type="button" className="icon-circle top-logout" onClick={handleSignOut} title="Çıkış yap" aria-label="Çıkış yap">
                 <Icon name="logout" size={16} />
               </button>
             </>

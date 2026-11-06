@@ -1,10 +1,16 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { supabase } from '@/lib/supabase';
 import { tl } from '@/lib/helpers';
 import { TABLE_STATUS_LABELS } from '@/lib/constants';
 import { useMenu, type MenuProduct } from '@/hooks/useMenu';
 import { useTables } from '@/hooks/useTables';
+import { useCouriers } from '@/hooks/useCouriers';
+import { useBusinessSettings } from '@/hooks/useBusinessSettings';
+import { HAS_GMAPS_KEY, geocodeFull, mapsPlaceUrl, type LatLng } from '@/lib/googleMaps';
+import { isMissingFn, normalizePhone, type HistoryItem, type HistoryOrder } from '@/lib/staffCustomers';
+import PhoneCustomerPanel, { type PickedAddress } from '@/components/admin/PhoneCustomerPanel';
+import LocationPicker from '@/components/maps/LocationPicker';
 import Modal from '@/components/ui/Modal';
 import Icon from '@/components/ui/Icon';
 import ProductImage from '@/components/ui/ProductImage';
@@ -20,12 +26,29 @@ interface Line {
   qty: number;
 }
 
+/** Başka bir sayfadan (Müşteriler, Sipariş panosu) açılırken müşteri / tekrarlanacak sipariş hazır gelir */
+export interface OrderPrefill {
+  customer?: { id?: string | null; name?: string | null; phone?: string | null };
+  /** Verilirse bu siparişin kalemleri ve adresi sepete aktarılır */
+  repeat?: {
+    orderId: string;
+    type: OType;
+    address?: string | null;
+    district?: string | null;
+    lat?: number | null;
+    lng?: number | null;
+    note?: string | null;
+    payment?: string | null;
+  };
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
   onCreated?: () => void;
   /** Masalar sayfasından açılırsa masa hazır seçili gelir */
   presetTableId?: string | null;
+  prefill?: OrderPrefill | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -93,8 +116,8 @@ function ProductPicker({ onAdd, counts }: { onAdd: (p: MenuProduct, variantIdx: 
 /* ------------------------------------------------------------------ */
 /* Sepet özeti                                                          */
 /* ------------------------------------------------------------------ */
-function CartLines({ lines, setLines }: { lines: Line[]; setLines: (l: Line[]) => void }) {
-  const total = lines.reduce((s, l) => s + l.price * l.qty, 0);
+function CartLines({ lines, setLines, fee = 0 }: { lines: Line[]; setLines: (l: Line[]) => void; fee?: number }) {
+  const total = lines.reduce((s, l) => s + l.price * l.qty, 0) + fee;
   const change = (id: string, d: number) =>
     setLines(lines.map((l) => (l.variant_id === id ? { ...l, qty: l.qty + d } : l)).filter((l) => l.qty > 0));
   return (
@@ -111,6 +134,9 @@ function CartLines({ lines, setLines }: { lines: Line[]; setLines: (l: Line[]) =
           <b className="qsum">{tl(l.price * l.qty)}</b>
         </div>
       ))}
+      {fee > 0 && (
+        <div className="qline"><span className="qname">Teslimat ücreti</span><b className="qsum">{tl(fee)}</b></div>
+      )}
       <div className="qtotal">
         <span>Toplam</span>
         <b>{tl(total)}</b>
@@ -119,8 +145,10 @@ function CartLines({ lines, setLines }: { lines: Line[]; setLines: (l: Line[]) =
   );
 }
 
-export default function NewOrderModal({ open, onClose, onCreated, presetTableId }: Props) {
+export default function NewOrderModal({ open, onClose, onCreated, presetTableId, prefill }: Props) {
   const { tables } = useTables();
+  const { couriers } = useCouriers();
+  const { settings } = useBusinessSettings();
   const [mode, setMode] = useState<Mode>('quick');
   const [type, setType] = useState<OType>('pickup');
   const [tableId, setTableId] = useState<string>('');
@@ -130,15 +158,28 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId 
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [district, setDistrict] = useState('Yazır');
+  const [loc, setLoc] = useState<LatLng | null>(null);
+  const [customerId, setCustomerId] = useState<string | null>(null);
+  const [courierId, setCourierId] = useState('');
+  const [feeOverride, setFeeOverride] = useState('');
+  const [saveAddress, setSaveAddress] = useState(true);
   const [pay, setPay] = useState<Pay>('cash_on_delivery');
-  const [source, setSource] = useState('phone');
+  const [source, setSource] = useState('counter');
   const [busy, setBusy] = useState(false);
 
   // Masalar sayfasından gelen hazır masa
   const effectiveTable = tableId || presetTableId || '';
 
   const counts = useMemo(() => Object.fromEntries(lines.map((l) => [l.variant_id, l.qty])), [lines]);
-  const total = lines.reduce((s, l) => s + l.price * l.qty, 0);
+  const subtotal = lines.reduce((s, l) => s + l.price * l.qty, 0);
+  const defaultFee = settings ? (settings.free_delivery_threshold && subtotal >= settings.free_delivery_threshold ? 0 : Number(settings.delivery_fee || 0)) : 0;
+  const fee = type === 'delivery' ? (feeOverride.trim() !== '' ? Math.max(Number(feeOverride) || 0, 0) : defaultFee) : 0;
+  const total = subtotal + fee;
+
+  const sortedCouriers = useMemo(
+    () => [...couriers].filter((c) => c.is_active !== false).sort((a, b) => Number(b.is_online) - Number(a.is_online) || a.active_order_count - b.active_order_count),
+    [couriers],
+  );
 
   const reset = () => {
     setLines([]);
@@ -146,8 +187,19 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId 
     setName('');
     setPhone('');
     setAddress('');
+    setDistrict('Yazır');
+    setLoc(null);
+    setCustomerId(null);
+    setCourierId('');
+    setFeeOverride('');
     setTableId('');
     setPay('cash_on_delivery');
+  };
+
+  const chooseType = (t: OType) => {
+    setType(t);
+    setSource(t === 'delivery' ? 'phone' : 'counter');
+    if (t !== 'delivery') setCourierId('');
   };
 
   const add = (p: MenuProduct, idx: number) => {
@@ -160,38 +212,130 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId 
     });
   };
 
+  const pickAddress = (a: PickedAddress) => {
+    setAddress(a.address);
+    setDistrict(a.district || district);
+    setLoc(a.lat != null && a.lng != null ? { lat: a.lat, lng: a.lng } : null);
+  };
+
+  /** Geçmiş siparişi sepete + forma aktar ("Tekrarla") */
+  const applyRepeat = (o: {
+    order_no?: number; order_type: OType; items: HistoryItem[]; address?: string | null; district?: string | null;
+    lat?: number | null; lng?: number | null; note?: string | null; payment_method?: string | null;
+  }) => {
+    const merged = new Map<string, Line>();
+    const missing: string[] = [];
+    for (const i of o.items) {
+      if (i.variant_id && i.is_available && i.current_price != null) {
+        const nm = i.product_name + (i.variant_name ? ` (${i.variant_name})` : '');
+        const cur = merged.get(i.variant_id);
+        if (cur) cur.qty += i.quantity;
+        else merged.set(i.variant_id, { variant_id: i.variant_id, name: nm, price: Number(i.current_price), qty: i.quantity });
+      } else missing.push(i.product_name);
+    }
+    setLines([...merged.values()]);
+    if (o.order_type === 'delivery') {
+      chooseType('delivery');
+      if (o.address) pickAddress({ address: o.address, district: o.district || '', lat: o.lat != null ? Number(o.lat) : null, lng: o.lng != null ? Number(o.lng) : null });
+    } else if (o.order_type === 'pickup') {
+      chooseType('pickup');
+    }
+    setNote(o.note || '');
+    if (o.payment_method && ['cash_on_delivery', 'card_on_delivery', 'iban'].includes(o.payment_method)) setPay(o.payment_method as Pay);
+    toast.success(`${o.order_no ? `#${o.order_no} ` : ''}siparişi sepete aktarıldı · güncel fiyatlarla`);
+    if (missing.length) toast(`Menüde artık olmayan/tükenen ürünler eklenmedi: ${missing.join(', ')}`, { icon: '⚠️', duration: 8000 });
+  };
+
+  const repeatFromHistory = (o: HistoryOrder) =>
+    applyRepeat({ order_no: o.order_no, order_type: o.order_type, items: o.items, address: o.address, district: o.district, lat: o.lat, lng: o.lng, note: o.note, payment_method: o.payment_method });
+
+  // Başka sayfadan hazır müşteri / tekrar siparişiyle açılış
+  const prefillKey = prefill ? JSON.stringify(prefill) : '';
+  useEffect(() => {
+    if (!open || !prefill) return;
+    reset();
+    setMode('quick');
+    const c = prefill.customer;
+    if (c) {
+      setName(c.name || '');
+      setPhone(c.phone || '');
+      setCustomerId(c.id || null);
+    }
+    chooseType(prefill.repeat?.type === 'delivery' || (!prefill.repeat && !!c) ? 'delivery' : 'pickup');
+    const r = prefill.repeat;
+    if (r) {
+      supabase.rpc('reorder_items', { p_order_id: r.orderId } as any).then(({ data, error }) => {
+        if (error) return void toast.error('Sipariş kalemleri alınamadı: ' + error.message);
+        const items: HistoryItem[] = ((data || []) as any[]).map((x) => ({
+          variant_id: x.variant_id, product_name: x.product_name, variant_name: x.variant_name, quantity: x.quantity,
+          unit_price: Number(x.current_price ?? 0), current_price: x.current_price != null ? Number(x.current_price) : null, is_available: !!x.is_available,
+        }));
+        applyRepeat({ order_type: r.type, items, address: r.address, district: r.district, lat: r.lat, lng: r.lng, note: r.note, payment_method: r.payment });
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, prefillKey]);
+
   const submit = async (opts: { deliverNow?: boolean } = {}) => {
     if (busy) return;
     if (lines.length === 0) return toast.error('Lütfen en az bir ürün seçin');
     if (type === 'dine_in' && !effectiveTable) return toast.error('Lütfen masa seçin');
-    const full = mode === 'full';
-    if (full && type === 'delivery' && (!name.trim() || !phone.trim() || !address.trim())) {
-      return toast.error('Teslimat için ad, telefon ve adres gerekli');
+
+    const np = normalizePhone(phone);
+    if (type === 'delivery') {
+      if (!np) return toast.error('Paket servis için geçerli telefon girin (05xx xxx xx xx)');
+      if (!address.trim()) return toast.error('Teslimat adresini yazın veya haritadan seçin');
     }
+    if (type === 'pickup' && phone.trim() && !np) return toast.error('Telefon geçersiz (05xx xxx xx xx)');
 
     setBusy(true);
     try {
-      const customer: Record<string, string> = {};
-      if (name.trim()) customer.name = name.trim();
-      if (full && phone.trim()) customer.phone = phone.trim();
-      if (full && type === 'delivery') {
-        customer.address = address.trim();
-        if (district.trim()) customer.district = district.trim();
+      // Konum işaretlenmediyse yazılı adresi Google ile çöz (kurye haritası ve birebir bağlantı için)
+      let pin = loc;
+      if (type === 'delivery' && !pin && HAS_GMAPS_KEY) {
+        const g = await geocodeFull([address, district].filter(Boolean).join(', '));
+        if (g) pin = { lat: Number(g.lat.toFixed(6)), lng: Number(g.lng.toFixed(6)) };
       }
 
-      const { data, error } = await supabase.rpc('staff_create_order', {
-        p_source: full ? source : 'counter',
+      const customer: Record<string, string | number> = {};
+      if (name.trim()) customer.name = name.trim();
+      else if (type === 'delivery') customer.name = 'İsimsiz Müşteri';
+      if (np) customer.phone = np;
+      if (type === 'delivery') {
+        customer.address = address.trim();
+        if (district.trim()) customer.district = district.trim();
+        if (pin) {
+          customer.lat = pin.lat;
+          customer.lng = pin.lng;
+        }
+        if (feeOverride.trim() !== '') customer.delivery_fee = Math.max(Number(feeOverride) || 0, 0);
+        customer.address_title = 'Adres';
+      }
+
+      const src = type === 'dine_in' ? (mode === 'full' ? source : 'counter') : source;
+      const common = {
+        p_source: src,
         p_type: type,
         p_customer: customer,
         p_items: lines.map((l) => ({ variant_id: l.variant_id, quantity: l.qty })),
         p_table_id: type === 'dine_in' ? effectiveTable : null,
         p_payment: type === 'dine_in' ? null : pay,
         p_note: note.trim() || null,
-        p_save_address: false,
-      });
+      };
+
+      let { data, error } = await supabase.rpc('staff_create_order_ex', {
+        ...common,
+        p_courier_id: type === 'delivery' && courierId ? courierId : null,
+        p_save_address: type === 'delivery' && saveAddress,
+      } as any);
+      if (error && isMissingFn(error)) {
+        // SQL 25 henüz çalıştırılmadı: eski akışa düş (kurye ön ataması ve müşteri eşleme yok)
+        if (courierId) toast('Kurye ataması için sql/25_phone_customers_maps.sql çalıştırılmalı. Sipariş kuryesiz kaydedilecek.', { icon: '⚠️', duration: 8000 });
+        ({ data, error } = await supabase.rpc('staff_create_order', { ...common, p_save_address: type === 'delivery' && saveAddress } as any));
+      }
       if (error) throw error;
 
-      const res = (data || {}) as { order_id?: string; order_no?: number };
+      const res = (data || {}) as { order_id?: string; order_no?: number; customer_created?: boolean };
 
       // Tezgâhtan hemen teslim: sırayla hazırlanıyor → hazır → teslim edildi (tarih/saatler otomatik işlenir)
       if (opts.deliverNow && res.order_id) {
@@ -201,7 +345,8 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId 
         }
       }
 
-      toast.success(`Sipariş #${res.order_no ?? ''} kaydedildi · ${tl(total)}`);
+      const cName = courierId ? sortedCouriers.find((c) => c.courier_id === courierId)?.full_name : '';
+      toast.success(`Sipariş #${res.order_no ?? ''} kaydedildi · ${tl(total)}${cName ? ` · Kurye: ${cName}` : ''}${res.customer_created ? ' · yeni müşteri eklendi' : ''}`);
       reset();
       onCreated?.();
       onClose();
@@ -230,12 +375,78 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId 
     </div>
   );
 
+  const customerBlock = (
+    <div className="no-block">
+      <PhoneCustomerPanel
+        name={name}
+        phone={phone}
+        onName={setName}
+        onPhone={setPhone}
+        requirePhone={type === 'delivery'}
+        customerId={customerId}
+        onCustomerId={setCustomerId}
+        onPickAddress={pickAddress}
+        onRepeat={repeatFromHistory}
+        showAddresses={type === 'delivery'}
+      />
+
+      {type === 'delivery' && (
+        <>
+          <div className="two-col">
+            <label className="fld">Mahalle
+              <input value={district} onChange={(e) => setDistrict(e.target.value)} />
+            </label>
+            <label className="fld">Teslimat ücreti <span className="muted">(boş = {tl(defaultFee)})</span>
+              <input inputMode="decimal" value={feeOverride} onChange={(e) => setFeeOverride(e.target.value.replace(',', '.'))} placeholder={String(defaultFee)} />
+            </label>
+          </div>
+          <label className="fld">Açık adres <span className="req">*</span>
+            <textarea rows={2} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Sokak, bina, kapı / daire no, tarif" />
+          </label>
+          <LocationPicker value={loc} onChange={setLoc} address={address} district={district} height="240px"
+            onAddress={(a) => { setAddress(a.address); if (a.district) setDistrict(a.district); }} />
+          <label className="radio" style={{ margin: '0.5rem 0 0' }}>
+            <input type="checkbox" checked={saveAddress} onChange={(e) => setSaveAddress(e.target.checked)} />
+            Adresi müşteri kaydına ekle (sonraki aramada hazır gelir)
+          </label>
+
+          <div className="no-courier">
+            <h4><Icon name="truck" size={16} /> Kurye <span className="muted small">(isteğe bağlı — sonradan da atanabilir)</span></h4>
+            <div className="no-courier-list">
+              <button type="button" className={courierId === '' ? 'on' : ''} onClick={() => setCourierId('')}>
+                <b>Sonra ata</b><small>Mutfak hazır olunca</small>
+              </button>
+              {sortedCouriers.map((c) => (
+                <button key={c.courier_id} type="button" className={courierId === c.courier_id ? 'on' : ''} onClick={() => setCourierId(c.courier_id)}>
+                  <b><i className={`dot ${c.is_online ? 'on' : ''}`} /> {c.full_name}</b>
+                  <small>{c.is_online ? 'Çevrimiçi' : 'Çevrimdışı'}{c.active_order_count ? ` · ${c.active_order_count} aktif paket` : ''}</small>
+                </button>
+              ))}
+              {sortedCouriers.length === 0 && <p className="muted small">Tanımlı kurye yok. Personel sayfasından kurye ekleyin.</p>}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  const sourceSeg = type !== 'dine_in' && (
+    <div className="fld">
+      <span>Sipariş nereden geldi?</span>
+      <div className="seg">
+        <button type="button" className={source === 'phone' ? 'on' : ''} onClick={() => setSource('phone')}>📞 Telefon</button>
+        <button type="button" className={source === 'counter' ? 'on' : ''} onClick={() => setSource('counter')}>🏪 Restoran / Tezgâh</button>
+        {mode === 'full' && <button type="button" className={source === 'web' ? 'on' : ''} onClick={() => setSource('web')}>🌐 Web</button>}
+      </div>
+    </div>
+  );
+
   return (
     <Modal open={open} onClose={() => !busy && onClose()} size="xl" className="neworder">
       <div className="no-head">
         <h2><Icon name="zap" size={22} /> Yeni Sipariş</h2>
         <div className="seg modeseg">
-          <button type="button" className={mode === 'quick' ? 'on' : ''} onClick={() => { setMode('quick'); if (type === 'delivery') setType('pickup'); }}>
+          <button type="button" className={mode === 'quick' ? 'on' : ''} onClick={() => setMode('quick')}>
             ⚡ Hızlı
           </button>
           <button type="button" className={mode === 'full' ? 'on' : ''} onClick={() => setMode('full')}>
@@ -248,75 +459,34 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId 
       <div className="no-grid">
         {/* SOL: sipariş bilgisi + ürün seçici */}
         <div className="no-left">
-          {mode === 'quick' ? (
-            <>
-              <div className="typetiles">
-                <button type="button" className={type === 'pickup' ? 'on' : ''} onClick={() => setType('pickup')}>
-                  <Icon name="bag" size={26} />
-                  <b>Paket / Gel-Al</b>
-                  <small>Gelip alıp giden · bilgi gerekmez</small>
-                </button>
-                <button type="button" className={type === 'dine_in' ? 'on' : ''} onClick={() => setType('dine_in')}>
-                  <Icon name="utensils" size={26} />
-                  <b>Restoranda</b>
-                  <small>Masada yiyecek · masa seçin</small>
-                </button>
-              </div>
-              {type === 'dine_in' ? (
-                <div className="no-block">
-                  <h4>Masa</h4>
-                  {tableChips}
-                </div>
-              ) : (
-                <label className="fld">Müşteri adı <span className="muted">(isteğe bağlı)</span>
-                  <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Bilmiyorsanız boş bırakın" />
-                </label>
-              )}
-            </>
-          ) : (
+          <div className="typetiles t3">
+            <button type="button" className={type === 'delivery' ? 'on' : ''} onClick={() => chooseType('delivery')}>
+              <Icon name="truck" size={26} />
+              <b>Paket Servis</b>
+              <small>Adrese gider · kurye atanır</small>
+            </button>
+            <button type="button" className={type === 'pickup' ? 'on' : ''} onClick={() => chooseType('pickup')}>
+              <Icon name="bag" size={26} />
+              <b>Gel-Al</b>
+              <small>Gelip alıp giden · bilgi gerekmez</small>
+            </button>
+            <button type="button" className={type === 'dine_in' ? 'on' : ''} onClick={() => chooseType('dine_in')}>
+              <Icon name="utensils" size={26} />
+              <b>Restoranda</b>
+              <small>Masada yiyecek · kurye yok</small>
+            </button>
+          </div>
+
+          {type === 'dine_in' ? (
             <div className="no-block">
-              <div className="two-col">
-                <label className="fld">Sipariş türü
-                  <select value={type} onChange={(e) => setType(e.target.value as OType)}>
-                    <option value="delivery">Paket teslimat (adrese)</option>
-                    <option value="pickup">Gel-al / Paket</option>
-                    <option value="dine_in">Masada yemek</option>
-                  </select>
-                </label>
-                <label className="fld">Kaynak
-                  <select value={source} onChange={(e) => setSource(e.target.value)}>
-                    <option value="phone">Telefon</option>
-                    <option value="counter">Restoran / Tezgâh</option>
-                    <option value="web">Web</option>
-                    <option value="table">Masa</option>
-                  </select>
-                </label>
-              </div>
-              {type === 'dine_in' ? (
-                <div><h4>Masa</h4>{tableChips}</div>
-              ) : (
-                <>
-                  <div className="two-col">
-                    <label className="fld">Müşteri adı {type === 'pickup' && <span className="muted">(isteğe bağlı)</span>}
-                      <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ad soyad" />
-                    </label>
-                    <label className="fld">Telefon {type === 'pickup' && <span className="muted">(isteğe bağlı)</span>}
-                      <input inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="05xx xxx xx xx" />
-                    </label>
-                  </div>
-                  {type === 'delivery' && (
-                    <>
-                      <label className="fld">Mahalle
-                        <input value={district} onChange={(e) => setDistrict(e.target.value)} />
-                      </label>
-                      <label className="fld">Adres
-                        <textarea rows={2} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Sokak, bina, daire no" />
-                      </label>
-                    </>
-                  )}
-                </>
-              )}
+              <h4>Masa</h4>
+              {tableChips}
             </div>
+          ) : (
+            <>
+              {sourceSeg}
+              {customerBlock}
+            </>
           )}
 
           <ProductPicker onAdd={add} counts={counts} />
@@ -325,11 +495,18 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId 
         {/* SAĞ: sepet + ödeme + gönder */}
         <aside className="no-right">
           <h4><Icon name="receipt" size={18} /> Sipariş özeti</h4>
-          <CartLines lines={lines} setLines={setLines} />
+          <CartLines lines={lines} setLines={setLines} fee={type === 'delivery' ? fee : 0} />
+
+          {type === 'delivery' && address.trim() && (
+            <p className="small muted" style={{ margin: '0.5rem 0 0' }}>
+              <Icon name="mapPin" size={13} /> {address.trim()}
+              {loc && <> · <a href={mapsPlaceUrl({ lat: loc.lat, lng: loc.lng })} target="_blank" rel="noreferrer">Google Haritalar</a></>}
+            </p>
+          )}
 
           <label className="fld" style={{ marginTop: '0.8rem' }}>
             {mode === 'quick' ? 'Not' : 'Sipariş notu'} <span className="muted">(isteğe bağlı)</span>
-            <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Örn. acısız, bol soslu…" />
+            <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Örn. acısız, bol soslu, zili çalmayın…" />
           </label>
 
           {type !== 'dine_in' && (

@@ -236,9 +236,9 @@ export async function financeProbe(ctx: FinCtx) {
     }
   };
   const checks = [
-    await tryOne('settlements (Sale, son 7 gün)', 'settlements', { transactionType: 'Sale', startDate: from, endDate: to, page: 0, size: 500 }),
-    await tryOne('otherfinancials (PaymentOrder, son 7 gün)', 'otherfinancials', { transactionType: 'PaymentOrder', startDate: from, endDate: to, page: 0, size: 500 }),
-    await tryOne('payment-order', 'payment-order', { page: 0, size: 10 }),
+    await tryOne('settlements (Sale, son 7 gün)', 'settlements', { transactionType: 'Sale', startDate: from, endDate: to, page: 0, size: 1 }),
+    await tryOne('otherfinancials (PaymentOrder, son 7 gün)', 'otherfinancials', { transactionType: 'PaymentOrder', startDate: from, endDate: to, page: 0, size: 1 }),
+    await tryOne('payment-order', 'payment-order', { page: 0, size: 1 }),
   ];
   const works = checks.some((c) => c.ok);
   return {

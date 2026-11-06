@@ -36,6 +36,7 @@ export default function RouteMap({ origin, destination, orderLabel, height = '30
   const me = useRef<google.maps.Marker | null>(null);
   const target = useRef<google.maps.Marker | null>(null);
   const renderer = useRef<google.maps.DirectionsRenderer | null>(null);
+  const straight = useRef<google.maps.Polyline | null>(null);
   const lastRoute = useRef<{ t: number; p: LatLng | null }>({ t: 0, p: null });
   const followRef = useRef(true);
   followRef.current = follow;
@@ -94,9 +95,21 @@ export default function RouteMap({ origin, destination, orderLabel, height = '30
       { origin, destination: dest, travelMode: google.maps.TravelMode.DRIVING, drivingOptions: { departureTime: new Date(), trafficModel: google.maps.TrafficModel.BEST_GUESS }, region: 'TR' },
       (res, st) => {
         if (st !== 'OK' || !res) {
-          onSummary?.(null);
+          // Directions API etkin değilse / rota yoksa: kuş uçuşu çizgi çiz, mesafeyi göster
+          renderer.current?.setMap(null);
+          if (!straight.current) straight.current = new google.maps.Polyline({ strokeColor: '#e0b93a', strokeOpacity: 0.9, strokeWeight: 4, zIndex: 5, geodesic: true });
+          straight.current.setPath([origin, dest]);
+          straight.current.setMap(map);
+          onSummary?.({ distance: `${fmtKm(distanceM(origin, dest))} (kuş uçuşu)`, duration: '—', meters: distanceM(origin, dest) });
+          if (followRef.current) {
+            const b = new google.maps.LatLngBounds();
+            b.extend(origin);
+            b.extend(dest);
+            map.fitBounds(b, { top: 60, bottom: 50, left: 40, right: 40 });
+          }
           return;
         }
+        straight.current?.setMap(null);
         if (!renderer.current) {
           renderer.current = new google.maps.DirectionsRenderer({
             suppressMarkers: true,
@@ -123,6 +136,7 @@ export default function RouteMap({ origin, destination, orderLabel, height = '30
       me.current?.setMap(null);
       target.current?.setMap(null);
       renderer.current?.setMap(null);
+      straight.current?.setMap(null);
     },
     [],
   );

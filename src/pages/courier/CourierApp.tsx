@@ -292,11 +292,12 @@ export default function CourierApp() {
           )}
         </div>
 
-        <div className="cr-addr">
+        <div className="cr-addr cr-addr-tap" role="button" tabIndex={0} onClick={() => setSheet(o.id)} onKeyDown={(e) => e.key === 'Enter' && setSheet(o.id)} title="Haritada göster">
           <Icon name="mapPin" size={20} />
           <div>
             <b>{o.delivery_address || 'Adres belirtilmemiş'}</b>
             {o.district && <div className="small muted">{o.district}</div>}
+            <div className="small cr-pin-state">{o.lat != null && o.lng != null ? '✓ Konum haritada işaretli — dokunup haritada gör' : 'Konum işaretli değil — adres yazıdan bulunur · dokunup haritada gör'}</div>
             {(rs || meters != null) && (
               <div className="cr-eta">
                 {rs ? `${rs.distance} · ${rs.duration}` : `Kuş uçuşu ${fmtKm(meters!)}`}

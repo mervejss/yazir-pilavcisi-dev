@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { tl } from '@/lib/helpers';
 import { PAYMENT_METHOD_LABELS } from '@/lib/constants';
 import ProductImage from '@/components/ui/ProductImage';
+import LocationPicker from '@/components/maps/LocationPicker';
 import toast from 'react-hot-toast';
 
 interface OrderResult {
@@ -136,18 +137,6 @@ export default function OrderPage() {
           setLoc([Number(selected.lat), Number(selected.lng)]);
         }
       }
-    }
-  };
-
-  const locate = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (p) => {
-          setLoc([p.coords.latitude, p.coords.longitude]);
-          toast.success('Konumunuz eklendi!');
-        },
-        () => toast.error('Konum alınamadı, lütfen izin verin'),
-      );
     }
   };
 
@@ -347,15 +336,19 @@ export default function OrderPage() {
                       placeholder="Mahalle, Cadde, Sokak, Bina ve Kapı Numarası"
                     />
                   </label>
-                  <div className="locrow">
-                    <button type="button" className="btn ghost sm" onClick={locate}>
-                      📍 Harita / GPS Konumumu Ekle
-                    </button>
-                    {loc && (
-                      <span className="small muted">
-                        ✓ Konum eklendi ({loc[0].toFixed(4)}, {loc[1].toFixed(4)})
-                      </span>
-                    )}
+                  <div className="locrow-pick">
+                    <b style={{ fontSize: '0.92rem' }}>📍 Konumunuzu haritada işaretleyin</b>
+                    <p className="small muted" style={{ margin: '0.15rem 0 0.5rem' }}>
+                      Kurye adresinizi daha hızlı bulur. Haritaya dokunun, pini sürükleyin veya adresinizi aratın.
+                    </p>
+                    <LocationPicker
+                      value={loc ? { lat: loc[0], lng: loc[1] } : null}
+                      onChange={(p) => setLoc(p ? [p.lat, p.lng] : null)}
+                      address={form.address}
+                      district={form.district}
+                      onAddress={(a) => setForm((f) => ({ ...f, address: a.address, district: a.district || f.district }))}
+                      height="260px"
+                    />
                   </div>
                   {user && (
                     <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center' }}>

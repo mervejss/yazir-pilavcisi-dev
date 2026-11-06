@@ -14,7 +14,9 @@ import { callPlatform, isPlatformSource } from '@/lib/platforms';
 import SourceChip from '@/components/ui/SourceChip';
 import Modal from '@/components/ui/Modal';
 import Icon from '@/components/ui/Icon';
-import NewOrderModal from '@/components/admin/NewOrderModal';
+import NewOrderModal, { type OrderPrefill } from '@/components/admin/NewOrderModal';
+import AddressMap from '@/components/maps/AddressMap';
+import { orderMapsUrl } from '@/lib/googleMaps';
 import toast from 'react-hot-toast';
 
 const COLUMNS = [
@@ -37,6 +39,8 @@ export default function OrdersBoard() {
   const { tables } = useTables();
 
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [prefill, setPrefill] = useState<OrderPrefill | null>(null);
+  const [mapOrder, setMapOrder] = useState<OrderWithItems | null>(null);
   const [cancelModalOrder, setCancelModalOrder] = useState<OrderWithItems | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [editOrder, setEditOrder] = useState<OrderWithItems | null>(null);
@@ -184,7 +188,7 @@ export default function OrdersBoard() {
           <button
             type="button"
             className="btn gold"
-            onClick={() => setAddModalOpen(true)}
+            onClick={() => { setPrefill(null); setAddModalOpen(true); }}
           >
             <Icon name="plus" size={18} /> Yeni Sipariş
           </button>
@@ -303,6 +307,11 @@ export default function OrdersBoard() {
                     {o.delivery_address && (
                       <div className="small muted">
                         📍 {o.district ? `${o.district} · ` : ''}{o.delivery_address}
+                        {' '}
+                        <button type="button" className="linklike" onClick={() => setMapOrder(o)}>🗺️ Harita</button>
+                        {' · '}
+                        <a href={orderMapsUrl(o)} target="_blank" rel="noreferrer">Google Haritalar</a>
+                        {o.lat != null && o.lng != null && <span title="Konum işaretli"> ✓</span>}
                       </div>
                     )}
 
@@ -332,7 +341,7 @@ export default function OrdersBoard() {
                     {o.status === 'cancelled' && o.cancel_reason && <div className="note small">İptal: {o.cancel_reason}</div>}
 
                     {/* Kurye Seçimi */}
-                    {o.order_type === 'delivery' && !['new', 'cancelled'].includes(o.status) && (
+                    {o.order_type === 'delivery' && o.status !== 'cancelled' && (
                       <div className="ocard-courier">
                         <select
                           value={o.courier_id || ''}
@@ -381,6 +390,22 @@ export default function OrdersBoard() {
 
                     {/* Aksiyon Butonları */}
                     <div className="ocard-actions">
+                      {['delivery', 'pickup'].includes(o.order_type) && (
+                        <button
+                          type="button"
+                          className="btn ghost sm"
+                          title="Aynı siparişi (kalemler + adres) yeni sipariş olarak aç"
+                          onClick={() => {
+                            setPrefill({
+                              customer: { id: o.customer_id, name: o.customer_name, phone: o.customer_phone },
+                              repeat: { orderId: o.id, type: o.order_type as any, address: o.delivery_address, district: o.district, lat: o.lat, lng: o.lng, note: o.note, payment: o.payment_method },
+                            });
+                            setAddModalOpen(true);
+                          }}
+                        >
+                          🔁 Tekrarla
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="btn ghost sm"
@@ -604,7 +629,23 @@ export default function OrdersBoard() {
         </div>
       </Modal>
 
-      <NewOrderModal open={addModalOpen} onClose={() => setAddModalOpen(false)} onCreated={refetch} />
+      <NewOrderModal open={addModalOpen} onClose={() => { setAddModalOpen(false); setPrefill(null); }} onCreated={refetch} prefill={prefill} />
+
+      <Modal open={!!mapOrder} onClose={() => setMapOrder(null)} size="wide">
+        {mapOrder && (
+          <>
+            <div className="pe-head">
+              <div>
+                <h2>🗺️ #{mapOrder.order_no} · {mapOrder.customer_name || 'Misafir'}</h2>
+                <p className="muted small">{mapOrder.district ? `${mapOrder.district} · ` : ''}{mapOrder.delivery_address}</p>
+              </div>
+              <button type="button" className="icon-circle" onClick={() => setMapOrder(null)} aria-label="Kapat">✕</button>
+            </div>
+            <AddressMap lat={mapOrder.lat} lng={mapOrder.lng} address={[mapOrder.delivery_address, mapOrder.district].filter(Boolean).join(', ')} label={`#${mapOrder.order_no}`} height="360px" />
+            {mapOrder.lat == null && <p className="small muted" style={{ marginTop: '0.5rem' }}>Bu siparişte işaretli konum yok; harita yazılı adrese göre çözülür.</p>}
+          </>
+        )}
+      </Modal>
     </>
   );
 }

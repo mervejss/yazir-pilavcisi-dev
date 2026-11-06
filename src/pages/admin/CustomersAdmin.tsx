@@ -7,6 +7,11 @@ import { ORDER_STATUS_LABELS, PAYMENT_METHOD_LABELS } from '@/lib/constants';
 import Modal from '@/components/ui/Modal';
 import CustomerAnalyticsPanel from '@/components/analytics/CustomerAnalyticsPanel';
 import CustomerInsights from '@/components/analytics/CustomerInsights';
+import NewOrderModal, { type OrderPrefill } from '@/components/admin/NewOrderModal';
+import AddressMap from '@/components/maps/AddressMap';
+import LocationPicker from '@/components/maps/LocationPicker';
+import { mapsPlaceUrl, type LatLng } from '@/lib/googleMaps';
+import { fmtPhone, isMissingFn, normalizePhone } from '@/lib/staffCustomers';
 
 interface Cust {
   id: string;
@@ -21,6 +26,7 @@ interface Cust {
   total_spent: number;
   last_order_at: string | null;
   avg_basket: number;
+  created_via?: string | null;
 }
 type SortKey = 'recent' | 'spent' | 'orders' | 'points' | 'name';
 
@@ -42,6 +48,16 @@ export default function CustomersAdmin() {
   const [couponPick, setCouponPick] = useState('');
   const [openOrder, setOpenOrder] = useState<string | null>(null);
   const [tab, setTab] = useState<'list' | 'analytics'>('list');
+  const [orderModal, setOrderModal] = useState(false);
+  const [prefill, setPrefill] = useState<OrderPrefill | null>(null);
+  const [addrs, setAddrs] = useState<any[]>([]);
+  const [mapAddr, setMapAddr] = useState<string | null>(null);
+  // Yeni telefon müşterisi / adres ekleme formu
+  const emptyNew = { name: '', phone: '', notes: '', address: '', district: 'Yazır', title: 'Ev' };
+  const [addOpen, setAddOpen] = useState<null | 'customer' | 'address'>(null);
+  const [nf, setNf] = useState(emptyNew);
+  const [nfLoc, setNfLoc] = useState<LatLng | null>(null);
+  const [nfBusy, setNfBusy] = useState(false);
 
   const load = async () => {
     const { data, error } = await supabase.rpc('admin_customers');
@@ -59,12 +75,49 @@ export default function CustomersAdmin() {
     setForm({ name: c.full_name, phone: c.phone || '', notes: c.notes || '' });
     setAdj({ points: '', note: '' });
     setOpenOrder(null);
+    setMapAddr(null);
+    loadAddrs(c.id);
     const [o, l] = await Promise.all([
       supabase.from('orders').select('*, order_items(*)').eq('customer_id', c.id).order('created_at', { ascending: false }).limit(60),
       supabase.from('loyalty_ledger').select('*').eq('customer_id', c.id).order('created_at', { ascending: false }).limit(40),
     ]);
     setOrders((o.data || []) as any[]);
     setLedger(l.error ? [] : ((l.data || []) as any[]));
+  };
+
+  const loadAddrs = async (id: string) => {
+    const { data } = await supabase.from('customer_addresses').select('*').eq('customer_id', id).order('is_default', { ascending: false });
+    setAddrs((data || []) as any[]);
+  };
+
+  const orderFor = (c: Cust, repeat?: any) => {
+    setPrefill({ customer: { id: c.id, name: c.full_name, phone: c.phone }, repeat });
+    setOrderModal(true);
+  };
+
+  const saveNew = async () => {
+    const np = nf.phone.trim() ? normalizePhone(nf.phone) : null;
+    if (addOpen === 'customer' && !nf.name.trim() && !np) return void toast.error('En az ad veya telefon girin');
+    if (nf.phone.trim() && !np) return void toast.error('Telefon geçersiz (05xx xxx xx xx)');
+    if (addOpen === 'address' && !nf.address.trim()) return void toast.error('Adres yazın');
+    setNfBusy(true);
+    const { data, error } = await supabase.rpc('staff_save_customer', {
+      p_customer: addOpen === 'address' ? sel?.id : null,
+      p_name: addOpen === 'address' ? null : nf.name,
+      p_phone: addOpen === 'address' ? null : np,
+      p_notes: addOpen === 'address' ? null : nf.notes,
+      p_address: nf.address.trim() ? { title: nf.title, address: nf.address.trim(), district: nf.district, lat: nfLoc?.lat ?? null, lng: nfLoc?.lng ?? null, make_default: false } : null,
+    } as any);
+    setNfBusy(false);
+    if (error) return void toast.error(isMissingFn(error) ? 'sql/25_phone_customers_maps.sql dosyasını Supabase SQL Editor\'de çalıştırın' : error.message);
+    const r: any = data;
+    toast.success(addOpen === 'address' ? 'Adres kaydedildi' : r?.created ? 'Müşteri kaydedildi' : 'Bu telefon zaten kayıtlıydı — bilgiler güncellendi');
+    const was = addOpen;
+    setAddOpen(null);
+    setNf(emptyNew);
+    setNfLoc(null);
+    await load();
+    if (was === 'address' && sel) loadAddrs(sel.id);
   };
 
   const saveInfo = async () => {
@@ -159,7 +212,10 @@ export default function CustomersAdmin() {
           <h1>Müşteriler</h1>
           <p className="muted" style={{ margin: 0 }}>Müşteri listesi, davranış analizi, sipariş geçmişi, sadakat puanı ve kupon tanımlama</p>
         </div>
-        <div className="mx-bar-actions"><button type="button" className="btn ghost sm" onClick={exportCsv}>⬇ CSV</button></div>
+        <div className="mx-bar-actions">
+          <button type="button" className="btn gold sm" onClick={() => { setNf(emptyNew); setNfLoc(null); setAddOpen('customer'); }}>📞 Telefon müşterisi ekle</button>
+          <button type="button" className="btn ghost sm" onClick={exportCsv}>⬇ CSV</button>
+        </div>
       </div>
       {missing && <div className="note">Müşteri paneli için <code>sql/15_coupons_loyalty.sql</code> dosyasını Supabase SQL Editor'de çalıştırın.</div>}
 
@@ -199,8 +255,8 @@ export default function CustomersAdmin() {
           <tbody>
             {shown.map((c) => (
               <tr key={c.id} className="row-click" onClick={() => open(c)}>
-                <td><b>{c.full_name || 'İsimsiz'}</b> {c.user_id && <span className="chip">üye</span>}{(Number(c.total_spent) >= 1500 || c.order_count >= 10) && ' 👑'}</td>
-                <td>{c.phone || '—'}</td>
+                <td><b>{c.full_name || 'İsimsiz'}</b> {c.user_id && <span className="chip">üye</span>}{!c.user_id && c.created_via === 'phone' && <span className="chip">📞 telefon</span>}{(Number(c.total_spent) >= 1500 || c.order_count >= 10) && ' 👑'}</td>
+                <td>{c.phone ? fmtPhone(c.phone) : '—'}</td>
                 <td>{c.order_count}</td>
                 <td><b>{tl(Number(c.total_spent))}</b></td>
                 <td>{tl(Number(c.avg_basket))}</td>
@@ -238,6 +294,7 @@ export default function CustomersAdmin() {
                 <label className="fld">Yönetici notu (müşteri görmez)<textarea rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Örn: Kapı zili bozuk, aramalı. Acısız sever." /></label>
                 <button type="button" className="btn gold sm" onClick={saveInfo}>Kaydet</button>
                 {sel.phone && <a className="btn ghost sm" href={`tel:${sel.phone}`}>📞 Ara</a>}
+                <button type="button" className="btn dark sm" onClick={() => orderFor(sel)}>🛒 Bu müşteri için sipariş al</button>
               </section>
 
               <section className="pe-sec">
@@ -271,6 +328,28 @@ export default function CustomersAdmin() {
               </section>
             </div>
 
+            <section className="pe-sec" style={{ marginTop: '1rem' }}>
+              <h4>📍 Kayıtlı adresler ({addrs.length})</h4>
+              <div className="cu-addrs">
+                {addrs.map((a) => (
+                  <div key={a.id} className="cu-addr">
+                    <div>
+                      <b>{a.title}</b>{a.is_default && <span className="chip">varsayılan</span>}
+                      <div className="small">{a.district ? `${a.district} · ` : ''}{a.full_address}</div>
+                      <div className="small">
+                        {a.lat != null ? <span className="ok-txt">✓ Konum işaretli</span> : <span className="muted">Konum işaretli değil</span>}
+                        {' · '}<a href={mapsPlaceUrl({ lat: a.lat, lng: a.lng, address: a.full_address })} target="_blank" rel="noreferrer">Google Haritalar</a>
+                        {' · '}<button type="button" className="linklike" onClick={() => setMapAddr(mapAddr === a.id ? null : a.id)}>{mapAddr === a.id ? 'Haritayı gizle' : '🗺️ Haritada göster'}</button>
+                      </div>
+                    </div>
+                    {mapAddr === a.id && <AddressMap lat={a.lat != null ? Number(a.lat) : null} lng={a.lng != null ? Number(a.lng) : null} address={a.full_address} height="220px" />}
+                  </div>
+                ))}
+                {addrs.length === 0 && <p className="muted small">Kayıtlı adres yok. Telefonla paket sipariş girerken adres otomatik kaydedilir.</p>}
+              </div>
+              <button type="button" className="btn ghost sm" onClick={() => { setNf({ ...emptyNew, title: 'Adres' }); setNfLoc(null); setAddOpen('address'); }}>➕ Adres ekle</button>
+            </section>
+
             <CustomerInsights customerId={sel.id} />
 
             <section className="pe-sec" style={{ marginTop: '1rem' }}>
@@ -286,6 +365,9 @@ export default function CustomersAdmin() {
                       {Number(o.discount) > 0 && <span className="chip">−{tl(Number(o.discount))}</span>}
                       <b className="price">{tl(Number(o.total))}</b>
                     </button>
+                    {['delivery', 'pickup'].includes(o.order_type) && o.status !== 'cancelled' && (
+                      <button type="button" className="btn gold sm cu-repeat" onClick={() => orderFor(sel, { orderId: o.id, type: o.order_type, address: o.delivery_address, district: o.district, lat: o.lat, lng: o.lng, note: o.note, payment: o.payment_method })}>🔁 Tekrarla</button>
+                    )}
                     {openOrder === o.id && (
                       <div className="cu-order-body">
                         <ul>{(o.order_items || []).map((i: any) => <li key={i.id}>{i.quantity}× {i.product_name}{i.variant_name ? ` (${i.variant_name})` : ''} — {tl(Number(i.line_total ?? i.unit_price * i.quantity))}</li>)}</ul>
@@ -301,6 +383,37 @@ export default function CustomersAdmin() {
           </>
         )}
       </Modal>
+
+      <Modal open={!!addOpen} onClose={() => !nfBusy && setAddOpen(null)} size="wide">
+        <div className="pe-head">
+          <div>
+            <h2>{addOpen === 'address' ? '📍 Adres ekle' : '📞 Telefon müşterisi ekle'}</h2>
+            <p className="muted small">{addOpen === 'address' ? `${sel?.full_name || 'Müşteri'} için yeni adres` : 'Hesabı olmayan, telefonla arayan müşteriyi kaydedin. Yalnızca yöneticiler görür; tekrar aradığında bilgileri hazır gelir.'}</p>
+          </div>
+          <button type="button" className="icon-circle" onClick={() => setAddOpen(null)} aria-label="Kapat">✕</button>
+        </div>
+        {addOpen === 'customer' && (
+          <>
+            <div className="two-col">
+              <label className="fld">Telefon<input inputMode="tel" value={nf.phone} onChange={(e) => setNf({ ...nf, phone: e.target.value })} placeholder="05xx xxx xx xx" /></label>
+              <label className="fld">Ad soyad<input value={nf.name} onChange={(e) => setNf({ ...nf, name: e.target.value })} /></label>
+            </div>
+            <label className="fld">Not (müşteri görmez)<input value={nf.notes} onChange={(e) => setNf({ ...nf, notes: e.target.value })} placeholder="Örn: Acısız sever, zili çalmayın" /></label>
+          </>
+        )}
+        <div className="two-col">
+          <label className="fld">Adres adı<input value={nf.title} onChange={(e) => setNf({ ...nf, title: e.target.value })} placeholder="Ev, İş…" /></label>
+          <label className="fld">Mahalle<input value={nf.district} onChange={(e) => setNf({ ...nf, district: e.target.value })} /></label>
+        </div>
+        <label className="fld">Açık adres <span className="muted">(isteğe bağlı)</span><textarea rows={2} value={nf.address} onChange={(e) => setNf({ ...nf, address: e.target.value })} placeholder="Sokak, bina, kapı / daire no" /></label>
+        <LocationPicker value={nfLoc} onChange={setNfLoc} address={nf.address} district={nf.district} height="240px" onAddress={(a) => setNf((f) => ({ ...f, address: a.address, district: a.district || f.district }))} />
+        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+          <button type="button" className="btn gold" disabled={nfBusy} onClick={saveNew}>{nfBusy ? 'Kaydediliyor…' : 'Kaydet'}</button>
+          <button type="button" className="btn ghost" disabled={nfBusy} onClick={() => setAddOpen(null)}>Vazgeç</button>
+        </div>
+      </Modal>
+
+      <NewOrderModal open={orderModal} onClose={() => { setOrderModal(false); setPrefill(null); }} onCreated={() => { load(); if (sel) open(sel); }} prefill={prefill} />
     </>
   );
 }

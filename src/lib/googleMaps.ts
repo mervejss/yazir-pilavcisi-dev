@@ -28,7 +28,7 @@ export interface Destination {
 export const hasCoords = (d?: { lat?: number | null; lng?: number | null } | null): boolean =>
   !!d && typeof d.lat === 'number' && typeof d.lng === 'number' && !Number.isNaN(d.lat) && !Number.isNaN(d.lng);
 
-const destQuery = (d: Destination) => (hasCoords(d) ? `${d.lat},${d.lng}` : `${d.address || ''}, Selçuklu, Konya`);
+const destQuery = (d: Destination) => (hasCoords(d) ? `${d.lat},${d.lng}` : `${d.address || ''}, Konya`);
 
 /** Google Haritalar uygulamasında/sitesinde yol tarifi aç (telefonda uygulamayı açar) */
 export function mapsDirUrl(dest: Destination, origin?: LatLng | null): string {
@@ -68,7 +68,7 @@ export function loadGoogleMaps(): Promise<typeof google> {
     };
     (window as any).__gmapsReady = () => resolve((window as any).google);
     const s = document.createElement('script');
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GMAPS_KEY)}&v=weekly&language=tr&region=TR&libraries=geometry&callback=__gmapsReady&loading=async`;
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GMAPS_KEY)}&v=weekly&language=tr&region=TR&libraries=geometry,places&callback=__gmapsReady&loading=async`;
     s.async = true;
     s.defer = true;
     s.onerror = () => {
@@ -155,7 +155,7 @@ export async function geocodeAddress(address: string): Promise<LatLng | null> {
   try {
     await loadGoogleMaps();
     const geocoder = new google.maps.Geocoder();
-    const res = await geocoder.geocode({ address: `${address}, Selçuklu, Konya, Türkiye`, region: 'TR' });
+    const res = await geocoder.geocode({ address: `${address}, Konya, Türkiye`, region: 'TR' });
     const loc = res.results[0]?.geometry.location;
     const v = loc ? { lat: loc.lat(), lng: loc.lng() } : null;
     geoCache.set(key, v);
@@ -180,3 +180,141 @@ export function distanceM(a: LatLng, b: LatLng): number {
 }
 
 export const fmtKm = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
+
+
+/* ------------------------------------------------------------------ */
+/* v33 · Konum seçici yardımcıları                                     */
+/* ------------------------------------------------------------------ */
+
+/** Siparişin adresinden Google Haritalar bağlantısı (koordinat varsa birebir nokta, yoksa yazılı adres) */
+export function orderMapsUrl(o: { lat?: number | null; lng?: number | null; delivery_address?: string | null; district?: string | null }): string {
+  return mapsPlaceUrl({ lat: o.lat, lng: o.lng, address: [o.delivery_address, o.district].filter(Boolean).join(', ') });
+}
+
+/** Yapıştırılan Google Haritalar bağlantısından/metninden koordinat çıkar (kısa maps.app.goo.gl bağlantıları çözülemez) */
+export function parseMapsLink(text: string): LatLng | null {
+  let t = (text || '').trim();
+  try { t = decodeURIComponent(t); } catch { /* yoksay */ }
+  if (!t) return null;
+  const pats = [
+    /@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/,
+    /!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/,
+    /[?&](?:q|query|ll|destination|daddr)=(-?\d{1,2}\.\d+)[,+ ]\s*(-?\d{1,3}\.\d+)/,
+    /^\s*(-?\d{1,2}\.\d+)\s*[,;]\s*(-?\d{1,3}\.\d+)\s*$/,
+  ];
+  for (const re of pats) {
+    const m = t.match(re);
+    if (m) {
+      const lat = parseFloat(m[1]);
+      const lng = parseFloat(m[2]);
+      if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) return { lat, lng };
+    }
+  }
+  return null;
+}
+
+export const isShortMapsLink = (t: string) => /(maps\.app\.goo\.gl|goo\.gl\/maps)/i.test(t || '');
+
+export interface GeoResult {
+  lat: number;
+  lng: number;
+  address: string;
+  district?: string;
+}
+
+const cleanAddress = (a: string) => a.replace(/,?\s*(Türkiye|Turkey)\s*$/i, '').trim();
+
+function districtOf(r: any): string | undefined {
+  const comps: any[] = (r as any)?.address_components || (r as any)?.addressComponents || [];
+  const pick = (...types: string[]) => comps.find((c) => types.some((t) => (c.types || []).includes(t)));
+  const c = pick('administrative_area_level_4', 'neighborhood', 'sublocality_level_1', 'sublocality');
+  return c?.long_name || c?.longText || undefined;
+}
+
+/** Koordinat → adres (Geocoding API) */
+export async function reverseGeocode(p: LatLng): Promise<GeoResult | null> {
+  try {
+    await loadGoogleMaps();
+    const res = await new google.maps.Geocoder().geocode({ location: p, region: 'TR', language: 'tr' } as any);
+    const list = res.results || [];
+    const best = list.find((r) => r.types.some((t) => ['street_address', 'premise', 'subpremise', 'route'].includes(t))) || list[0];
+    if (!best) return null;
+    return { lat: p.lat, lng: p.lng, address: cleanAddress(best.formatted_address), district: districtOf(best) };
+  } catch {
+    return null;
+  }
+}
+
+/** Yazılı adres → koordinat + düzenli adres (önbelleksiz; kullanıcı eylemiyle çağrılır) */
+export async function geocodeFull(address: string): Promise<GeoResult | null> {
+  const q = address.trim();
+  if (!q) return null;
+  try {
+    await loadGoogleMaps();
+    const res = await new google.maps.Geocoder().geocode({ address: `${q}, Konya, Türkiye`, region: 'TR', language: 'tr' } as any);
+    const r = res.results?.[0];
+    if (!r) return null;
+    return { lat: r.geometry.location.lat(), lng: r.geometry.location.lng(), address: cleanAddress(r.formatted_address), district: districtOf(r) };
+  } catch {
+    return null;
+  }
+}
+
+export interface PlaceSuggestion {
+  id: string;
+  text: string;
+  main: string;
+  secondary: string;
+  resolve: () => Promise<GeoResult | null>;
+}
+
+/** Google Places (New) otomatik tamamlama. API etkin değilse boş dizi + ok=false döner. */
+export async function suggestPlaces(input: string, token: unknown): Promise<{ ok: boolean; items: PlaceSuggestion[] }> {
+  if (input.trim().length < 3) return { ok: true, items: [] };
+  try {
+    await loadGoogleMaps();
+    const lib: any = await (google.maps as any).importLibrary('places');
+    const { suggestions } = await lib.AutocompleteSuggestion.fetchAutocompleteSuggestions({
+      input,
+      language: 'tr',
+      region: 'tr',
+      includedRegionCodes: ['tr'],
+      locationBias: { center: RESTAURANT_FALLBACK, radius: 40000 },
+      origin: RESTAURANT_FALLBACK,
+      sessionToken: token,
+    });
+    const items: PlaceSuggestion[] = (suggestions || [])
+      .filter((s: any) => s.placePrediction)
+      .slice(0, 6)
+      .map((s: any) => {
+        const pp = s.placePrediction;
+        return {
+          id: pp.placeId as string,
+          text: pp.text?.text || '',
+          main: pp.mainText?.text || pp.text?.text || '',
+          secondary: pp.secondaryText?.text || '',
+          resolve: async () => {
+            const place = pp.toPlace();
+            await place.fetchFields({ fields: ['location', 'formattedAddress', 'displayName', 'addressComponents'] });
+            if (!place.location) return null;
+            const addr = cleanAddress(place.formattedAddress || pp.text?.text || '');
+            const name = place.displayName && !addr.startsWith(place.displayName) ? `${place.displayName}, ` : '';
+            return { lat: place.location.lat(), lng: place.location.lng(), address: `${name}${addr}`, district: districtOf(place) };
+          },
+        };
+      });
+    return { ok: true, items };
+  } catch {
+    return { ok: false, items: [] };
+  }
+}
+
+export async function newPlacesToken(): Promise<unknown> {
+  try {
+    await loadGoogleMaps();
+    const lib: any = await (google.maps as any).importLibrary('places');
+    return new lib.AutocompleteSessionToken();
+  } catch {
+    return undefined;
+  }
+}
