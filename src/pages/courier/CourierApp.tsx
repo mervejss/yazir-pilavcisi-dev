@@ -8,6 +8,7 @@ import { HAS_GMAPS_KEY, mapsDirUrl, distanceM, fmtKm, type Destination } from '@
 import { useCourierTracking } from '@/hooks/useCourierTracking';
 import RouteMap, { type RouteSummary } from '@/components/maps/RouteMap';
 import Icon from '@/components/ui/Icon';
+import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import Logo from '@/components/ui/Logo';
 import ThemeToggle from '@/components/ui/ThemeToggle';
 import AlertHost from '@/components/alerts/AlertHost';
@@ -59,6 +60,14 @@ export default function CourierApp() {
   const [onlineLoaded, setOnlineLoaded] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [sheet, setSheet] = useState<string | null>(null);
+  const [exitAsk, setExitAsk] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const sheetRef = useRef<string | null>(null);
+  const tabRef = useRef<Tab>('mine');
+  const exitRef = useRef(false);
+  sheetRef.current = sheet;
+  tabRef.current = tab;
+  exitRef.current = exitAsk;
   const [route, setRoute] = useState<Record<string, RouteSummary | null>>({});
   const prevMine = useRef<Set<string> | null>(null);
   const prevOpen = useRef<Set<string> | null>(null);
@@ -215,10 +224,40 @@ export default function CourierApp() {
   };
 
   const handleSignOut = async () => {
-    if (online) await setOnlineState(false, true);
-    await signOut();
-    navigate('/personel-giris');
+    setSigningOut(true);
+    try {
+      if (online) await setOnlineState(false, true);
+      await signOut();
+    } finally {
+      setSigningOut(false);
+      setExitAsk(false);
+    }
+    navigate('/personel-giris', { replace: true });
   };
+
+  // Kurye uygulaması olarak yüklenebilsin (ana ekrana ekle) ve durum çubuğu rengi uyumlu olsun
+  useEffect(() => {
+    const l = document.createElement('link');
+    l.rel = 'manifest';
+    l.href = '/kurye.webmanifest';
+    document.head.appendChild(l);
+    return () => l.remove();
+  }, []);
+
+  // Telefondaki GERİ tuşu: önce açık harita/sekmeyi kapatır; ana ekrandaysa hesaptan çıkmadan önce onay ister
+  useEffect(() => {
+    const guard = () => window.history.pushState({ crGuard: true }, '', window.location.href);
+    guard();
+    const onPop = () => {
+      guard(); // sayfadan ayrılmayı engelle
+      if (exitRef.current) return setExitAsk(false);
+      if (sheetRef.current) return setSheet(null);
+      if (tabRef.current !== 'mine') return setTab('mine');
+      setExitAsk(true);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
   /* ---------------- Türetilmiş ---------------- */
   const mine = useMemo(() => all.filter((o) => o.is_mine), [all]);
@@ -336,6 +375,17 @@ export default function CourierApp() {
   return (
     <div className="cr-app">
       <AlertHost storageKey="yz_alert_courier" />
+      <ConfirmationModal
+        open={exitAsk}
+        onClose={() => !signingOut && setExitAsk(false)}
+        onConfirm={handleSignOut}
+        title="Hesaptan çıkış yapılsın mı?"
+        message={online ? 'Çıkış yaparsanız çevrimdışı olursunuz ve yeni sipariş bildirimi almazsınız.' : 'Uygulamadan çıkış yapmak istediğinize emin misiniz?'}
+        confirmLabel="Evet, çıkış yap"
+        cancelLabel="Hayır, kalayım"
+        variant="warning"
+        loading={signingOut}
+      />
       <header className="cr-head">
         <Logo height={34} />
         <div className="cr-who">
@@ -343,7 +393,7 @@ export default function CourierApp() {
           <b>{profile?.full_name}</b>
         </div>
         <ThemeToggle />
-        <button type="button" className="icon-btn cr-out" onClick={handleSignOut} aria-label="Çıkış"><Icon name="logout" size={18} /></button>
+        <button type="button" className="icon-btn cr-out" onClick={() => setExitAsk(true)} aria-label="Çıkış"><Icon name="logout" size={18} /></button>
       </header>
 
       {/* Karşılama + bugünün özeti */}

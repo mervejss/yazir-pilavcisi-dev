@@ -10,6 +10,8 @@ import { DAY_NAMES } from '@/lib/constants';
 import { weekSchedule } from '@/lib/helpers';
 import { contactLinks, whatsappLink } from '@/lib/contact';
 import toast from 'react-hot-toast';
+import WhatsAppWidget from '@/components/public/WhatsAppWidget';
+import Seo from '@/components/seo/Seo';
 
 const LINKS: [string, string, IconName][] = [
   ['/', 'Ana Sayfa', 'home'],
@@ -63,6 +65,7 @@ export default function PublicLayout() {
 
   return (
     <div className="site">
+      <Seo settings={settings} hours={hours} />
       <header className={`top scope-dark${scrolled ? ' scrolled' : ''}`}>
         <Link to="/" className="brand" aria-label="Yazır Pilavcısı ana sayfa">
           <Logo />
@@ -148,6 +151,8 @@ export default function PublicLayout() {
 
       <Outlet />
 
+      <WhatsAppWidget settings={settings} open={status.open} statusLabel={status.label} />
+
       <footer className="site-footer scope-dark">
         <div className="sf-inner">
           <div className="sf-top">
@@ -178,8 +183,11 @@ export default function PublicLayout() {
 
             {/* Bağlantılar */}
             <nav className="sf-links" aria-label="Site bağlantıları">
-              <h4><Icon name="arrowRight" size={17} /> Bağlantılar</h4>
+              <h2><Icon name="arrowRight" size={17} /> Bağlantılar</h2>
               <Link to="/menu" className="foot-link"><Icon name="utensils" size={15} /> Online Menü</Link>
+              <Link to="/pilav-restorani" className="foot-link"><Icon name="home" size={15} /> Yazır Pilav Restoranı</Link>
+              <Link to="/kampanyalar" className="foot-link"><Icon name="tag" size={15} /> Kampanyalar</Link>
+              <Link to="/yorumlar" className="foot-link"><Icon name="star" size={15} /> Müşteri Yorumları</Link>
               <Link to="/galeri" className="foot-link"><Icon name="image" size={15} /> Restoran Galerisi</Link>
               <Link to="/toplu" className="foot-link"><Icon name="users" size={15} /> Toplu Yemek Talebi</Link>
               <Link to="/iletisim" className="foot-link"><Icon name="phone" size={15} /> İletişim</Link>
@@ -191,7 +199,7 @@ export default function PublicLayout() {
             {/* Çalışma saatleri (geniş, sağa dayalı) */}
             <div className="sf-hours">
               <div className="sf-hours-head">
-                <h4><Icon name="clock" size={17} /> Çalışma Saatleri</h4>
+                <h2><Icon name="clock" size={17} /> Çalışma Saatleri</h2>
                 <span className={`pill ${status.open ? 'ok' : 'no'}`}>
                   <span className="live-dot" /> {status.label}
                 </span>
@@ -216,7 +224,7 @@ export default function PublicLayout() {
           {/* Adres + Google Harita */}
           <div className="sf-location">
             <div className="sf-address">
-              <h4><Icon name="mapPin" size={18} /> Bizi Bulun</h4>
+              <h2><Icon name="mapPin" size={18} /> Bizi Bulun</h2>
               <div className="sf-address-line">
                 <span className="sf-pin"><Icon name="mapPin" size={20} /></span>
                 <address>{address}</address>
@@ -231,7 +239,7 @@ export default function PublicLayout() {
               </div>
 
               <div className="sf-social">
-                <h5>Bizi sosyal medyada takip edin</h5>
+                <h3>Bizi sosyal medyada takip edin</h3>
                 <a className="sf-insta" href={instagramUrl} target="_blank" rel="noreferrer" aria-label="Instagram'da bizi takip edin">
                   <Icon name="instagram" size={22} />
                   <span>

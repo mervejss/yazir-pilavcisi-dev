@@ -29,6 +29,9 @@ export interface BusinessSettings {
   slogan: string | null;
   phone: string | null;
   whatsapp: string | null;
+  wa_widget_enabled?: boolean;
+  wa_catalog_url?: string | null;
+  wa_quick_messages?: string[] | null;
   address: string | null;
   lat: number | null;
   lng: number | null;

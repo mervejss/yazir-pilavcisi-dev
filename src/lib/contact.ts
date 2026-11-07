@@ -1,6 +1,6 @@
 import type { BusinessSettings } from '@/types/database';
 
-export const DEFAULT_ADDRESS = 'Yazır mah. Şehit Erkan Özbalcı sk. 20/b, Selçuklu / Konya (Reyhan İş Merkezi arkası)';
+export const DEFAULT_ADDRESS = 'Yazır, Şht. Erkan Özbalcı Sk. No:20/b, 42310 Selçuklu/Konya (Reyhan İş Merkezi arkası)';
 export const DEFAULT_INSTAGRAM = 'https://www.instagram.com/yazir.pilavcisi/';
 
 /** WhatsApp bağlantısı: 0540... → 90540... (wa.me ülke kodu ister) */

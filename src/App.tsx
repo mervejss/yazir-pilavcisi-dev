@@ -1,56 +1,60 @@
-import { useEffect } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 
 // Public pages
 import PublicLayout from '@/pages/public/PublicLayout';
 import Home from '@/pages/public/Home';
-import MenuPage from '@/pages/public/MenuPage';
-import OrderPage from '@/pages/public/OrderPage';
-import ProfilePage from '@/pages/public/ProfilePage';
-import BulkPage from '@/pages/public/BulkPage';
-import ReviewsPage from '@/pages/public/ReviewsPage';
-import ContactPage from '@/pages/public/ContactPage';
-import TrackPage from '@/pages/public/TrackPage';
-import QrMenuPage from '@/pages/public/QrMenuPage';
-import GalleryPage from '@/pages/public/GalleryPage';
+const MenuPage = lazy(() => import('@/pages/public/MenuPage'));
+const OrderPage = lazy(() => import('@/pages/public/OrderPage'));
+const ProfilePage = lazy(() => import('@/pages/public/ProfilePage'));
+const BulkPage = lazy(() => import('@/pages/public/BulkPage'));
+const ReviewsPage = lazy(() => import('@/pages/public/ReviewsPage'));
+const ContactPage = lazy(() => import('@/pages/public/ContactPage'));
+const TrackPage = lazy(() => import('@/pages/public/TrackPage'));
+const QrMenuPage = lazy(() => import('@/pages/public/QrMenuPage'));
+const PilavRestoraniPage = lazy(() => import('@/pages/public/PilavRestoraniPage'));
+const GalleryPage = lazy(() => import('@/pages/public/GalleryPage'));
 
 // Auth pages
-import LoginPage from '@/pages/auth/LoginPage';
-import RegisterPage from '@/pages/auth/RegisterPage';
-import StaffLoginPage from '@/pages/auth/StaffLoginPage';
+const LoginPage = lazy(() => import('@/pages/auth/LoginPage'));
+const RegisterPage = lazy(() => import('@/pages/auth/RegisterPage'));
+const StaffLoginPage = lazy(() => import('@/pages/auth/StaffLoginPage'));
 
 // Admin pages
-import AdminLayout from '@/pages/admin/AdminLayout';
-import Dashboard from '@/pages/admin/Dashboard';
-import OrdersBoard from '@/pages/admin/OrdersBoard';
-import PastOrders from '@/pages/admin/PastOrders';
-import MenuAdmin from '@/pages/admin/MenuAdmin';
-import TablesAdmin from '@/pages/admin/TablesAdmin';
-import CouriersAdmin from '@/pages/admin/CouriersAdmin';
-import Analytics from '@/pages/admin/Analytics';
-import FeedbackAdmin from '@/pages/admin/FeedbackAdmin';
-import UsersAdmin from '@/pages/admin/UsersAdmin';
-import SettingsAdmin from '@/pages/admin/SettingsAdmin';
-import LiveMap from '@/pages/admin/LiveMap';
-import GalleryAdmin from '@/pages/admin/GalleryAdmin';
-import GoogleReviewsAdmin from '@/pages/admin/GoogleReviewsAdmin';
-import FinanceAdmin from '@/pages/admin/FinanceAdmin';
-import PaymentsAdmin from '@/pages/admin/PaymentsAdmin';
+const AdminLayout = lazy(() => import('@/pages/admin/AdminLayout'));
+const Dashboard = lazy(() => import('@/pages/admin/Dashboard'));
+const OrdersBoard = lazy(() => import('@/pages/admin/OrdersBoard'));
+const PastOrders = lazy(() => import('@/pages/admin/PastOrders'));
+const MenuAdmin = lazy(() => import('@/pages/admin/MenuAdmin'));
+const TablesAdmin = lazy(() => import('@/pages/admin/TablesAdmin'));
+const CouriersAdmin = lazy(() => import('@/pages/admin/CouriersAdmin'));
+const Analytics = lazy(() => import('@/pages/admin/Analytics'));
+const FeedbackAdmin = lazy(() => import('@/pages/admin/FeedbackAdmin'));
+const UsersAdmin = lazy(() => import('@/pages/admin/UsersAdmin'));
+const SettingsAdmin = lazy(() => import('@/pages/admin/SettingsAdmin'));
+const LiveMap = lazy(() => import('@/pages/admin/LiveMap'));
+const GalleryAdmin = lazy(() => import('@/pages/admin/GalleryAdmin'));
+const GoogleReviewsAdmin = lazy(() => import('@/pages/admin/GoogleReviewsAdmin'));
+const FinanceAdmin = lazy(() => import('@/pages/admin/FinanceAdmin'));
+const PaymentsAdmin = lazy(() => import('@/pages/admin/PaymentsAdmin'));
 
 // Courier pages
-import CourierApp from '@/pages/courier/CourierApp';
-import IntegrationsOverview from '@/pages/admin/integrations/IntegrationsOverview';
-import {
-    TrendyolGoPage, YemeksepetiPage, MigrosYemekPage, GetirYemekPage, OtherPlatformsPage,
-} from '@/pages/admin/integrations/PlatformRoutes';
+const CourierApp = lazy(() => import('@/pages/courier/CourierApp'));
+const IntegrationsOverview = lazy(() => import('@/pages/admin/integrations/IntegrationsOverview'));
+const PlatformRoutes = () => import('@/pages/admin/integrations/PlatformRoutes');
+const TrendyolGoPage = lazy(() => PlatformRoutes().then((m) => ({ default: m.TrendyolGoPage })));
+const YemeksepetiPage = lazy(() => PlatformRoutes().then((m) => ({ default: m.YemeksepetiPage })));
+const MigrosYemekPage = lazy(() => PlatformRoutes().then((m) => ({ default: m.MigrosYemekPage })));
+const GetirYemekPage = lazy(() => PlatformRoutes().then((m) => ({ default: m.GetirYemekPage })));
+const OtherPlatformsPage = lazy(() => PlatformRoutes().then((m) => ({ default: m.OtherPlatformsPage })));
 
-import CampaignsPage from '@/pages/public/CampaignsPage';
-import CustomersAdmin from '@/pages/admin/CustomersAdmin';
-import CouponsAdmin from '@/pages/admin/CouponsAdmin';
-import AuditAdmin from '@/pages/admin/AuditAdmin';
-import BackupsAdmin from '@/pages/admin/BackupsAdmin';
-import ReviewsAdmin from '@/pages/admin/ReviewsAdmin';
+const CampaignsPage = lazy(() => import('@/pages/public/CampaignsPage'));
+const CustomersAdmin = lazy(() => import('@/pages/admin/CustomersAdmin'));
+const CouponsAdmin = lazy(() => import('@/pages/admin/CouponsAdmin'));
+const AuditAdmin = lazy(() => import('@/pages/admin/AuditAdmin'));
+const BackupsAdmin = lazy(() => import('@/pages/admin/BackupsAdmin'));
+const ReviewsAdmin = lazy(() => import('@/pages/admin/ReviewsAdmin'));
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
@@ -72,6 +76,7 @@ export default function App() {
     }, [initialize]);
 
     return (
+        <Suspense fallback={<LoadingSpinner />}>
         <Routes>
             {/* Public Routes */}
             <Route element={<PublicLayout />}>
@@ -84,6 +89,7 @@ export default function App() {
                 <Route path="kampanyalar" element={<CampaignsPage />} />
                 <Route path="yorumlar" element={<ReviewsPage />} />
                 <Route path="iletisim" element={<ContactPage />} />
+                <Route path="pilav-restorani" element={<PilavRestoraniPage />} />
                 <Route path="takip/:orderId" element={<TrackPage />} />
                 <Route path="qr/:token" element={<QrMenuPage />} />
             </Route>
@@ -143,5 +149,6 @@ export default function App() {
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </Suspense>
     );
 }

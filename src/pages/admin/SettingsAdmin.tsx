@@ -31,6 +31,13 @@ function numOrNull(v: any): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/** textarea metnini (veya diziyi) temiz mesaj listesine çevirir; boşsa null */
+function waLines(v: unknown): string[] | null {
+  const arr = Array.isArray(v) ? v : String(v || '').split('\n');
+  const l = arr.map((x) => String(x).trim()).filter(Boolean);
+  return l.length ? l : null;
+}
+
 export default function SettingsAdmin() {
   const [settings, setSettings] = useState<any>(null);
   const [hours, setHours] = useState<any[]>([]);
@@ -97,6 +104,13 @@ export default function SettingsAdmin() {
           estimated_delivery_max: Number(settings.estimated_delivery_max),
           is_accepting_orders: settings.is_accepting_orders,
           enforce_opening_hours: settings.enforce_opening_hours,
+          ...(settings.wa_widget_enabled !== undefined
+            ? {
+                wa_widget_enabled: !!settings.wa_widget_enabled,
+                wa_catalog_url: settings.wa_catalog_url?.trim() || null,
+                wa_quick_messages: waLines(settings.wa_quick_messages),
+              }
+            : {}),
           ...(settings.loyalty_enabled !== undefined
             ? {
                 loyalty_enabled: !!settings.loyalty_enabled,
@@ -326,6 +340,31 @@ export default function SettingsAdmin() {
               />
             </label>
           </div>
+
+          {settings.wa_widget_enabled !== undefined ? (
+            <fieldset className="wa-admin">
+              <legend>💬 WhatsApp penceresi (sitedeki yeşil düğme)</legend>
+              <label className="check">
+                <input type="checkbox" checked={!!settings.wa_widget_enabled} onChange={(e) => setSettings({ ...settings, wa_widget_enabled: e.target.checked })} />
+                Sitede WhatsApp düğmesini göster
+              </label>
+              <label>
+                WhatsApp katalog bağlantısı <span className="muted">(boşsa gösterilmez; örn. https://wa.me/c/90540…)</span>
+                <input value={settings.wa_catalog_url || ''} onChange={(e) => setSettings({ ...settings, wa_catalog_url: e.target.value })} placeholder="https://wa.me/c/905403314142" />
+              </label>
+              <label>
+                Hazır mesajlar <span className="muted">(her satır bir seçenek; boşsa varsayılanlar kullanılır)</span>
+                <textarea
+                  rows={6}
+                  value={Array.isArray(settings.wa_quick_messages) ? settings.wa_quick_messages.join('\n') : settings.wa_quick_messages || ''}
+                  onChange={(e) => setSettings({ ...settings, wa_quick_messages: e.target.value as any })}
+                  placeholder={'Merhaba, şu an açık mısınız?\nMerhaba, sipariş verebilir miyim?'}
+                />
+              </label>
+            </fieldset>
+          ) : (
+            <div className="note small">WhatsApp penceresi ayarları için <code>sql/28_whatsapp_widget.sql</code> dosyasını çalıştırın.</div>
+          )}
 
           <label>
             Adres
