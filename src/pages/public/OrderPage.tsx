@@ -9,6 +9,8 @@ import { tl } from '@/lib/helpers';
 import { PAYMENT_METHOD_LABELS } from '@/lib/constants';
 import ProductImage from '@/components/ui/ProductImage';
 import LocationPicker from '@/components/maps/LocationPicker';
+import VoiceDictateButton from '@/components/ui/VoiceDictateButton';
+import { normalizePhone } from '@/lib/staffCustomers';
 import toast from 'react-hot-toast';
 
 interface OrderResult {
@@ -295,22 +297,33 @@ export default function OrderPage() {
 
               <div className="two-col">
                 <label>
-                  Ad Soyad
+                  <span className="fld-row">
+                    Ad Soyad
+                    <VoiceDictateButton value={form.name} onChange={(v) => setForm((f) => ({ ...f, name: v }))} title="Adınızı sesle yazdırın" />
+                  </span>
                   <input
                     required
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    placeholder="Adınız ve Soyadınız"
+                    placeholder="Adınız ve Soyadınız — veya 🎙️ ile söyleyin"
                   />
                 </label>
                 <label>
-                  Telefon Numarası
+                  <span className="fld-row">
+                    Telefon Numarası
+                    <VoiceDictateButton
+                      value={form.phone}
+                      onChange={(v) => setForm((f) => ({ ...f, phone: v }))}
+                      onFinalize={(spoken) => { const n = normalizePhone(spoken); if (n) setForm((f) => ({ ...f, phone: n })); }}
+                      title="Telefon numaranızı sesle yazdırın"
+                    />
+                  </span>
                   <input
                     required
                     type="tel"
                     value={form.phone}
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    placeholder="05xx xxx xx xx"
+                    placeholder="05xx xxx xx xx — veya 🎙️ ile söyleyin"
                   />
                 </label>
               </div>
@@ -318,7 +331,10 @@ export default function OrderPage() {
               {(selectedAddrId === 'custom' || !user) && (
                 <>
                   <label>
-                    Mahalle / Semt
+                    <span className="fld-row">
+                      Mahalle / Semt
+                      <VoiceDictateButton value={form.district} onChange={(v) => setForm((f) => ({ ...f, district: v }))} title="Mahallenizi sesle yazdırın" />
+                    </span>
                     <input
                       required
                       value={form.district}
@@ -327,13 +343,16 @@ export default function OrderPage() {
                     />
                   </label>
                   <label>
-                    Açık Adres (Cadde, Sokak, Bina No, Kat, Daire)
+                    <span className="fld-row">
+                      Açık Adres (Cadde, Sokak, Bina No, Kat, Daire)
+                      <VoiceDictateButton value={form.address} onChange={(v) => setForm((f) => ({ ...f, address: v }))} title="Adresinizi sesle yazdırın" />
+                    </span>
                     <textarea
                       required
                       rows={3}
                       value={form.address}
                       onChange={(e) => setForm({ ...form, address: e.target.value })}
-                      placeholder="Mahalle, Cadde, Sokak, Bina ve Kapı Numarası"
+                      placeholder="Mahalle, Cadde, Sokak, Bina ve Kapı Numarası — veya 🎙️ ile söyleyin"
                     />
                   </label>
                   <div className="locrow-pick">
@@ -376,11 +395,14 @@ export default function OrderPage() {
           )}
 
           <label>
-            Sipariş Notu (İsteğe bağlı)
+            <span className="fld-row">
+              Sipariş Notu (İsteğe bağlı)
+              <VoiceDictateButton value={form.note} onChange={(v) => setForm((f) => ({ ...f, note: v }))} title="Notunuzu sesle yazdırın" />
+            </span>
             <input
               value={form.note}
               onChange={(e) => setForm({ ...form, note: e.target.value })}
-              placeholder="Örn: Zile basmayın lütfen, acı sos ekleyin"
+              placeholder="Örn: Zile basmayın lütfen, acı sos ekleyin — veya 🎙️ ile söyleyin"
             />
           </label>
 

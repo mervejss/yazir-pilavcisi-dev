@@ -1512,6 +1512,29 @@ h1 { font-weight: 800; }
 .no-right h4 { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; }
 .no-block { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 1rem; }
 .no-block h4 { margin-bottom: 0.5rem; }
+
+/* ---------- Sesle Sipariş Gir (telefon siparişleri) ---------- */
+.voice-order-box { background: var(--surface); border: 1px dashed var(--gold, var(--line-strong)); border-radius: var(--r); padding: 0.85rem 0.9rem; }
+.voice-order-ta { width: 100%; resize: vertical; font-weight: 400; line-height: 1.45; }
+.voice-order-actions { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; margin-top: 0.5rem; }
+.voice-recording { animation: voicePulse 1.4s ease-in-out infinite; }
+.voice-rec-dot { color: var(--danger); font-weight: 600; }
+@keyframes voicePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.35); }
+  50% { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0); }
+}
+
+/* ---------- Her alanın yanındaki tekil sesle-yazdır mikrofon düğmesi ---------- */
+.fld-row { display: inline-flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+.voice-mic-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.9em; height: 1.9em; min-width: 1.9em; border-radius: 50%;
+  border: 1px solid var(--line-strong); background: var(--card-bg); color: var(--text);
+  cursor: pointer; font-size: 0.85rem; line-height: 1; padding: 0; transition: all 0.15s ease;
+}
+.voice-mic-btn:hover { border-color: var(--gold); }
+.voice-mic-btn.on { background: var(--danger); border-color: var(--danger); color: #fff; animation: voicePulse 1.4s ease-in-out infinite; }
+.voice-mic-btn.md { width: 2.3em; height: 2.3em; min-width: 2.3em; font-size: 1rem; }
 .typetiles { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
 .typetiles button {
   display: grid; justify-items: center; gap: 0.2rem; padding: 1.1rem 0.8rem; border-radius: var(--r); cursor: pointer; text-align: center;

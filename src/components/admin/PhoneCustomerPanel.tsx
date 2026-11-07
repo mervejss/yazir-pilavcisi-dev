@@ -5,6 +5,7 @@ import {
 } from '@/lib/staffCustomers';
 import { ORDER_TYPE_LABELS } from '@/lib/constants';
 import Icon from '@/components/ui/Icon';
+import VoiceDictateButton from '@/components/ui/VoiceDictateButton';
 
 export interface PickedAddress {
   address: string;
@@ -126,7 +127,18 @@ export default function PhoneCustomerPanel({ name, phone, onName, onPhone, requi
     <div className="pcp">
       <div className="two-col">
         <label className="fld">
-          Telefon {requirePhone ? <span className="req">*</span> : <span className="muted">(isteğe bağlı)</span>}
+          <span className="fld-row">
+            Telefon {requirePhone ? <span className="req">*</span> : <span className="muted">(isteğe bağlı)</span>}
+            <VoiceDictateButton
+              value={phone}
+              onChange={(v) => { lastField.current = 'phone'; onPhone(v); }}
+              onFinalize={(spoken) => {
+                const n = normalizePhone(spoken) || normalizePhone(phone);
+                if (n) { lastField.current = 'phone'; onPhone(n); }
+              }}
+              title="Telefon numarasını sesle yazdır"
+            />
+          </span>
           <input
             inputMode="tel"
             value={phone}
@@ -135,13 +147,16 @@ export default function PhoneCustomerPanel({ name, phone, onName, onPhone, requi
               onPhone(e.target.value);
             }}
             onFocus={() => results.length && setOpen(true)}
-            placeholder="05xx xxx xx xx — kayıtlı müşteri otomatik bulunur"
+            placeholder="05xx xxx xx xx — kayıtlı müşteri otomatik bulunur veya 🎙️ ile söyleyin"
             autoComplete="off"
           />
           {phoneBad && <small className="err-txt">Telefon 11 haneli olmalı (05xx…)</small>}
         </label>
         <label className="fld">
-          Müşteri adı <span className="muted">(isteğe bağlı)</span>
+          <span className="fld-row">
+            Müşteri adı <span className="muted">(isteğe bağlı)</span>
+            <VoiceDictateButton value={name} onChange={(v) => { lastField.current = 'name'; onName(v); }} title="Müşteri adını sesle yazdır" />
+          </span>
           <input
             value={name}
             onChange={(e) => {
@@ -149,7 +164,7 @@ export default function PhoneCustomerPanel({ name, phone, onName, onPhone, requi
               onName(e.target.value);
             }}
             onFocus={() => results.length && setOpen(true)}
-            placeholder="Ad soyad — yazarak da arayabilirsiniz"
+            placeholder="Ad soyad — yazarak da arayabilirsiniz veya 🎙️ ile söyleyin"
             autoComplete="off"
           />
         </label>
