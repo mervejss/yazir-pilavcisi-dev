@@ -66,14 +66,14 @@ export function slugify(text: string): string {
     .replace(/(^-|-$)/g, '');
 }
 
-/** Bugünün başlangıcı (iş günü: 03:00) */
+/** Bugünün başlangıcı (iş günü: 05:00) */
 export function businessDayStart(): Date {
   const now = new Date();
   const d = new Date(now);
-  if (d.getHours() < 3) {
+  if (d.getHours() < 5) {
     d.setDate(d.getDate() - 1);
   }
-  d.setHours(3, 0, 0, 0);
+  d.setHours(5, 0, 0, 0);
   return d;
 }
 

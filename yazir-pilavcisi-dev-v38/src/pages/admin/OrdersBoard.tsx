@@ -175,7 +175,7 @@ export default function OrdersBoard() {
         <div>
           <h1>Siparişler</h1>
           <p className="muted" style={{ margin: 0 }}>
-            Canlı sipariş panosu: açık siparişler ve BUGÜN biten siparişler. Gün (03:00) bittiğinde teslim edilen/iptal edilen siparişler otomatik olarak "Geçmiş Siparişler"e geçer. Trendyol siparişlerinin durumu Trendyol ile otomatik eşitlenir; kurye girmek zorunlu değildir, sonradan da girilebilir.
+            Canlı sipariş panosu: açık siparişler ve BUGÜN biten siparişler. Gün (05:00) bittiğinde teslim edilen/iptal edilen siparişler otomatik olarak "Geçmiş Siparişler"e geçer. Trendyol siparişlerinin durumu Trendyol ile otomatik eşitlenir; kurye girmek zorunlu değildir, sonradan da girilebilir.
           </p>
         </div>
         <div className="prow" style={{ gap: '0.5rem', flexWrap: 'wrap' }}>
