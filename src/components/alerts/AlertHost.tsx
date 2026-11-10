@@ -9,10 +9,18 @@ import { ALERT_CHANNELS, type AlertChannel } from '@/lib/alertChannels';
 
 interface Props { storageKey: string; defaultLink?: string; showButton?: boolean; }
 const MUTE_OPTIONS = [
+  { label: '30 dakika sustur', ms: 30 * 60 * 1000 },
   { label: '1 saat sustur', ms: 60 * 60 * 1000 },
   { label: '8 saat sustur', ms: 8 * 60 * 60 * 1000 },
-  { label: '1 gün sustur', ms: 24 * 60 * 60 * 1000 },
+  { label: '24 saat sustur', ms: 24 * 60 * 60 * 1000 },
+  { label: '48 saat sustur', ms: 48 * 60 * 60 * 1000 },
+  { label: '3 gün sustur', ms: 3 * 24 * 60 * 60 * 1000 },
   { label: '1 hafta sustur', ms: 7 * 24 * 60 * 60 * 1000 },
+  { label: '2 hafta sustur', ms: 14 * 24 * 60 * 60 * 1000 },
+  { label: '1 ay sustur', ms: 30 * 24 * 60 * 60 * 1000 },
+  { label: '3 ay sustur', ms: 90 * 24 * 60 * 60 * 1000 },
+  { label: '6 ay sustur', ms: 180 * 24 * 60 * 60 * 1000 },
+  { label: '1 yıl sustur', ms: 365 * 24 * 60 * 60 * 1000 },
   { label: 'Sonsuza dek sustur', ms: 0 },
 ];
 
@@ -94,6 +102,8 @@ export default function AlertHost({ storageKey, defaultLink, showButton = true }
     player.current.stop(); setMuteMenu(false);
   };
   const unmuteChannel = () => { setAlertMuted(uid, storageKey, activeChannel, null); void saveAccountAlertMute(uid, storageKey, activeChannel, null); setMuteMenu(false); };
+  const muteAllChannels = (ms: number) => { ALERT_CHANNELS.forEach((c) => { setAlertMuted(uid, storageKey, c.id, ms); void saveAccountAlertMute(uid, storageKey, c.id, ms); }); player.current.stop(); setMuteMenu(false); setMuteRevision((v) => v + 1); };
+  const unmuteAllChannels = () => { ALERT_CHANNELS.forEach((c) => { setAlertMuted(uid, storageKey, c.id, null); void saveAccountAlertMute(uid, storageKey, c.id, null); }); setMuteMenu(false); setMuteRevision((v) => v + 1); };
   const mutedUntil = getAlertMutedUntil(uid, storageKey, activeChannel);
   const go = (link?: string) => { dismissAll(); const target = link || defaultLink; if (target) navigate(target); };
   const setHidden = (v: boolean) => { setFabHidden(v); try { localStorage.setItem(`yz_alert_fab_hidden:${uid || 'anon'}:${storageKey}`, v ? '1' : '0'); } catch { /* ignore */ } };
@@ -104,8 +114,8 @@ export default function AlertHost({ storageKey, defaultLink, showButton = true }
       <button type="button" className="alert-btn go" onClick={() => go(alerts[0].link)}>Aç</button><button type="button" className="alert-btn" onClick={() => (alerts.length > 1 ? dismiss(alerts[0].id) : dismissAll())}>Tamam</button>
     </div></div>}
     {locked && activeSettings.enabled && <button type="button" className="alert-unlock" onClick={() => { unlockAudio(); setLocked(isAudioLocked()); }}>🔊 Sesli bildirimleri etkinleştirmek için buraya dokunun</button>}
-    {showButton && !fabHidden && <button type="button" className="alert-fab" onClick={() => { setSelectedChannel(activeChannel); setOpen(true); }} title="Kişisel ses ayarları" aria-label="Ses ayarları">{activeSettings.enabled ? '🔔' : '🔕'}</button>}
-    {showButton && fabHidden && <button type="button" className="alert-tab" onClick={() => setHidden(false)} aria-label="Zil düğmesini göster">‹ 🔔</button>}
-    <SoundSettingsModal open={open} onClose={() => setOpen(false)} value={settingsFor(selectedChannel)} storageKey={userAlertKey(storageKey, uid)} userId={uid} showAutoPrint={storageKey.includes('admin')} initialChannel={selectedChannel} onChannelChange={setSelectedChannel} onChange={updateSettings} />
+    {showButton && !fabHidden && <button type="button" className="alert-fab" onClick={() => { setSelectedChannel(activeChannel); setOpen(true); }} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(false); setHidden(true); }} title="Kişisel ses ayarları · İki kez dokun: sağda gizle" aria-label="Ses ayarları">{activeSettings.enabled ? '🔔' : '🔕'}</button>}
+    {showButton && fabHidden && <button type="button" className="alert-tab" onClick={() => setHidden(false)} title="Zil ayarlarını göster" aria-label="Zil düğmesini göster">‹</button>}
+    <SoundSettingsModal open={open} onClose={() => setOpen(false)} value={settingsFor(selectedChannel)} settingsByChannel={settingsByChannel} storageKey={userAlertKey(storageKey, uid)} hostKey={storageKey} userId={uid} showAutoPrint={storageKey.includes('admin')} initialChannel={selectedChannel} onChannelChange={setSelectedChannel} onChange={updateSettings} onMuteAll={(ms) => muteAllChannels(ms)} onUnmuteAll={unmuteAllChannels} />
   </>;
 }

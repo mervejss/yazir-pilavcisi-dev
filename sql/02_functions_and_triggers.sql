@@ -676,7 +676,7 @@ begin
       raise exception 'Masa bulunamadı' using errcode = 'P0001';
     end if;
     v_table := p_table_id;
-    select id into v_session from public.table_sessions where table_id = v_table and status = 'open';
+    select id into v_session from public.table_sessions where table_id = v_table and status = 'open' order by opened_at desc, id desc limit 1;
     if v_session is null then
       insert into public.table_sessions (table_id) values (v_table) returning id into v_session;
     end if;
@@ -974,7 +974,7 @@ begin
   end if;
 
   select id into v_session from public.table_sessions
-   where table_id = p_table_id and status = 'open' for update;
+   where table_id = p_table_id and status = 'open' order by opened_at desc, id desc limit 1 for update;
   if v_session is null then raise exception 'Bu masada açık hesap yok' using errcode = 'P0001'; end if;
 
   if exists (select 1 from public.orders where table_session_id = v_session

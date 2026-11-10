@@ -63,33 +63,50 @@ export function useCourierTracking(enabled: boolean) {
     }
     setStatus('starting');
 
+    // İzin zaten reddedilmişse GPS API'sini tekrar çağırıp sürekli izin penceresi oluşturmaya çalışma.
+    // 'granted' ve 'prompt' durumunda normal şekilde tek bir watch başlatılır.
+    let permissionCancelled = false;
+    const checkPermission = async () => {
+      try {
+        if ('permissions' in navigator && (navigator as any).permissions?.query) {
+          const permission = await (navigator as any).permissions.query({ name: 'geolocation' });
+          if (permission.state === 'denied') { setStatus('denied'); permissionCancelled = true; }
+        }
+      } catch { /* Permissions API her tarayıcıda desteklenmez */ }
+    };
+
     (navigator as any).getBattery?.().then((b: any) => {
       batteryRef.current = Math.round(b.level * 100);
       b.addEventListener?.('levelchange', () => (batteryRef.current = Math.round(b.level * 100)));
     }).catch(() => {});
 
-    const id = navigator.geolocation.watchPosition(
-      (pos) => {
-        latest.current = pos;
-        setPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        setAccuracy(pos.coords.accuracy ?? null);
-        send(pos);
-      },
-      (err) => {
-        console.warn('GPS hatası', err);
-        setStatus(err.code === err.PERMISSION_DENIED ? 'denied' : 'error');
-      },
-      { enableHighAccuracy: true, maximumAge: 3000, timeout: 20000 },
-    );
-
-    // hareketsizken de belli aralıkla konumu tazele
-    const hb = setInterval(() => {
-      if (latest.current) send(latest.current);
-    }, MAX_INTERVAL_MS);
+    let watchId: number | null = null;
+    let hb: number | null = null;
+    let disposed = false;
+    void (async () => {
+      await checkPermission();
+      if (disposed || permissionCancelled) return;
+      // Tek bir watchPosition açılır; online durumu değişmedikçe yeniden izin istenmez.
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          latest.current = pos;
+          setPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          setAccuracy(pos.coords.accuracy ?? null);
+          send(pos);
+        },
+        (err) => {
+          console.warn('GPS hatası', err);
+          setStatus(err.code === err.PERMISSION_DENIED ? 'denied' : 'error');
+        },
+        { enableHighAccuracy: true, maximumAge: 3000, timeout: 20000 },
+      );
+      hb = window.setInterval(() => { if (latest.current) send(latest.current); }, MAX_INTERVAL_MS);
+    })();
 
     return () => {
-      navigator.geolocation.clearWatch(id);
-      clearInterval(hb);
+      disposed = true;
+      if (watchId != null) navigator.geolocation.clearWatch(watchId);
+      if (hb != null) clearInterval(hb);
     };
   }, [enabled, send]);
 

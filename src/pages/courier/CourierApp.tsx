@@ -48,6 +48,15 @@ interface COrder {
 
 const dest = (o: COrder): Destination => ({ lat: o.lat, lng: o.lng, address: o.delivery_address ? `${o.delivery_address}${o.district ? ', ' + o.district : ''}` : o.district });
 
+// WhatsApp ülke kodu ile çalışır; TR yerel numaralarını 90 ile normalize eder.
+const whatsappUrl = (phone: string) => {
+  let digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('00')) digits = digits.slice(2);
+  if (digits.startsWith('0')) digits = `90${digits.slice(1)}`;
+  if (digits.length === 10 && digits.startsWith('5')) digits = `90${digits}`;
+  return `https://wa.me/${digits}`;
+};
+
 // Kapıda tahsil edilen yöntemler: müşterinin seçtiği varsayılan gelir, kurye teslim anında güncelleyebilir
 const PAY_OPTS: Array<[string, string]> = [['cash_on_delivery', '💵 Nakit'], ['card_on_delivery', '💳 Kart (POS)'], ['iban', '🏦 IBAN']];
 const PAY_LABEL: Record<string, string> = { cash_on_delivery: 'Nakit', card_on_delivery: 'Kart (POS)', iban: 'IBAN' };
@@ -471,7 +480,10 @@ export default function CourierApp() {
         <div className="cr-cust">
           <div className="cr-cust-name"><Icon name="user" size={16} /> {o.customer_name || 'Müşteri'}</div>
           {o.customer_phone && (
-            <a className="cr-phone" href={`tel:${o.customer_phone}`}><Icon name="phone" size={16} /> {o.customer_phone}</a>
+            <div className="cr-contact-row">
+              <a className="cr-phone" href={`tel:${o.customer_phone}`} aria-label={`${o.customer_phone} numarasını ara`}><Icon name="phone" size={16} /> {o.customer_phone}</a>
+              <a className="cr-wa" href={whatsappUrl(o.customer_phone)} target="_blank" rel="noreferrer" aria-label="Müşteriye WhatsApp'tan mesaj at">💬 WhatsApp</a>
+            </div>
           )}
         </div>
 
@@ -504,11 +516,12 @@ export default function CourierApp() {
           </div>
         )}
 
-        <div className="cr-actions">
-          <button type="button" className="btn gold" onClick={() => setDetailId(o.id)}><Icon name="clipboard" size={17} /> Detay · Hesap</button>
-          <button type="button" className="btn dark" onClick={() => setSheet(o.id)}><Icon name="map" size={17} /> Haritada göster</button>
-          <a className="btn ghost" href={mapsDirUrl(d, track.position)} target="_blank" rel="noreferrer"><Icon name="navigation" size={17} /> Google Haritalar</a>
-          {o.customer_phone && <a className="btn ghost" href={`tel:${o.customer_phone}`}><Icon name="phone" size={17} /> Ara</a>}
+        <div className="cr-actions cr-mobile-actions">
+          {o.customer_phone && <a className="btn dark cr-quick-call" href={`tel:${o.customer_phone}`}><Icon name="phone" size={18} /> Ara</a>}
+          {o.customer_phone && <a className="btn cr-quick-wa" href={whatsappUrl(o.customer_phone)} target="_blank" rel="noreferrer">💬 WhatsApp</a>}
+          <a className="btn ghost cr-quick-nav" href={mapsDirUrl(d, track.position)} target="_blank" rel="noreferrer"><Icon name="navigation" size={18} /> Navigasyon</a>
+          <button type="button" className="btn ghost" onClick={() => setSheet(o.id)}><Icon name="map" size={17} /> Haritada gör</button>
+          <button type="button" className="btn ghost" onClick={() => setDetailId(o.id)}><Icon name="clipboard" size={17} /> Detay · Hesap</button>
         </div>
 
         {['assigned', 'on_the_way'].includes(o.status) && (
@@ -520,13 +533,15 @@ export default function CourierApp() {
         )}
 
         {o.status === 'assigned' && (
-          <button type="button" className="btn gold lg block" disabled={busy === o.id} onClick={() => startDelivery(o)}>
-            <Icon name="truck" size={20} /> Paketi aldım · Yola çık
+          <button type="button" className="btn gold lg block cr-primary-action" disabled={busy === o.id} onClick={() => startDelivery(o)}>
+            <Icon name="truck" size={22} /> YOLA ÇIK
+            <span>Paketi aldım, teslimata başla</span>
           </button>
         )}
         {onWay && (
-          <button type="button" className="btn gold lg block" disabled={busy === o.id} onClick={() => finishDelivery(o)}>
-            <Icon name="check" size={20} /> Müşteriye teslim ettim
+          <button type="button" className="btn gold lg block cr-primary-action cr-delivered-action" disabled={busy === o.id} onClick={() => finishDelivery(o)}>
+            <Icon name="check" size={22} /> TESLİM ETTİM
+            <span>Siparişi ve tahsilatı tamamla</span>
           </button>
         )}
         {['new', 'preparing', 'ready'].includes(o.status) && (

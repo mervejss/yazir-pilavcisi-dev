@@ -278,6 +278,22 @@ export async function saveAccountAlertSettings(userId: string | undefined, chann
 }
 
 
+/** Tüm kanallara aynı ayarı uygula (mevcut kanal bazlı ayarların diğer alanlarını korur). */
+export async function saveAccountAlertSettingsAllChannels(userId: string | undefined, channels: string[], patch: Partial<AlertSettings>, current: Record<string, AlertSettings>) {
+  if (!userId) return;
+  const all = Object.fromEntries(channels.map((channel) => [channel, { ...(current[channel] || DEFAULT_ALERT), ...patch }]));
+  const { data } = await supabase.from('user_notification_settings').select('settings').eq('user_id', userId).maybeSingle();
+  const merged = { ...((data?.settings || {}) as Record<string, any>), ...all };
+  await supabase.from('user_notification_settings').upsert({ user_id: userId, settings: merged, updated_at: new Date().toISOString() } as any);
+}
+
+/** Sahip/yetkili kullanıcı: tüm personelin seçili kanal(lar)ındaki ayarı aynı anda uygular. */
+export async function applyAlertSettingsToAllUsers(channels: string[], patch: Partial<AlertSettings>) {
+  const { error } = await supabase.rpc('set_all_staff_notification_settings', { p_channels: channels, p_patch: patch } as any);
+  if (error) throw error;
+}
+
+
 export async function syncAlertMutesFromAccount(userId: string, hostKey: string) {
   const { data, error } = await supabase.from('user_notification_settings').select('settings').eq('user_id', userId).maybeSingle();
   if (error || !data?.settings) return;

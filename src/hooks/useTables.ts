@@ -23,7 +23,7 @@ export function useTables() {
   const fetchTables = useCallback(async () => {
     const [tableRes, sessionRes, qrRes] = await Promise.all([
       supabase.from('dining_tables').select('*').eq('is_active', true).order('number'),
-      supabase.from('table_sessions').select('*').eq('status', 'open'),
+      supabase.from('table_sessions').select('*').eq('status', 'open').order('opened_at', { ascending: false }),
       supabase.from('table_qr_codes').select('*').eq('is_active', true),
     ]);
 
@@ -50,6 +50,8 @@ export function useTables() {
 
     setTables(
       tbs.map((t) => {
+        // Birden fazla eski açık oturum hatalı kalmışsa ekranda HER ZAMAN en yeni oturumu kullan.
+        // SQL tarafındaki benzersiz indeks yeni çift açık oturum oluşmasını engeller.
         const session = sessions.find((s) => s.table_id === t.id) || null;
         const agg = session ? totals.get(session.id) : undefined;
         return {
