@@ -1,5 +1,6 @@
 import type { Analysis, AOrder, AnalyticsSettings, DateRange, Gran } from '@/lib/analyticsData';
 import type { TableUsageRow } from '@/hooks/useAnalyticsData';
+import type { FinResult, FinSettings } from '@/lib/finance';
 
 export interface TabProps {
   a: Analysis;
@@ -14,4 +15,7 @@ export interface TabProps {
   onGran: (g: Gran) => void;
   courierNames: Record<string, string>;
   tableUsage: TableUsageRow[];
+  /** Trendyol cari hesap (gerçek) rakamları; yoksa null → tahmini oranlar */
+  fin: FinResult | null;
+  finSettings: FinSettings;
 }

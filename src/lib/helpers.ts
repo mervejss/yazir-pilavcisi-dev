@@ -11,6 +11,13 @@ export function tl(n: number): string {
   );
 }
 
+/** İndirimli birim fiyatı veritabanındaki numeric(…,2) yuvarlamasıyla eşleştirir. */
+export function discountedPrice(price: number, percent: number): number {
+  const value = Number(price) || 0;
+  const rate = Number(percent) || 0;
+  return Math.round((value * (1 - rate / 100) + Number.EPSILON) * 100) / 100;
+}
+
 /** Saat:dakika biçimi */
 export function hhmm(dateStr: string | number): string {
   return new Date(dateStr).toLocaleTimeString('tr-TR', {

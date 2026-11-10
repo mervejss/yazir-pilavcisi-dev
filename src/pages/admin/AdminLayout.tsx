@@ -81,8 +81,8 @@ const GROUPS: NavGroup[] = [
       { to: '/admin/entegrasyonlar', label: 'Genel Bakış', icon: 'zap', roles: OWNER, end: true },
       { to: '/admin/entegrasyonlar/trendyol', label: '🟠 Trendyol Go', icon: 'zap', roles: OWNER },
       { to: '/admin/entegrasyonlar/yemeksepeti', label: '🔴 Yemeksepeti', icon: 'zap', roles: OWNER },
-      { to: '/admin/entegrasyonlar/migros', label: '🟢 Migros Yemek', icon: 'zap', roles: OWNER },
-      { to: '/admin/entegrasyonlar/getir', label: '🟣 Getir Yemek', icon: 'zap', roles: OWNER },
+      /*{ to: '/admin/entegrasyonlar/migros', label: '🟢 Migros Yemek', icon: 'zap', roles: OWNER },*/
+      /*{ to: '/admin/entegrasyonlar/getir', label: '🟣 Getir Yemek', icon: 'zap', roles: OWNER },*/
       { to: '/admin/entegrasyonlar/diger', label: '🔗 Diğer platformlar', icon: 'zap', roles: OWNER },
     ],
   },

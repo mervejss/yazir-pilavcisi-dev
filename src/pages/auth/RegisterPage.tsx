@@ -1,14 +1,18 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import Logo from '@/components/ui/Logo';
 import toast from 'react-hot-toast';
+import { supabase } from '@/lib/supabase';
 
 export default function RegisterPage() {
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [referralCode, setReferralCode] = useState('');
+  const [partnerBusinesses, setPartnerBusinesses] = useState<any[]>([]);
+  useEffect(() => { supabase.rpc('public_referral_campaigns').then(({data,error}) => { if (!error) setPartnerBusinesses(data || []); }); }, []);
   const { signUp, loading } = useAuthStore();
   const navigate = useNavigate();
 
@@ -19,7 +23,7 @@ export default function RegisterPage() {
       return;
     }
     try {
-      await signUp(email, password, fullName, phone);
+      await signUp(email, password, fullName, phone, referralCode);
       toast.success('Hesabınız oluşturuldu! Hoş geldiniz.');
       navigate('/profil');
     } catch (err: any) {
@@ -68,6 +72,15 @@ export default function RegisterPage() {
             />
           </label>
           <label>
+            Referans Kodu (isteğe bağlı)
+            <input
+              value={referralCode}
+              onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+              placeholder="Varsa referans kodunuzu girin"
+              autoCapitalize="characters"
+            />
+          </label>
+          <label>
             Şifre
             <input
               type="password"
@@ -87,6 +100,15 @@ export default function RegisterPage() {
             {loading ? 'Hesap Oluşturuluyor...' : 'Kayıt Ol ve Başla'}
           </button>
         </form>
+
+        {partnerBusinesses.length > 0 && (
+          <section style={{marginTop:'1.25rem',textAlign:'left',paddingTop:'1rem',borderTop:'1px solid var(--border)'}}>
+            <h3 style={{fontSize:'1rem',marginBottom:'.5rem'}}>🤝 Anlaşmalı Olduğumuz İşletmeler</h3>
+            {partnerBusinesses.map((b,i)=><div key={`${b.business_name}-${i}`} style={{display:'flex',justifyContent:'space-between',gap:'.5rem',padding:'.4rem 0',fontSize:'.88rem'}}>
+              <b>{b.business_name}</b><span className="muted">Üye %{b.customer_discount} · Personel %{b.staff_discount}</span>
+            </div>)}
+          </section>
+        )}
 
         <div style={{ marginTop: '1rem', fontSize: '0.95rem' }}>
           Zaten hesabınız var mı?{' '}

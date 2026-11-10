@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Logo from '@/components/ui/Logo';
 import ThemeToggle from '@/components/ui/ThemeToggle';
@@ -8,8 +8,9 @@ import { useAuthStore } from '@/stores/authStore';
 import { homeForRole, isPanelRole } from '@/lib/roleHome';
 import { useBusinessSettings } from '@/hooks/useBusinessSettings';
 import { DAY_NAMES } from '@/lib/constants';
-import { weekSchedule } from '@/lib/helpers';
+import { weekSchedule, discountedPrice, tl } from '@/lib/helpers';
 import { contactLinks, whatsappLink } from '@/lib/contact';
+import { supabase } from '@/lib/supabase';
 import toast from 'react-hot-toast';
 import WhatsAppWidget from '@/components/public/WhatsAppWidget';
 import Seo from '@/components/seo/Seo';
@@ -27,10 +28,15 @@ const LINKS: [string, string, IconName][] = [
 ];
 
 export default function PublicLayout() {
-  const cartCount = useCartStore((s) => s.count());
+  const cartItems = useCartStore((s) => s.items);
+  const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+  const cartTotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const { user, profile, signOut } = useAuthStore();
   const [navOpen, setNavOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [headerReferral, setHeaderReferral] = useState<any>(null);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { settings, hours, overrides, status, loading } = useBusinessSettings();
@@ -38,10 +44,20 @@ export default function PublicLayout() {
   const panel = isPanelRole(profile?.role);
   const accountPath = panel ? homeForRole(profile?.role) : '/profil';
   const accountLabel = panel ? (profile?.role === 'courier' ? 'Kurye Paneli' : 'Yönetim Paneli') : 'Profilim';
+  const referralPercent = headerReferral?.is_active ? Number(headerReferral.discount || 0) : 0;
+  const referralDiscount = referralPercent > 0
+    ? headerReferral?.scope === 'product'
+      ? cartItems.reduce((sum, item) => sum + (item.price - discountedPrice(item.price, referralPercent)) * item.quantity, 0)
+      : headerReferral?.scope === 'cart'
+        ? Math.round((cartTotal * referralPercent / 100 + Number.EPSILON) * 100) / 100
+        : 0
+    : 0;
+  const headerNetTotal = Math.max(cartTotal - referralDiscount, 0);
 
   useEffect(() => {
     window.scrollTo(0, 0);
     setNavOpen(false);
+    setAccountMenuOpen(false);
   }, [pathname]);
 
   useEffect(() => {
@@ -58,7 +74,34 @@ export default function PublicLayout() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  useEffect(() => {
+    if (!user || panel) { setHeaderReferral(null); return; }
+    let alive = true;
+    const refreshReferral = async () => {
+      const { data, error } = await supabase.rpc('my_referral');
+      if (alive && !error) setHeaderReferral(data || null);
+    };
+    refreshReferral();
+    const channel = supabase.channel(`header-referral-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'referral_campaigns' }, refreshReferral)
+      .subscribe();
+    const timer = window.setInterval(refreshReferral, 30000);
+    return () => { alive = false; window.clearInterval(timer); supabase.removeChannel(channel); };
+  }, [user?.id, panel]);
+
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (accountMenuRef.current && !accountMenuRef.current.contains(event.target as Node)) setAccountMenuOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setAccountMenuOpen(false); };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => { document.removeEventListener('pointerdown', onPointerDown); document.removeEventListener('keydown', onKeyDown); };
+  }, [accountMenuOpen]);
+
   const handleSignOut = async () => {
+    setAccountMenuOpen(false);
     await signOut();
     toast.success('Çıkış yapıldı');
     navigate('/');
@@ -107,33 +150,70 @@ export default function PublicLayout() {
         {navOpen && <div className="nav-backdrop" onClick={() => setNavOpen(false)} aria-hidden="true" />}
 
         <div className="top-actions">
+          <Link
+            className="header-cart-summary"
+            to="/siparis"
+            aria-label={`Sepetim: ${cartCount} ürün, ${tl(headerNetTotal)}`}
+            title="Sepetimi görüntüle"
+          >
+            <span className="hcs-icon"><Icon name="cart" size={18} /></span>
+            <span className="hcs-content">
+              <b className="hcs-count">Sepetim · {cartCount} ürün</b>
+              <span className="hcs-prices">
+                {referralDiscount > 0 && <del>{tl(cartTotal)}</del>}
+                <strong>{tl(headerNetTotal)}</strong>
+              </span>
+            </span>
+            <span className="hcs-go">Sepeti gör</span>
+          </Link>
+
           <ThemeToggle />
 
           {user ? (
-            <>
+            panel ? (
               <Link to={accountPath} className="user-menu-pill" title={accountLabel}>
-                <Icon name="user" size={15} /> {panel ? accountLabel : profile?.full_name ? profile.full_name.split(' ')[0] : 'Hesabım'}
+                <Icon name="user" size={15} /> {accountLabel}
               </Link>
-              <button type="button" className="icon-circle top-logout" onClick={handleSignOut} title="Çıkış yap" aria-label="Çıkış yap">
-                <Icon name="logout" size={16} />
-              </button>
-            </>
+            ) : (
+              <div
+                className={`account-dropdown${accountMenuOpen ? ' open' : ''}`}
+                ref={accountMenuRef}
+                onMouseEnter={() => { if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) setAccountMenuOpen(true); }}
+                onMouseLeave={() => { if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) setAccountMenuOpen(false); }}
+              >
+                <button
+                  type="button"
+                  className="user-menu-pill account-trigger"
+                  title="Hesap menüsünü aç"
+                  aria-haspopup="true"
+                  aria-expanded={accountMenuOpen}
+                  onClick={() => setAccountMenuOpen((open) => !open)}
+                >
+                  <Icon name="user" size={15} />
+                  <span>{profile?.full_name ? profile.full_name.split(' ')[0] : 'Hesabım'}</span>
+                  <Icon name="chevronDown" size={14} />
+                </button>
+                <div className="account-dropdown-menu" role="menu">
+                  <div className="account-dropdown-head">
+                    <b>{profile?.full_name || 'Müşteri'}</b>
+                    <span>{profile?.email || user.email || ''}</span>
+                  </div>
+                  <Link role="menuitem" to="/profil" onClick={() => setAccountMenuOpen(false)}><Icon name="user" size={16} /> Profilim</Link>
+                  <Link role="menuitem" to="/profil?tab=orders" onClick={() => setAccountMenuOpen(false)}><Icon name="receipt" size={16} /> Geçmiş Siparişlerim</Link>
+                  <Link role="menuitem" to="/profil?tab=reviews" onClick={() => setAccountMenuOpen(false)}><Icon name="star" size={16} /> Değerlendirmelerim</Link>
+                  <Link role="menuitem" to="/profil?tab=addresses" onClick={() => setAccountMenuOpen(false)}><Icon name="mapPin" size={16} /> Kayıtlı Adreslerim</Link>
+                  <Link role="menuitem" to="/profil?tab=referrals" onClick={() => setAccountMenuOpen(false)}><Icon name="tag" size={16} /> Referans</Link>
+                  <Link role="menuitem" to="/profil?tab=info" onClick={() => setAccountMenuOpen(false)}><Icon name="settings" size={16} /> Hesap Bilgilerim</Link>
+                  <button type="button" role="menuitem" onClick={handleSignOut}><Icon name="logout" size={16} /> Çıkış Yap</button>
+                </div>
+              </div>
+            )
           ) : (
             <div className="auth-links">
-              <Link to="/giris" className="btn ghost sm">
-                Giriş
-              </Link>
-              <Link to="/kayit" className="btn gold sm">
-                Kayıt Ol
-              </Link>
+              <Link to="/giris" className="btn ghost sm">Giriş</Link>
+              <Link to="/kayit" className="btn gold sm">Kayıt Ol</Link>
             </div>
           )}
-
-          <Link className="btn gold sm cart-btn" to="/siparis" aria-label={`Sepet, ${cartCount} ürün`}>
-            <Icon name="cart" size={17} />
-            <span className="cart-text">Sepet</span>
-            <b key={cartCount} className={`cart-badge${cartCount ? ' has' : ''}`}>{cartCount}</b>
-          </Link>
 
           <button
             type="button"

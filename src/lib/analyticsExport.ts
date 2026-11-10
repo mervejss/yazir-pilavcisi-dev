@@ -29,7 +29,7 @@ export function summaryRows(a: Analysis, platform: string): (string | number)[][
   return [
     ['Rapor', 'Yazır Pilavcısı — Analiz Özeti'],
     ['Dönem', a.range.label],
-    ['Platform', platform === 'all' ? 'Tüm platformlar' : platformLabel(platform)],
+    ['Platform', platform === 'all' ? 'Tüm platformlar' : platform === 'inside' ? 'Restoran İçi' : platform === 'outside' ? 'Restoran Dışı' : platformLabel(platform)],
     ['Zaman dilimi', 'Europe/Istanbul · iş günü 03:00'],
     [],
     ['Gösterge', 'Bu dönem', 'Önceki dönem'],

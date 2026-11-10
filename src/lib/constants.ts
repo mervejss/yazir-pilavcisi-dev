@@ -88,10 +88,10 @@ export const SOURCE_COLORS: Record<string, string> = {
 };
 
 export const SOURCE_LABELS: Record<string, string> = {
-  web: 'Online Sipariş',
-  phone: 'Telefon',
+  web: 'Online Sipariş (Web)',
+  phone: 'Telefon Siparişi',
   table: 'Masa Servisi',
-  counter: 'Restoran Paket',
+  counter: 'Restoran Gel-Al',
   trendyol: 'Trendyol Go',
   yemeksepeti: 'Yemeksepeti',
   migros: 'Migros Yemek',

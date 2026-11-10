@@ -12,7 +12,7 @@ interface AuthState {
 
   initialize: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, fullName: string, phone?: string) => Promise<void>;
+  signUp: (email: string, password: string, fullName: string, phone?: string, referralCode?: string) => Promise<void>;
   signOut: () => Promise<void>;
   fetchProfile: () => Promise<void>;
   updateProfile: (fullName: string, phone: string) => Promise<void>;
@@ -98,14 +98,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  signUp: async (email, password, fullName, phone) => {
+  signUp: async (email, password, fullName, phone, referralCode) => {
     set({ loading: true });
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: { full_name: fullName, phone },
+          data: { full_name: fullName, phone, referral_code: referralCode?.trim().toUpperCase() || null },
         },
       });
       if (error) throw error;
@@ -143,6 +143,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (data) {
         set({ profile: data as unknown as Profile });
         writeProfileCache(data as unknown as Profile);
+        const pendingCode = String(user.user_metadata?.referral_code || '').trim();
+        if (pendingCode) {
+          const { data: currentReferral } = await supabase.rpc('my_referral');
+          if (!currentReferral) {
+            const { data: applied } = await supabase.rpc('apply_referral_code', { p_code: pendingCode });
+            if (applied?.ok) {
+              await supabase.auth.updateUser({ data: { referral_code: null } });
+            }
+          }
+        }
       }
     } catch (e) {
       console.error('Fetch profile error:', e);

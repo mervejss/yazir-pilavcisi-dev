@@ -346,6 +346,7 @@ export default function OrdersBoard() {
                     {o.delivery_address && (
                       <div className="small muted">
                         📍 {o.district ? `${o.district} · ` : ''}{o.delivery_address}
+                        {o.address_description && <span className="addr-desc"> · 📝 Adres tarifi: <b>{o.address_description}</b></span>}
                         {' '}
                         <button type="button" className="linklike" onClick={() => setMapOrder(o)}>🗺️ Harita</button>
                         {' · '}
@@ -693,6 +694,7 @@ export default function OrdersBoard() {
               <div>
                 <h2>🗺️ #{mapOrder.order_no} · {mapOrder.customer_name || 'Misafir'}</h2>
                 <p className="muted small">{mapOrder.district ? `${mapOrder.district} · ` : ''}{mapOrder.delivery_address}</p>
+                {mapOrder.address_description && <p className="small">📝 Adres tarifi: <b>{mapOrder.address_description}</b></p>}
               </div>
               <button type="button" className="icon-circle" onClick={() => setMapOrder(null)} aria-label="Kapat">✕</button>
             </div>

@@ -182,6 +182,22 @@ export const OWN_CHANNELS = ['web', 'phone', 'table', 'counter'];
 export const EXTERNAL_PLATFORMS = ['trendyol', 'yemeksepeti', 'getir', 'migros'];
 export const PLATFORM_KEYS = ['web', 'phone', 'table', 'counter', 'trendyol', 'yemeksepeti', 'getir', 'migros'];
 
+/**
+ * İki ana grup:
+ *  • inside  = RESTORAN İÇİ  → masa servisi, restoran gel-al, telefon, kendi online (web) siparişleri (komisyonsuz)
+ *  • outside = RESTORAN DIŞI → Trendyol, Yemeksepeti, Getir, Migros… komisyonlu dış platformlar
+ */
+export type ChannelGroup = 'inside' | 'outside';
+export const INSIDE_CHANNELS = OWN_CHANNELS;
+export const channelGroup = (k: string): ChannelGroup => (OWN_CHANNELS.includes(k) ? 'inside' : 'outside');
+export const GROUP_META: Record<ChannelGroup, { label: string; emoji: string; color: string; hint: string }> = {
+  inside: { label: 'Restoran İçi', emoji: '🏠', color: '#14b8a6', hint: 'Masa servisi · Gel-al · Telefon · Online (web) — komisyonsuz' },
+  outside: { label: 'Restoran Dışı', emoji: '🛵', color: '#f27a1a', hint: 'Trendyol · Yemeksepeti · Getir · Migros — komisyonlu platformlar' },
+};
+/** Kanal filtresi: tek kanal ('table'…) ya da grup ('inside' | 'outside') ya da 'all' */
+export const matchesChannel = (platform: string, filter: string) =>
+  filter === 'all' || filter === platform || (filter === 'inside' && channelGroup(platform) === 'inside') || (filter === 'outside' && channelGroup(platform) === 'outside');
+
 /** Koyu temada da görünen grafik renkleri */
 export const PLATFORM_COLORS: Record<string, string> = {
   web: '#d4af37', phone: '#0ea5e9', table: '#14b8a6', counter: '#a16207',
@@ -190,6 +206,8 @@ export const PLATFORM_COLORS: Record<string, string> = {
 export const platformLabel = (k: string) => SOURCE_LABELS[k] || k;
 export const platformColor = (k: string) => PLATFORM_COLORS[k] || '#6b7280';
 export const isExternal = (k: string) => EXTERNAL_PLATFORMS.includes(k) || k === 'other';
+
+const isExternalSrc = (raw: string) => /trendyol|yemeksepeti|yemek sepeti|getir|migros/i.test(String(raw || ''));
 
 const normPlatform = (raw: string): string => {
   const s = (raw || '').toLocaleLowerCase('tr').trim();
@@ -286,7 +304,8 @@ export async function fetchOrders(fromMs: number, toMs: number): Promise<FetchRe
     const tableNo = o.dining_tables?.number ?? (Array.isArray(o.dining_tables) ? o.dining_tables[0]?.number : null);
     return {
       id: String(o.id), no: String(o.order_no ?? ''), live: true,
-      platform: normPlatform(o.source || 'web'),
+      // Masaya bağlı / "restoranda" siparişler kaynağı ne yazılmış olursa olsun MASA SERVİSİ sayılır (eski kayıtlar 'counter' = Restoran Paket görünüyordu)
+      platform: (o.order_type === 'dine_in' || o.table_id) && !isExternalSrc(o.source) ? 'table' : normPlatform(o.source || 'web'),
       status: o.status === 'cancelled' ? 'cancelled' : 'delivered',
       ts: Date.parse(o.created_at),
       total: num(o.total), subtotal: num(o.subtotal), deliveryFee: num(o.delivery_fee), discount: num(o.discount),

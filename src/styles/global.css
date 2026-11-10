@@ -3728,3 +3728,61 @@ a, button, summary, [role='button'], label, select { touch-action: manipulation;
 .cr-app .alert-fab { bottom: calc(84px + env(safe-area-inset-bottom)); }
 .cr-app .alert-tab { bottom: calc(92px + env(safe-area-inset-bottom)); }
 .cr-app .alert-unlock { bottom: calc(150px + env(safe-area-inset-bottom)); }
+
+/* Adres tarifi (Trendyol addressDescription) */
+.addr-desc { color: var(--gold, #d4a017); font-weight: 600; }
+.addr-desc b { color: inherit; }
+
+
+/* v51 · Global sepet özeti ve müşteri hesap açılır menüsü */
+.top-actions { min-width: 0; }
+.header-cart-summary {
+  display: inline-flex; align-items: center; gap: 0.62rem; min-height: 42px;
+  padding: 0.38rem 0.72rem; border: 1px solid rgba(212,175,55,.58); border-radius: 13px;
+  background: linear-gradient(135deg, rgba(212,175,55,.16), rgba(255,255,255,.045));
+  color: #f7f4e9; text-decoration: none; white-space: nowrap; transition: .18s ease;
+}
+.header-cart-summary:hover { border-color: var(--gold-light); background: rgba(212,175,55,.23); transform: translateY(-1px); }
+.hcs-icon { display: grid; place-items: center; color: var(--gold-light); }
+.hcs-content { display: grid; gap: 1px; line-height: 1.15; }
+.hcs-count { font-size: .75rem; font-weight: 800; }
+.hcs-prices { display: flex; align-items: baseline; gap: .38rem; font-size: .82rem; }
+.hcs-prices del { color: #aaa69a; font-size: .7rem; }
+.hcs-prices strong { color: #f7df82; font-size: .92rem; }
+.hcs-go { padding-left: .45rem; margin-left: .05rem; border-left: 1px solid rgba(255,255,255,.16); font-size: .72rem; font-weight: 800; color: #f7df82; }
+.account-dropdown { position: relative; display: inline-flex; align-items: center; }
+.account-trigger { cursor: pointer; font: inherit; }
+.account-dropdown-menu {
+  position: absolute; z-index: 120; top: calc(100% + 10px); right: 0; width: 286px; padding: .45rem;
+  display: grid; gap: .12rem; border: 1px solid #4a4230; border-radius: 14px;
+  background: #17150f; color: #f5f1e5; box-shadow: 0 16px 42px rgba(0,0,0,.42);
+  opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(7px); transition: opacity .16s ease, transform .16s ease, visibility .16s;
+}
+.account-dropdown:hover .account-dropdown-menu, .account-dropdown:focus-within .account-dropdown-menu, .account-dropdown.open .account-dropdown-menu {
+  opacity: 1; visibility: visible; pointer-events: auto; transform: translateY(0);
+}
+.account-dropdown-head { display: grid; gap: .18rem; padding: .72rem .75rem .78rem; margin-bottom: .2rem; border-bottom: 1px solid #393326; }
+.account-dropdown-head b { color: #f8e7a2; font-size: .93rem; }
+.account-dropdown-head span { color: #b8b3a5; font-size: .75rem; overflow-wrap: anywhere; }
+.account-dropdown-menu a, .account-dropdown-menu button {
+  display: flex; align-items: center; gap: .65rem; width: 100%; padding: .62rem .72rem; border: 0; border-radius: 9px;
+  background: transparent; color: #eeeadd; text-align: left; text-decoration: none; font: inherit; font-size: .84rem; cursor: pointer;
+}
+.account-dropdown-menu a:hover, .account-dropdown-menu button:hover { background: rgba(212,175,55,.14); color: #ffe58c; }
+.account-dropdown-menu button { border-top: 1px solid #393326; border-radius: 0 0 9px 9px; margin-top: .2rem; padding-top: .75rem; color: #ffb4a9; }
+@media (max-width: 860px) {
+  .top .header-cart-summary { min-height: 40px; gap: .42rem; padding: .3rem .52rem; }
+  .top .hcs-count { font-size: .68rem; }
+  .top .hcs-prices { font-size: .75rem; }
+  .top .hcs-prices strong { font-size: .82rem; }
+  .top .hcs-go { display: none; }
+  .top .account-dropdown .user-menu-pill { display: inline-flex !important; width: 40px; height: 40px; justify-content: center; padding: 0; border-radius: 50%; }
+  .top .account-trigger > span, .top .account-trigger > .ico:last-child { display: none; }
+  .account-dropdown-menu { position: fixed; top: 64px; right: .65rem; width: min(290px, calc(100vw - 1.3rem)); }
+}
+@media (max-width: 400px) {
+  .top .header-cart-summary { gap: .32rem; padding: .28rem .42rem; }
+  .top .hcs-count { font-size: .63rem; }
+  .top .hcs-prices strong { font-size: .76rem; }
+  .top .theme-toggle-btn { padding: .35em .45em; }
+}

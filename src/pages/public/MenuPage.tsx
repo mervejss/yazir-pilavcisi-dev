@@ -2,19 +2,35 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMenu, type MenuProduct } from '@/hooks/useMenu';
 import { useCartStore } from '@/stores/cartStore';
-import { tl } from '@/lib/helpers';
+import { discountedPrice, tl } from '@/lib/helpers';
 import { categoryIcon } from '@/lib/categoryIcon';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import Icon from '@/components/ui/Icon';
 import ProductCard from '@/components/menu/ProductCard';
 import ProductDetailModal from '@/components/menu/ProductDetailModal';
+import { useAuthStore } from '@/stores/authStore';
+import { supabase } from '@/lib/supabase';
 
 export default function MenuPage() {
   const { categories, products, loading } = useMenu();
   const items = useCartStore((s) => s.items);
   const tableToken = useCartStore((s) => s.tableToken);
+  const user = useAuthStore((s) => s.user);
+  const [referral, setReferral] = useState<any>(null);
+  useEffect(() => {
+    if (!user) { setReferral(null); return; }
+    const refresh = () => supabase.rpc('my_referral').then(({data,error}) => { if (!error) setReferral(data || null); });
+    refresh();
+    const channel = supabase.channel(`referral-menu-${user.id}`).on('postgres_changes',{event:'*',schema:'public',table:'referral_campaigns'},refresh).subscribe();
+    const timer = window.setInterval(refresh, 30000);
+    return () => { window.clearInterval(timer); supabase.removeChannel(channel); };
+  }, [user]);
+  const productDiscount = referral?.is_active && referral.scope === 'product' ? Number(referral.discount || 0) : 0;
   const count = useCartStore((s) => s.count());
   const total = items.reduce((s, i) => s + i.price * i.quantity, 0);
+  const displayedTotal = productDiscount > 0
+    ? items.reduce((sum, item) => sum + discountedPrice(item.price, productDiscount) * item.quantity, 0)
+    : total;
 
   const [selected, setSelected] = useState<MenuProduct | null>(null);
   const [q, setQ] = useState('');
@@ -114,7 +130,7 @@ export default function MenuPage() {
           </header>
           <div className="grid">
             {list.map((p) => (
-              <ProductCard key={p.id} p={p} onOpen={setSelected} />
+              <ProductCard key={p.id} p={p} onOpen={setSelected} discountPercent={productDiscount} />
             ))}
           </div>
         </section>
@@ -123,12 +139,12 @@ export default function MenuPage() {
       {count > 0 && (
         <Link to="/siparis" className="cartbar">
           <span className="cartbar-l"><Icon name="cart" size={20} /> {count} ürün</span>
-          <b>{tl(total)}</b>
+          <b style={{display:'flex',flexDirection:'column',alignItems:'flex-end',lineHeight:1.2}}>{productDiscount > 0 && <small style={{textDecoration:'line-through',opacity:.65,fontWeight:400}}>{tl(total)}</small>}<span>{tl(displayedTotal)}</span></b>
           <span className="cartbar-r">Sepeti gör <Icon name="arrowRight" size={17} /></span>
         </Link>
       )}
 
-      <ProductDetailModal product={selected} onClose={() => setSelected(null)} />
+      <ProductDetailModal product={selected} onClose={() => setSelected(null)} discountPercent={productDiscount} />
     </main>
   );
 }

@@ -231,6 +231,8 @@ function mapPackage(pkg: any) {
     customer_name: [c.firstName, c.lastName].filter(Boolean).join(' ') || c.name || 'Trendyol Go Müşterisi',
     customer_phone: phone,
     delivery_address: address || null,
+    // Trendyol "addressDescription" (adres tarifi, ör. "Kadıköy - ISA2") — ayrı alanda saklanır
+    address_description: a.addressDescription ? String(a.addressDescription).trim() || null : null,
     district: a.district || a.neighborhood || null,
     lat: a.latitude ?? null, lng: a.longitude ?? null,
     note: pkg.customerNote || pkg.note || null,

@@ -176,3 +176,10 @@
   .anp-print-section:first-of-type { break-before: auto; }
   .anp-grid.c3, .anp-grid.c4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* v44: Restoran İçi / Restoran Dışı kanal grupları */
+.anp-filters .anp-plat + .anp-plat { margin-top: 0.5rem; }
+.anp-plat-group { align-items: center; padding: 0.4rem 0.55rem; border: 1px dashed var(--line-strong); border-radius: 14px; }
+.anp-plat-group button.grp { background: var(--gold-bg); border-color: var(--gold); }
+.anp-plat-group button.grp.on { box-shadow: inset 0 0 0 2px var(--gold); }
+.anp-plat-sep { color: var(--text-muted); font-weight: 800; }

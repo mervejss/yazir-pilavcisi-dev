@@ -105,6 +105,9 @@ export interface OrderFin {
 }
 export interface DayFin { key: string; sales: number; commission: number; payout: number; cost: number; profit: number; orders: number }
 export interface TypeFin { type: string; label: string; count: number; credit: number; debt: number; commission: number; payout: number }
+export interface RateFin { rate: number; lines: number; sales: number; commission: number }
+export interface ProductFin { key: string; name: string; lines: number; sales: number; returns: number; discounts: number; commission: number; payout: number; commissionPct: number }
+export interface UpcomingFin { key: string; ts: number; payout: number; orders: number }
 export interface Deductions { stoppage: number; platformFee: number; invoices: number; agreement: number; other: number; total: number }
 
 export interface FinResult {
@@ -127,6 +130,16 @@ export interface FinResult {
   byDay: DayFin[];
   byType: TypeFin[];
   otherByType: { type: string; label: string; count: number; debt: number; credit: number; net: number; kind: 'kesinti' | 'hareket' }[];
+  // --- v44: ek analizler ---
+  avgBasket: number;                      // ortalama sepet (satış / sipariş)
+  refundedOrders: number; refundRate: number;
+  commissionPerOrder: number; payoutPerOrder: number; profitPerOrder: number;
+  paidPayout: number;                     // ödeme emri oluşmuş (Trendyol hesabına geçmiş / geçecek) hakediş
+  pendingPayout: number;                  // henüz ödeme emri oluşmamış (vadesi bekleyen) hakediş
+  byRate: RateFin[];
+  byProduct: ProductFin[];
+  upcoming: UpcomingFin[];                // vade tarihine göre bekleyen hakediş takvimi
+  firstTx: number | null; lastTx: number | null;
 }
 
 const abs = (v: any) => Math.abs(Number(v) || 0);
@@ -155,6 +168,10 @@ export function computeFinance(settlements: SettlementRow[], others: OtherRow[],
   const orderMap = new Map<string, OrderFin>();
   const dayMap = new Map<string, DayFin & { _orders: Set<string> }>();
   const typeMap = new Map<string, TypeFin>();
+  const rateMap = new Map<number, RateFin>();
+  const prodMap = new Map<string, ProductFin>();
+  const upMap = new Map<string, UpcomingFin & { _o: Set<string> }>();
+  let paidPayout = 0, pendingPayout = 0, firstTx = Infinity, lastTx = -Infinity;
   const ensureDay = (k: string) => {
     let d = dayMap.get(k);
     if (!d) { d = { key: k, sales: 0, commission: 0, payout: 0, cost: 0, profit: 0, orders: 0, _orders: new Set() }; dayMap.set(k, d); }
@@ -170,6 +187,31 @@ export function computeFinance(settlements: SettlementRow[], others: OtherRow[],
     t.commission += fx.commission; t.payout += fx.payout; typeMap.set(type, t);
 
     gross[fx.m.group] += fx.gross; rawCommission += fx.commission; payout += fx.payout;
+
+    // v44: ek kırılımlar
+    if (r.payment_order_id) paidPayout += fx.payout;
+    else {
+      pendingPayout += fx.payout;
+      const pd = ts(r.payment_date);
+      if (!Number.isNaN(pd)) {
+        const k = new Date(pd + 3 * 3600e3).toISOString().slice(0, 10);
+        const u = upMap.get(k) || { key: k, ts: pd, payout: 0, orders: 0, _o: new Set<string>() };
+        u.payout += fx.payout; u._o.add(r.order_number || r.shipment_package_id || r.id); upMap.set(k, u);
+      }
+    }
+    const wt = ts(r.transaction_date);
+    if (!Number.isNaN(wt)) { firstTx = Math.min(firstTx, wt); lastTx = Math.max(lastTx, wt); }
+    if (fx.m.group === 'sale' && r.commission_rate != null) {
+      const rk = Math.round(Number(r.commission_rate) * 10) / 10;
+      const re = rateMap.get(rk) || { rate: rk, lines: 0, sales: 0, commission: 0 };
+      re.lines++; re.sales += fx.gross; re.commission += fx.commission; rateMap.set(rk, re);
+    }
+    if (['sale', 'return', 'discount'].includes(fx.m.group)) {
+      const pk = (r.barcode || r.description || '—').trim() || '—';
+      const pe = prodMap.get(pk) || { key: pk, name: pk, lines: 0, sales: 0, returns: 0, discounts: 0, commission: 0, payout: 0, commissionPct: 0 };
+      if (fx.m.group === 'sale') { pe.lines++; pe.sales += fx.gross; } else if (fx.m.group === 'return') pe.returns += fx.gross; else pe.discounts += fx.gross;
+      pe.commission += fx.commission; pe.payout += fx.payout; prodMap.set(pk, pe);
+    }
 
     const when = ts(r.transaction_date);
     const day = Number.isNaN(when) ? null : ensureDay(bizKey(when));
@@ -212,8 +254,10 @@ export function computeFinance(settlements: SettlementRow[], others: OtherRow[],
     };
   };
   const cost = { food: 0, packaging: 0, courier: 0, other: 0, total: 0 };
-  let orders = 0;
+  let orders = 0, refundedOrders = 0, saleOrders = 0;
   for (const o of orderMap.values()) {
+    if (o.returned) refundedOrders++;
+    if (o.sales > 0) saleOrders++;
     const c = perOrderCost(o);
     o.cost = c.food + c.other + c.packaging + c.courier;
     o.profit = o.payout - o.cost;
@@ -277,6 +321,16 @@ export function computeFinance(settlements: SettlementRow[], others: OtherRow[],
     marginPct: revenueBase > 0 ? (netProfit / revenueBase) * 100 : 0,
     byOrder: [...orderMap.values()].sort((a, b) => (b.date || 0) - (a.date || 0)),
     byDay, byType, otherByType,
+    avgBasket: saleOrders > 0 ? gross.sale / saleOrders : 0,
+    refundedOrders, refundRate: saleOrders > 0 ? (refundedOrders / saleOrders) * 100 : 0,
+    commissionPerOrder: orders > 0 ? rawCommission / orders : 0,
+    payoutPerOrder: orders > 0 ? payout / orders : 0,
+    profitPerOrder: orders > 0 ? netProfit / orders : 0,
+    paidPayout, pendingPayout,
+    byRate: [...rateMap.values()].sort((a, b) => b.sales - a.sales),
+    byProduct: [...prodMap.values()].map((p) => ({ ...p, commissionPct: p.sales > 0 ? (p.commission / p.sales) * 100 : 0 })).sort((a, b) => b.sales - a.sales),
+    upcoming: [...upMap.values()].sort((a, b) => a.key.localeCompare(b.key)).map((u) => ({ key: u.key, ts: u.ts, payout: u.payout, orders: u._o.size })),
+    firstTx: Number.isFinite(firstTx) ? firstTx : null, lastTx: Number.isFinite(lastTx) ? lastTx : null,
   };
 }
 

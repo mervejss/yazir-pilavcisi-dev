@@ -6,12 +6,13 @@ import { PRESETS, fmtDateTimeIst, resolveDateRange, todayKey, type Preset } from
 import { commitImport, parseStatement, type ImportPreview } from '@/lib/financeImport';
 import { isMissingTable, useFinance } from '@/hooks/useFinance';
 import { Card } from '@/components/analytics/pro/Kit';
-import { BreakdownTab, CostTab, OrdersTab, PaymentsTab, SummaryTab } from '@/components/finance/FinanceTabs';
+import { BreakdownTab, CostTab, OrdersTab, PaymentsTab, ProductsTab, SummaryTab } from '@/components/finance/FinanceTabs';
 
 const TABS = [
   { key: 'ozet', label: '📊 Özet' },
   { key: 'siparis', label: '🧾 Sipariş bazında' },
   { key: 'odeme', label: '🏦 Ödemeler' },
+  { key: 'urun', label: '🍽️ Ürün bazında' },
   { key: 'dokum', label: '🔍 Kesinti dökümü' },
   { key: 'maliyet', label: '⚙️ Maliyet & KDV' },
 ] as const;
@@ -30,6 +31,7 @@ export default function FinanceAdmin() {
 
   const [progress, setProgress] = useState<string | null>(null);
   const [probe, setProbe] = useState<any>(null);
+  const [syncReport, setSyncReport] = useState<{ ok: boolean; detail: string; errors: string[]; notes: string[] } | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -39,8 +41,14 @@ export default function FinanceAdmin() {
     setProgress('Başlıyor…');
     const s = await f.sync(range.from, range.to, setProgress);
     setProgress(null);
-    if (s.errors.length) toast.error(`Trendyol finans: ${s.errors[0]}`, { duration: 14000 });
-    else toast.success(`${s.saved.toLocaleString('tr-TR')} kayıt güncellendi (${s.windows} dönem)`);
+    const detail = `${s.settlements.toLocaleString('tr-TR')} satış/iade + ${s.other.toLocaleString('tr-TR')} kesinti/fatura kaydı · ${s.windows} dönem`;
+    if (s.errors.length) {
+      toast.error(`Çekim tamamlandı ama ${s.errors.length} adımda hata var (diğer adımlar yine de alındı): ${s.errors[0]}`, { duration: 16000 });
+      setSyncReport({ ok: false, detail, errors: s.errors, notes: s.notes });
+    } else {
+      toast.success(`${detail} güncellendi`);
+      setSyncReport(s.notes.length ? { ok: true, detail, errors: [], notes: s.notes } : null);
+    }
     if (s.errors.length && !s.saved) doProbe();
   };
 
@@ -111,6 +119,16 @@ export default function FinanceAdmin() {
       {missing && <div className="anp-banner err">⚠️ Finans tabloları yok. Supabase SQL Editor’da <code>sql/24_trendyol_finance.sql</code> dosyasını çalıştırın.</div>}
       {f.error && !missing && <div className="anp-banner err">⚠️ Veri okunamadı: {f.error}</div>}
 
+      {syncReport && (
+        <div className={`anp-banner ${syncReport.ok ? '' : 'err'}`}>
+          <b>{syncReport.ok ? 'ℹ️ Çekim tamamlandı' : '⚠️ Çekim kısmen tamamlandı'}</b> — {syncReport.detail}
+          {syncReport.notes.map((n, i) => <div key={'n' + i} className="small">• {n}</div>)}
+          {syncReport.errors.slice(0, 6).map((e, i) => <div key={'e' + i} className="small">✖ {e}</div>)}
+          {syncReport.errors.length > 6 && <div className="small muted">… ve {syncReport.errors.length - 6} hata daha</div>}
+          <button type="button" className="anp-mini" onClick={() => setSyncReport(null)}>Kapat</button>
+        </div>
+      )}
+
       {probe && (
         <div className={`anp-banner ${probe.works ? '' : 'err'}`}>
           <b>{probe.works ? '✅ Finans servisi çalışıyor' : '❌ Finans servisine ulaşılamadı'}</b> — {probe.hint}
@@ -158,13 +176,14 @@ export default function FinanceAdmin() {
         <><div className="anp-skel" /><div className="anp-skel" style={{ height: 260 }} /></>
       ) : (
         <>
-          {tab === 'ozet' && <SummaryTab r={r} settings={f.settings} range={range} />}
+          {tab === 'ozet' && <SummaryTab r={r} settings={f.settings} range={range} cov={f.coverage} onSync={doSync} busy={!!progress} />}
           {tab === 'siparis' && <OrdersTab orders={r.byOrder} />}
-          {tab === 'odeme' && <PaymentsTab recon={f.recon} onRefresh={async (id) => {
+          {tab === 'odeme' && <PaymentsTab recon={f.recon} upcoming={r.upcoming} onRefresh={async (id) => {
             const x = await f.refreshPaymentOrder(id);
             if (x.ok) toast.success(`#${id} yenilendi`); else toast.error(x.error || 'Yenilenemedi');
           }} />}
-          {tab === 'dokum' && <BreakdownTab r={r} />}
+          {tab === 'urun' && <ProductsTab products={r.byProduct} />}
+          {tab === 'dokum' && <BreakdownTab r={r} cargo={f.cargo} />}
           {tab === 'maliyet' && <CostTab settings={f.settings} onSave={f.saveSettings} />}
         </>
       )}

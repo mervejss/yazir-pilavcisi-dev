@@ -37,6 +37,7 @@ interface COrder {
   customer_name: string | null;
   customer_phone: string | null;
   delivery_address: string | null;
+  address_description?: string | null;
   note: string | null;
   lat: number | null;
   lng: number | null;
@@ -468,6 +469,7 @@ export default function CourierApp() {
           <div>
             <b>{o.delivery_address || 'Adres belirtilmemiş'}</b>
             {o.district && <div className="small muted">{o.district}</div>}
+            {o.address_description && <div className="small addr-desc">📝 Adres tarifi: <b>{o.address_description}</b></div>}
             <div className="small cr-pin-state">{o.lat != null && o.lng != null ? '✓ Konum haritada işaretli — dokunup haritada gör' : 'Konum işaretli değil — adres yazıdan bulunur · dokunup haritada gör'}</div>
             {(rs || meters != null) && (
               <div className="cr-eta">
@@ -760,6 +762,7 @@ export default function CourierApp() {
               <div>
                 <b>{sheetOrder.delivery_address || 'Adres belirtilmemiş'}</b>
                 {sheetOrder.district && <div className="small muted">{sheetOrder.district}</div>}
+                {sheetOrder.address_description && <div className="small addr-desc">📝 Adres tarifi: <b>{sheetOrder.address_description}</b></div>}
               </div>
             </div>
             <div className="cr-actions">

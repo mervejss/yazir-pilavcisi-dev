@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useCustomerAddresses } from '@/hooks/useCustomerAddresses';
 import { useCustomerOrders } from '@/hooks/useCustomerOrders';
@@ -15,6 +15,7 @@ import ReviewModal from '@/components/reviews/ReviewModal';
 import Stars from '@/components/ui/Stars';
 import toast from 'react-hot-toast';
 import { homeForRole, isPanelRole } from '@/lib/roleHome';
+import { supabase } from '@/lib/supabase';
 
 function CustomerProfile() {
   const { profile, user, signOut, updateProfile } = useAuthStore();
@@ -22,10 +23,50 @@ function CustomerProfile() {
   const { orders, loading: ordersLoading } = useCustomerOrders();
   const addItem = useCartStore((s) => s.addItem);
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const [tab, setTab] = useState<'orders' | 'addresses' | 'info' | 'reviews'>(() =>
-    new URLSearchParams(window.location.search).get('tab') === 'reviews' ? 'reviews' : 'orders',
+  const [tab, setTab] = useState<'orders' | 'addresses' | 'info' | 'reviews' | 'referrals'>(() =>
+    (['orders', 'reviews', 'addresses', 'referrals', 'info'].includes(new URLSearchParams(window.location.search).get('tab') || '')
+      ? new URLSearchParams(window.location.search).get('tab') as 'orders' | 'reviews' | 'addresses' | 'referrals' | 'info'
+      : 'orders'),
   );
+  useEffect(() => {
+    const requested = new URLSearchParams(location.search).get('tab');
+    if (requested && ['orders', 'reviews', 'addresses', 'referrals', 'info'].includes(requested)) {
+      setTab(requested as 'orders' | 'reviews' | 'addresses' | 'referrals' | 'info');
+    }
+  }, [location.search]);
+  const [referralCode, setReferralCode] = useState('');
+  const [myReferral, setMyReferral] = useState<any>(null);
+  const [partnerBusinesses, setPartnerBusinesses] = useState<any[]>([]);
+  const [referralBusy, setReferralBusy] = useState(false);
+  const loadReferral = async () => {
+    const [{ data }, partners] = await Promise.all([
+      supabase.rpc('my_referral'),
+      supabase.rpc('public_referral_campaigns'),
+    ]);
+    setMyReferral(data || null);
+    setPartnerBusinesses(partners.data || []);
+  };
+  useEffect(() => { loadReferral(); }, []);
+  const applyReferral = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!referralCode.trim()) return;
+    setReferralBusy(true);
+    const { data, error } = await supabase.rpc('apply_referral_code', { p_code: referralCode.trim() });
+    setReferralBusy(false);
+    if (error) return void toast.error(error.message);
+    if (!data?.ok) return void toast.error(data?.error || 'Referans kodu doğrulanamadı');
+    toast.success('Referans kodunuz doğrulandı ve hesabınıza uygulandı!');
+    setReferralCode('');
+    loadReferral();
+  };
+  const removeReferral = async () => {
+    if (!confirm('Hesabınızdaki referans kodunu kaldırmak istiyor musunuz?')) return;
+    const { error } = await supabase.rpc('remove_my_referral');
+    if (error) toast.error(error.message); else { toast.success('Referans kodu kaldırıldı'); loadReferral(); }
+  };
+
   const myReviews = useMyReviews();
   const [reviewOrder, setReviewOrder] = useState<ReviewableOrder | null>(null);
   const reviewByOrder = (id: string) => myReviews.rows.find((r) => r.order_id === id) || null;
@@ -247,6 +288,9 @@ function CustomerProfile() {
           onClick={() => setTab('addresses')}
         >
           📍 Kayıtlı Adreslerim ({addresses.length})
+        </button>
+        <button type="button" className={tab === 'referrals' ? 'on' : ''} onClick={() => setTab('referrals')}>
+          🎟️ Referans
         </button>
         <button
           type="button"
@@ -538,6 +582,30 @@ function CustomerProfile() {
               {savingInfo ? 'Kaydediliyor...' : 'Bilgilerimi Güncelle'}
             </button>
           </form>
+        </section>
+      )}
+
+      {tab === 'referrals' && (
+        <section className="card narrow" style={{maxWidth:'680px'}}>
+          <h3>🎟️ Referans Kodum</h3>
+          <p className="muted small">Anlaşmalı işletmelerin size özel sunduğu indirimlerden yararlanmak için referans kodunuzu buradan ekleyebilirsiniz.</p>
+          {myReferral ? (
+            <div className="card" style={{padding:'1rem',margin:'1rem 0'}}>
+              <div className="bar"><b>{myReferral.business_name || 'Anlaşmalı İşletme'}</b><span className={`cp-st ${myReferral.is_active?'ok':'mute'}`}>{myReferral.is_active?'Aktif':'Kampanya pasif'}</span></div>
+              <p>{myReferral.campaign_name || 'Referans kampanyası'}</p>
+              <h2 style={{color:'var(--gold-ink)'}}>%{myReferral.discount} indirim</h2>
+              <p className="small muted">{myReferral.scope === 'product' ? 'Ürün bazında indirim' : 'Sepet toplamında indirim'}</p>
+              <code>{myReferral.code}</code>
+              <div style={{marginTop:'1rem'}}><button type="button" className="btn ghost sm danger-txt" onClick={removeReferral}>Referans kodunu kaldır</button></div>
+            </div>
+          ) : (
+            <form onSubmit={applyReferral} className="form" style={{margin:'1rem 0'}}>
+              <label>Referans kodu<input value={referralCode} onChange={e=>setReferralCode(e.target.value.toUpperCase())} placeholder="Örn. REBORN8K4M2Q" autoCapitalize="characters"/></label>
+              <button className="btn gold" disabled={referralBusy}>{referralBusy?'Doğrulanıyor…':'Kodu Doğrula ve Uygula'}</button>
+            </form>
+          )}
+          <h3 style={{marginTop:'2rem'}}>🤝 Anlaşmalı Olduğumuz İşletmeler</h3>
+          {partnerBusinesses.length ? partnerBusinesses.map((b,i)=><div key={`${b.business_name}-${i}`} className="prow" style={{padding:'.7rem 0',borderBottom:'1px solid var(--border)'}}><b>{b.business_name}</b><span className="muted small">Üye indirimi %{b.customer_discount} · Personel %{b.staff_discount}</span></div>) : <p className="muted small">Şu anda listelenecek aktif anlaşmalı işletme bulunmuyor.</p>}
         </section>
       )}
 

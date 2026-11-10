@@ -200,6 +200,7 @@ export interface Order {
   customer_name: string | null;
   customer_phone: string | null;
   delivery_address: string | null;
+  address_description: string | null;
   district: string | null;
   lat: number | null;
   lng: number | null;

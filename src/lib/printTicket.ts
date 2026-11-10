@@ -12,6 +12,7 @@ export interface TicketOrder {
   customer_name?: string | null;
   customer_phone?: string | null;
   delivery_address?: string | null;
+  address_description?: string | null;
   district?: string | null;
   note?: string | null;
   payment_method?: string | null;
@@ -79,6 +80,7 @@ ${o.note ? `<div class="note">NOT: ${esc(o.note)}</div>` : ''}
 ${o.customer_name ? `<div><b>${esc(o.customer_name)}</b></div>` : ''}
 ${o.customer_phone ? `<div>Tel: ${esc(o.customer_phone)}</div>` : ''}
 ${o.delivery_address ? `<div>${o.district ? esc(o.district) + ' · ' : ''}${esc(o.delivery_address)}</div>` : ''}
+${o.address_description ? `<div>Adres tarifi: <b>${esc(o.address_description)}</b></div>` : ''}
 <hr>
 <div class="row"><span>Ödeme</span><b>${esc(PAYMENT_METHOD_LABELS[o.payment_method || ''] || o.payment_method || '—')}</b></div>
 ${splitsHtml}

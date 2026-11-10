@@ -8,6 +8,8 @@ import type { BusinessSettings, OpeningHour, OpeningHourOverride } from '@/types
  * - Her 60 sn'de bir veriyi yeniler (admin değişikliği ziyaretçide kısa sürede görünür).
  * - `status`: sitede gösterilecek açık/kapalı durumu (her 30 sn yeniden hesaplanır).
  */
+let overridesMissingUntil = 0;
+
 export function useBusinessSettings() {
   const [settings, setSettings] = useState<BusinessSettings | null>(null);
   const [hours, setHours] = useState<OpeningHour[]>([]);
@@ -20,11 +22,16 @@ export function useBusinessSettings() {
     const hourRes = await supabase.from('opening_hours').select('*').order('day_of_week');
     // Dünden itibaren olan özel günler (dünden sarkan pencere için dün de gerekli)
     const fromDate = addDaysISO(businessDateISO(), -2);
-    const ovRes = await supabase
-      .from('opening_hours_overrides')
-      .select('*')
-      .gte('override_date', fromDate)
-      .order('override_date');
+    // Tablo yoksa (09_hours_overrides.sql / 35_finance_daily_cargo.sql çalıştırılmadı) her ziyaretçide 404 üretmemek için 30 dk boyunca tekrar sorma
+    const skipOv = overridesMissingUntil > Date.now();
+    const ovRes: { data: any[] | null; error: any } = skipOv
+      ? { data: [], error: null }
+      : await supabase
+        .from('opening_hours_overrides')
+        .select('*')
+        .gte('override_date', fromDate)
+        .order('override_date');
+    if (!skipOv && ovRes.error) overridesMissingUntil = Date.now() + 30 * 60_000;
     if (settRes.data) setSettings(settRes.data as unknown as BusinessSettings);
     if (hourRes.data) setHours(hourRes.data as unknown as OpeningHour[]);
     // Tablo henüz oluşturulmadıysa (09_hours_overrides.sql çalıştırılmadı) sessizce boş kabul et

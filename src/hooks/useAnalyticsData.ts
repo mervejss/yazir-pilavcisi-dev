@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import {
-  analyze, fetchOrders, type AOrder, type Analysis, type DateRange,
+  analyze, channelGroup, fetchOrders, matchesChannel, type AOrder, type Analysis, type DateRange,
 } from '@/lib/analyticsData';
 
 export interface TableUsageRow { table_id: string; table_number: number; session_count: number; order_count: number; revenue: number; avg_session_minutes: number | null }
@@ -63,7 +63,7 @@ export function useAnalyticsData(range: DateRange) {
 /** Platform filtresi + dönem ayrımı + analiz */
 export function useAnalysis(orders: AOrder[], catalog: Map<string, string>, range: DateRange, platform: string, slaMin: number) {
   return useMemo(() => {
-    const scoped = platform === 'all' ? orders : orders.filter((o) => o.platform === platform);
+    const scoped = platform === 'all' ? orders : orders.filter((o) => matchesChannel(o.platform, platform));
     const cur = scoped.filter((o) => o.ts >= range.from && o.ts < range.to);
     const prev = scoped.filter((o) => o.ts >= range.prevFrom && o.ts < range.prevTo);
     return { cur, prev, analysis: analyze(cur, prev, range, catalog, slaMin) as Analysis };
@@ -81,6 +81,9 @@ export function usePlatformCounts(orders: AOrder[], range: DateRange) {
       (out[o.platform] ||= { orders: 0, revenue: 0, cancelled: 0 });
       out[o.platform].orders++; out[o.platform].revenue += rev; out[o.platform].cancelled += c;
       out.all.orders++; out.all.revenue += rev; out.all.cancelled += c;
+      const g = channelGroup(o.platform);
+      (out[g] ||= { orders: 0, revenue: 0, cancelled: 0 });
+      out[g].orders++; out[g].revenue += rev; out[g].cancelled += c;
     });
     return out;
   }, [orders, range]);

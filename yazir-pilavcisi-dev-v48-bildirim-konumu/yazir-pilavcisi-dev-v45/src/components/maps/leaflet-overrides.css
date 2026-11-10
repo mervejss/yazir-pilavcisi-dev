@@ -1,0 +1,16 @@
+/* Leaflet custom marker styles */
+.osm-marker-shell { background: transparent; border: 0; }
+.osm-marker {
+  width: 34px; height: 34px; border: 3px solid #fff; border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg); background: var(--marker-color); color: #fff;
+  display: flex; align-items: center; justify-content: center; font-weight: 800;
+  font-size: 13px; box-shadow: 0 2px 8px #0005;
+}
+.osm-marker::first-letter { transform: rotate(45deg); }
+.osm-marker-courier { border-radius: 50%; transform: none; }
+.osm-marker-order { border-radius: 50% 50% 50% 0; }
+.osm-marker-restaurant { font-size: 18px; }
+.map-canvas { width: 100%; height: 100%; min-height: 180px; z-index: 1; }
+.map-wrap { position: relative; overflow: hidden; }
+.leaflet-container { width: 100%; height: 100%; font: inherit; z-index: 1; }
+.leaflet-control-attribution { font-size: 9px !important; }

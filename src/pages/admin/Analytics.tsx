@@ -3,9 +3,11 @@ import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import '@/styles/analytics-pro.css';
 import {
-  PLATFORM_KEYS, PRESETS, autoGran, fmtDateTimeIst, loadSettings, platformLabel, resolveDateRange, saveSettings, todayKey,
+  GROUP_META, INSIDE_CHANNELS, PLATFORM_KEYS, PRESETS, autoGran, channelGroup, fmtDateTimeIst, loadSettings, platformLabel, resolveDateRange, saveSettings, todayKey,
   type AnalyticsSettings, type Gran, type Preset,
 } from '@/lib/analyticsData';
+import { useFinanceActuals } from '@/hooks/useFinance';
+import ProfitTab from '@/components/analytics/pro/tabs/ProfitTab';
 import { SOURCE_EMOJI } from '@/lib/constants';
 import { useAnalysis, useAnalyticsData, usePlatformCounts } from '@/hooks/useAnalyticsData';
 import { exportOrdersCsv, exportSummaryCsv, exportWorkbook } from '@/lib/analyticsExport';
@@ -21,6 +23,7 @@ import type { TabProps } from '@/components/analytics/pro/tabs/types';
 
 const TABS = [
   { key: 'genel', label: '📊 Genel', C: OverviewTab },
+  { key: 'kar', label: '💼 Kâr & Kanal', C: ProfitTab },
   { key: 'zaman', label: '⏰ Zaman', C: TimeTab },
   { key: 'platform', label: '🛵 Platform', C: PlatformTab },
   { key: 'urun', label: '🍽️ Ürün', C: ProductTab },
@@ -54,6 +57,7 @@ export default function Analytics() {
 
   const data = useAnalyticsData(range);
   const counts = usePlatformCounts(data.orders, range);
+  const finActuals = useFinanceActuals(range);
   const { cur, prev, analysis } = useAnalysis(data.orders, data.catalog, range, platform, settings.slaMin);
 
   const [menu, setMenu] = useState(false);
@@ -71,14 +75,17 @@ export default function Analytics() {
     return () => window.removeEventListener('afterprint', done);
   }, []);
 
-  const chipKeys = useMemo(() => {
-    const extra = Object.keys(counts).filter((k) => k !== 'all' && !PLATFORM_KEYS.includes(k));
-    return ['all', ...PLATFORM_KEYS, ...extra];
+  const { insideKeys, outsideKeys } = useMemo(() => {
+    const extra = Object.keys(counts).filter((k) => k !== 'all' && k !== 'inside' && k !== 'outside' && !PLATFORM_KEYS.includes(k));
+    return {
+      insideKeys: INSIDE_CHANNELS,
+      outsideKeys: [...PLATFORM_KEYS.filter((k) => !INSIDE_CHANNELS.includes(k)), ...extra.filter((k) => channelGroup(k) === 'outside')],
+    };
   }, [counts]);
 
   const props: TabProps = {
     a: analysis, cur, prev, range, platform, compare: settings.compare, settings, onSettings: setSettings,
-    gran, onGran: setGran, courierNames: data.courierNames, tableUsage: data.tableUsage,
+    gran, onGran: setGran, courierNames: data.courierNames, tableUsage: data.tableUsage, fin: finActuals.fin, finSettings: finActuals.settings,
   };
   const Active = TABS.find((t) => t.key === tab)!.C;
 
@@ -101,7 +108,7 @@ export default function Analytics() {
     setTimeout(() => window.print(), all ? 600 : 150);
   };
 
-  const platformName = platform === 'all' ? 'Tüm platformlar' : platformLabel(platform);
+  const platformName = platform === 'all' ? 'Tüm platformlar' : platform === 'inside' || platform === 'outside' ? GROUP_META[platform].label : platformLabel(platform);
 
   return (
     <div className="anp-root">
@@ -156,18 +163,35 @@ export default function Analytics() {
         </div>
         <div className="anp-range-label">📅 {range.label} ({range.days} iş günü){settings.compare && <span className="muted"> · karşılaştırma: {range.prevFromKey.slice(8)}.{range.prevFromKey.slice(5, 7)} → {range.prevToKey.slice(8)}.{range.prevToKey.slice(5, 7)}</span>}</div>
 
-        <div className="anp-plat" role="tablist" aria-label="Platform filtresi">
-          {chipKeys.map((k) => {
-            const c = counts[k] || { orders: 0, revenue: 0, cancelled: 0 };
-            return (
-              <button key={k} type="button" className={`${platform === k ? 'on' : ''}${c.orders === 0 ? ' zero' : ''}`} onClick={() => patch({ kanal: k === 'all' ? null : k })}
-                title={`${k === 'all' ? 'Tüm platformlar' : platformLabel(k)}: ${c.orders} sipariş · ${c.cancelled} iptal · ${fmtMoneyShort(c.revenue)} ciro`}>
-                <span>{k === 'all' ? '🌐 Tüm Platformlar' : `${SOURCE_EMOJI[k] || '🔗'} ${platformLabel(k)}`}</span>
-                <span className="cnt">{c.orders.toLocaleString('tr-TR')}</span>
-              </button>
-            );
-          })}
+        <div className="anp-plat" role="tablist" aria-label="Kanal filtresi">
+          <button type="button" className={platform === 'all' ? 'on' : ''} onClick={() => patch({ kanal: null })}
+            title={`Tüm kanallar: ${(counts.all?.orders || 0)} sipariş · ${fmtMoneyShort(counts.all?.revenue || 0)} ciro`}>
+            <span>🌐 Tümü</span><span className="cnt">{(counts.all?.orders || 0).toLocaleString('tr-TR')}</span>
+          </button>
         </div>
+        {([['inside', insideKeys], ['outside', outsideKeys]] as const).map(([g, keys]) => {
+          const gc = counts[g] || { orders: 0, revenue: 0, cancelled: 0 };
+          const m = GROUP_META[g];
+          return (
+            <div key={g} className="anp-plat anp-plat-group" role="tablist" aria-label={m.label}>
+              <button type="button" className={`${platform === g ? 'on' : ''}${gc.orders === 0 ? ' zero' : ''} grp`} onClick={() => patch({ kanal: g })}
+                title={`${m.label} — ${m.hint}: ${gc.orders} sipariş · ${fmtMoneyShort(gc.revenue)} ciro`}>
+                <span>{m.emoji} {m.label}</span><span className="cnt">{gc.orders.toLocaleString('tr-TR')}</span>
+              </button>
+              <span className="anp-plat-sep" aria-hidden>›</span>
+              {keys.map((k) => {
+                const c = counts[k] || { orders: 0, revenue: 0, cancelled: 0 };
+                return (
+                  <button key={k} type="button" className={`${platform === k ? 'on' : ''}${c.orders === 0 ? ' zero' : ''}`} onClick={() => patch({ kanal: k })}
+                    title={`${platformLabel(k)}: ${c.orders} sipariş · ${c.cancelled} iptal · ${fmtMoneyShort(c.revenue)} ciro`}>
+                    <span>{SOURCE_EMOJI[k] || '🔗'} {platformLabel(k)}</span>
+                    <span className="cnt">{c.orders.toLocaleString('tr-TR')}</span>
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })}
       </div>
 
       {data.warnings.map((w, i) => <div key={i} className="anp-banner err">⚠️ {w}</div>)}

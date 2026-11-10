@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useCustomerAddresses } from '@/hooks/useCustomerAddresses';
 import { useBusinessSettings } from '@/hooks/useBusinessSettings';
 import { supabase } from '@/lib/supabase';
-import { tl } from '@/lib/helpers';
+import { discountedPrice, tl } from '@/lib/helpers';
 import { PAYMENT_METHOD_LABELS } from '@/lib/constants';
 import ProductImage from '@/components/ui/ProductImage';
 import LocationPicker from '@/components/maps/LocationPicker';
@@ -34,6 +34,7 @@ export default function OrderPage() {
   const [couponInput, setCouponInput] = useState('');
   const [coupon, setCoupon] = useState<{ code: string; discount: number; title: string } | null>(null);
   const [couponBusy, setCouponBusy] = useState(false);
+  const [referral, setReferral] = useState<any>(null);
   const [loyalty, setLoyalty] = useState<any>(null);
   const [usePoints, setUsePoints] = useState(false);
   const deliveryFee = settings && !tableToken ? (settings.free_delivery_threshold && cartTotal >= settings.free_delivery_threshold ? 0 : settings.delivery_fee) : 0;
@@ -44,13 +45,26 @@ export default function OrderPage() {
   const canUsePoints = !!loyalty?.enabled && !tableToken && !!user && pointsAvail >= Number(loyalty?.min_redeem || 1);
   const pointsToUse = canUsePoints && usePoints ? Math.min(pointsAvail, Math.ceil(afterCoupon / pointValue)) : 0;
   const pointsDiscount = pointsToUse ? Math.min(pointsToUse * pointValue, afterCoupon) : 0;
-  const grandTotal = Math.max(afterCoupon - pointsDiscount, 0);
+  const referralPercent = referral?.is_active ? Number(referral.discount || 0) : 0;
+  const productReferral = referralPercent > 0 && referral?.scope === 'product';
+  // Ürün bazlı kampanyada her birim fiyat, SQL tarafındaki numeric(…,2) ile aynı şekilde yuvarlanır.
+  const referralDiscount = productReferral
+    ? Math.round((items.reduce((sum, item) => sum + (item.price - discountedPrice(item.price, referralPercent)) * item.quantity, 0) + Number.EPSILON) * 100) / 100
+    : referralPercent > 0 && referral?.scope === 'cart'
+      ? Math.round((cartTotal * referralPercent / 100 + Number.EPSILON) * 100) / 100
+      : 0;
+  const grandTotal = Math.max(afterCoupon - pointsDiscount - referralDiscount, 0);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) { setReferral(null); return; }
+    const refreshReferral = () => supabase.rpc('my_referral').then(({ data, error }) => { if (!error) setReferral(data || null); });
+    refreshReferral();
+    const referralChannel = supabase.channel(`referral-order-${user.id}`).on('postgres_changes', { event: '*', schema: 'public', table: 'referral_campaigns' }, refreshReferral).subscribe();
+    const referralTimer = window.setInterval(refreshReferral, 30000);
     supabase.rpc('my_loyalty').then(({ data, error }) => {
       if (!error && data) setLoyalty(data);
     });
+    return () => { window.clearInterval(referralTimer); supabase.removeChannel(referralChannel); };
   }, [user]);
 
   // Sepet değişince kupon tutarını yeniden doğrula
@@ -154,7 +168,7 @@ export default function OrderPage() {
     setSubmitting(true);
     try {
       const useExtra = !tableToken && (!!coupon || pointsToUse > 0);
-      const { data, error } = await supabase.rpc(useExtra ? 'place_order_with_coupon' : 'place_order', {
+      const { data, error } = await supabase.rpc('place_order_with_referral', {
         p_customer: {
           name: form.name,
           phone: form.phone,
@@ -172,7 +186,9 @@ export default function OrderPage() {
         p_note: form.note || null,
         p_table_token: tableToken || null,
         p_save_address: form.saveAddress && user != null,
-        ...(useExtra ? { p_coupon: coupon?.code || null, p_use_points: pointsToUse } : {}),
+        p_coupon: useExtra ? (coupon?.code || null) : null,
+        p_use_points: useExtra ? pointsToUse : 0,
+        p_referral_code: !tableToken && referral?.is_active ? referral.code : null,
       } as any);
 
       if (error) throw error;
@@ -454,7 +470,7 @@ export default function OrderPage() {
           )}
 
           <button type="submit" className="btn gold" disabled={submitting || orderBlocked} style={{ fontSize: '1.05rem', padding: '0.9em' }}>
-            {orderBlocked ? status.label : submitting ? 'Sipariş İletiliyor...' : `Siparişi Onayla · ${tl(cartTotal + (settings && !tableToken ? settings.delivery_fee : 0))}`}
+            {orderBlocked ? status.label : submitting ? 'Sipariş İletiliyor...' : `Siparişi Onayla · ${tl(grandTotal)}`}
           </button>
         </form>
       </section>
@@ -488,7 +504,18 @@ export default function OrderPage() {
                 />
                 <button type="button" onClick={() => changeQty(i.key, 1)}>+</button>
               </div>
-              <b style={{ color: 'var(--gold-ink)' }}>{tl(i.quantity * i.price)}</b>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px', minWidth: '78px' }}>
+                {productReferral ? (
+                  <>
+                    <small style={{ textDecoration: 'line-through', opacity: .6 }}>{tl(i.quantity * i.price)}</small>
+                    <b style={{ color: 'var(--success)' }}>{tl(i.quantity * discountedPrice(i.price, referralPercent))}</b>
+                    <small style={{ color: 'var(--success)', fontWeight: 700 }}>%{referralPercent} indirim</small>
+                    {i.quantity > 1 && <small className="muted">{tl(discountedPrice(i.price, referralPercent))} / adet</small>}
+                  </>
+                ) : (
+                  <b style={{ color: 'var(--gold-ink)' }}>{tl(i.quantity * i.price)}</b>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -550,6 +577,26 @@ export default function OrderPage() {
             <span />
             <span style={{ color: 'var(--success)', fontWeight: 700 }}>−{tl(pointsDiscount)}</span>
           </div>
+        )}
+
+        {referral?.is_active && referralDiscount > 0 && (
+          <>
+            <div className="crow">
+              <span>İndirimsiz ürün toplamı</span>
+              <span />
+              <b>{tl(cartTotal)}</b>
+            </div>
+            <div className="crow">
+              <span>Referans indirimi (%{referral.discount})</span>
+              <span />
+              <span style={{ color: 'var(--success)', fontWeight: 700 }}>−{tl(referralDiscount)}</span>
+            </div>
+            <div className="crow">
+              <span style={{ fontWeight: 700 }}>İndirimli ürün toplamı</span>
+              <span />
+              <b style={{ color: 'var(--success)' }}>{tl(Math.max(cartTotal - referralDiscount, 0))}</b>
+            </div>
+          </>
         )}
 
         <div className="crow total">

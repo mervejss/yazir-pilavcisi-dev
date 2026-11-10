@@ -8,6 +8,7 @@ import Modal from '@/components/ui/Modal';
 import Switch from '@/components/ui/Switch';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import CouponReport from '@/components/admin/CouponReport';
+import ReferralCampaignsAdmin from '@/pages/admin/ReferralCampaignsAdmin';
 
 interface Coupon {
   id: string;
@@ -88,7 +89,7 @@ export default function CouponsAdmin() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [custQ, setCustQ] = useState('');
   const [filter, setFilter] = useState<'all' | 'ok' | 'off'>('all');
-  const [view, setView] = useState<'list' | 'report'>('list');
+  const [view, setView] = useState<'list' | 'report' | 'referrals'>('list');
 
   const load = useCallback(async () => {
     const { data, error } = await supabase.from('coupons').select('*').order('created_at', { ascending: false });
@@ -204,6 +205,18 @@ export default function CouponsAdmin() {
 
   if (loading) return <p className="muted center">Yükleniyor…</p>;
 
+  if (view === 'referrals') {
+    return (
+      <>
+        <div className="bar mx-bar">
+          <div><h1>Referans Kampanyaları</h1><p className="muted" style={{margin:0}}>Anlaşmalı işletmeler için personel ve üye referans kodları.</p></div>
+          <div className="mx-bar-actions"><button type="button" className="btn ghost sm" onClick={() => setView('list')}>← Kuponlara dön</button></div>
+        </div>
+        <ReferralCampaignsAdmin />
+      </>
+    );
+  }
+
   if (view === 'report') {
     return (
       <>
@@ -224,6 +237,7 @@ export default function CouponsAdmin() {
           <p className="muted" style={{ margin: 0 }}>Kupon kodları, saat/gün bazlı ve kontenjanlı kampanyalar. "Sitede göster" açık olanlar müşteri sitesindeki Kampanyalar bölümünde görünür.</p>
         </div>
         <div className="mx-bar-actions">
+          <button type="button" className="btn ghost sm" onClick={() => setView('referrals')}>🤝 Referans Kampanyaları</button>
           <button type="button" className="btn ghost sm" onClick={() => setView('report')}>📈 Kullanım Raporu</button>
           <a className="btn ghost sm" href="/kampanyalar" target="_blank" rel="noreferrer">Kampanyalar sayfası ↗</a>
           {canWrite && <button type="button" className="btn gold sm" onClick={() => openNew()}>+ Yeni Kupon</button>}

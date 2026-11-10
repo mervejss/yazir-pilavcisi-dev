@@ -315,7 +315,7 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
 
   const chooseType = (t: OType) => {
     setType(t);
-    setSource(t === 'delivery' ? 'phone' : 'counter');
+    setSource(t === 'delivery' ? 'phone' : t === 'dine_in' ? 'table' : 'counter');
     if (t !== 'delivery') setCourierId('');
   };
 
@@ -429,7 +429,8 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
         customer.address_title = 'Adres';
       }
 
-      const src = type === 'dine_in' ? (mode === 'full' ? source : 'counter') : source;
+      // Masa (restoranda) siparişi HER ZAMAN 'table' (Masa Servisi) kaynağıyla kaydedilir → analizde "Restoran Paket/Gel-Al" ile karışmaz
+      const src = type === 'dine_in' ? 'table' : source;
       const common = {
         p_source: src,
         p_type: type,
@@ -556,7 +557,7 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
       <span>Sipariş nereden geldi?</span>
       <div className="seg">
         <button type="button" className={source === 'phone' ? 'on' : ''} onClick={() => setSource('phone')}>📞 Telefon</button>
-        <button type="button" className={source === 'counter' ? 'on' : ''} onClick={() => setSource('counter')}>🏪 Restoran / Tezgâh</button>
+        <button type="button" className={source === 'counter' ? 'on' : ''} onClick={() => setSource('counter')}>🥡 Restoran Gel-Al</button>
         {mode === 'full' && <button type="button" className={source === 'web' ? 'on' : ''} onClick={() => setSource('web')}>🌐 Web</button>}
       </div>
     </div>

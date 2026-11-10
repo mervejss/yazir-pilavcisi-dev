@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useCartStore } from '@/stores/cartStore';
-import { tl } from '@/lib/helpers';
+import { discountedPrice, tl } from '@/lib/helpers';
 import type { MenuProduct } from '@/hooks/useMenu';
 import ProductImage from '@/components/ui/ProductImage';
 import Icon from '@/components/ui/Icon';
 import { BadgeRow } from '@/components/menu/ProductExtras';
 import toast from 'react-hot-toast';
 
-export default function ProductCard({ p, onOpen }: { p: MenuProduct; onOpen: (p: MenuProduct) => void }) {
+export default function ProductCard({ p, onOpen, discountPercent = 0 }: { p: MenuProduct; onOpen: (p: MenuProduct) => void; discountPercent?: number }) {
   const addItem = useCartStore((s) => s.addItem);
   const [vi, setVi] = useState(0);
   const variant = p.variants[vi];
@@ -39,7 +39,11 @@ export default function ProductCard({ p, onOpen }: { p: MenuProduct; onOpen: (p:
           </div>
         )}
         <div className="prow">
-          <b className="price">{tl(variant?.price || 0)}</b>
+          <div className="price" style={{display:'flex',flexDirection:'column',lineHeight:1.25}}>
+            {discountPercent > 0 && <small style={{textDecoration:'line-through',opacity:.6,fontSize:'.78em'}}>{tl(variant?.price || 0)}</small>}
+            <b style={{color:discountPercent > 0 ? 'var(--success)' : undefined}}>{tl(discountPercent > 0 && variant ? discountedPrice(variant.price, discountPercent) : variant?.price || 0)}</b>
+            {discountPercent > 0 && <small style={{color:'var(--success)',fontSize:'.72em'}}> %{discountPercent} indirim</small>}
+          </div>
           <button type="button" className="btn gold sm" disabled={p.is_sold_out || !variant} onClick={add}>
             <Icon name="plus" size={15} /> {p.is_sold_out ? 'Tükendi' : 'Sepete ekle'}
           </button>

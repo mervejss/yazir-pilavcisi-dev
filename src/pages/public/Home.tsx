@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMenu, type MenuProduct } from '@/hooks/useMenu';
 import { categoryIcon } from '@/lib/categoryIcon';
@@ -13,12 +13,25 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { openWhatsApp } from '@/components/public/WhatsAppWidget';
 import { FAQ, SITE_ADDRESS_FULL } from '@/lib/faq';
 import { useCampaigns, CampaignCard } from '@/pages/public/CampaignsPage';
+import { useAuthStore } from '@/stores/authStore';
+import { supabase } from '@/lib/supabase';
 
 export default function Home() {
   const { items: campaigns } = useCampaigns();
   const { categories, products, loading } = useMenu();
   const { settings, status } = useBusinessSettings();
   const { reviews } = useReviews();
+  const user = useAuthStore((s) => s.user);
+  const [referral, setReferral] = useState<any>(null);
+  const productDiscount = referral?.is_active && referral.scope === 'product' ? Number(referral.discount || 0) : 0;
+  useEffect(() => {
+    if (!user) { setReferral(null); return; }
+    const refresh = () => supabase.rpc('my_referral').then(({ data, error }) => { if (!error) setReferral(data || null); });
+    refresh();
+    const channel = supabase.channel(`referral-home-${user.id}`).on('postgres_changes', { event: '*', schema: 'public', table: 'referral_campaigns' }, refresh).subscribe();
+    const timer = window.setInterval(refresh, 30000);
+    return () => { window.clearInterval(timer); supabase.removeChannel(channel); };
+  }, [user]);
   const [selected, setSelected] = useState<MenuProduct | null>(null);
   const open = status.open;
 
@@ -95,7 +108,7 @@ export default function Home() {
         </div>
         <div className="grid">
           {featured.map((p) => (
-            <ProductCard key={p.id} p={p} onOpen={setSelected} />
+            <ProductCard key={p.id} p={p} onOpen={setSelected} discountPercent={productDiscount} />
           ))}
         </div>
       </section>
@@ -199,7 +212,7 @@ export default function Home() {
         </section>
       )}
 
-      <ProductDetailModal product={selected} onClose={() => setSelected(null)} />
+      <ProductDetailModal product={selected} onClose={() => setSelected(null)} discountPercent={productDiscount} />
     </main>
   );
 }

@@ -4,7 +4,9 @@ import {
   GROUP_LABELS, fmtDay, money2, signed,
   type FinResult, type FinSettings, type OrderFin, type PaymentRecon,
 } from '@/lib/finance';
-import { Card, DataTable, Grid, KpiCard, TrendChart, fmtMoney, fmtNum1, type Col } from '@/components/analytics/pro/Kit';
+import { Card, DataTable, Grid, HBarList, KpiCard, TrendChart, fmtMoney, fmtNum1, type Col } from '@/components/analytics/pro/Kit';
+import type { CargoRow, Coverage } from '@/hooks/useFinance';
+import type { ProductFin, RateFin, UpcomingFin } from '@/lib/finance';
 
 const GREEN = '#16a34a', RED = '#dc2626';
 
@@ -31,7 +33,37 @@ function Waterfall({ rows }: { rows: WfRow[] }) {
 // ---------------------------------------------------------------------------
 // 1) Özet
 // ---------------------------------------------------------------------------
-export function SummaryTab({ r, settings }: { r: FinResult; settings: FinSettings; range: DateRange }) {
+export function CoverageCard({ cov, onSync, busy }: { cov: Coverage; onSync: () => void; busy: boolean }) {
+  if (!cov.panelOrders && !cov.firstTx) return null;
+  const pct = cov.panelOrders ? (cov.matched / cov.panelOrders) * 100 : 100;
+  const ok = cov.pending.length === 0;
+  const cols: Col<(typeof cov.pending)[number]>[] = [
+    { key: 'no', label: 'Sipariş no', value: (p) => p.no, render: (p) => <b>{p.no || '—'}</b> },
+    { key: 'at', label: 'Sipariş tarihi', value: (p) => p.at, render: (p) => fmtDay(p.at) },
+    { key: 'tot', label: 'Tutar', align: 'right', value: (p) => p.total, render: (p) => money2(p.total) },
+  ];
+  return (
+    <Card title={`${ok ? '✅' : '🔎'} Veri bütünlüğü — panel ↔ Trendyol finansı`}
+      sub="Panelde TESLİM görünen Trendyol siparişlerinin kaçı cari ekstrede (finans) karşılığını bulmuş? Trendyol finansal kaydı sipariş teslim edildikten sonra oluşturur; son 1–3 günün eksik görünmesi normaldir.">
+      <div className="fin-kv">
+        <span>Panelde teslim edilen Trendyol siparişi</span><b>{cov.panelOrders.toLocaleString('tr-TR')} · {money2(cov.panelRevenue)}</b>
+        <span>Finansta karşılığı bulunan</span><b className="pos">{cov.matched.toLocaleString('tr-TR')} (%{fmtNum1(pct, 0)}) · {money2(cov.matchedRevenue)}</b>
+        <span>Finansa henüz düşmemiş (bekleyen)</span><b className={cov.pending.length ? 'neg' : 'pos'}>{cov.pending.length.toLocaleString('tr-TR')} · {money2(cov.panelRevenue - cov.matchedRevenue)}</b>
+        {cov.financeOnly > 0 && <><span>Finansta olup panelde eşleşmeyen sipariş</span><b>{cov.financeOnly.toLocaleString('tr-TR')}</b></>}
+        <span>Finans kaydı kapsamı</span><b>{fmtDay(cov.firstTx)} → {fmtDay(cov.lastTx)}</b>
+      </div>
+      {!ok && (
+        <>
+          <p className="anp-hint" style={{ marginTop: 10 }}>Bekleyenlerin çoğu henüz muhasebeleşmemiş yeni siparişlerdir. Eski tarihli siparişler listedeyse “⬇ Trendyol’dan çek” ile aralığı yeniden çekin.</p>
+          <div className="fin-actions"><button type="button" className="anp-btn gold" disabled={busy} onClick={onSync}>⬇ Bu aralığı yeniden çek</button></div>
+          <DataTable rows={cov.pending} cols={cols} pageSize={8} csvName="finansa-dusmeyen-siparisler" rowKey={(p) => p.no + p.at} initialSort={{ key: 'at', dir: 'desc' }} empty="—" />
+        </>
+      )}
+    </Card>
+  );
+}
+
+export function SummaryTab({ r, settings, cov, onSync, busy }: { r: FinResult; settings: FinSettings; range: DateRange; cov?: Coverage; onSync?: () => void; busy?: boolean }) {
   const d = r.deductions, c = r.cost;
   const rows: WfRow[] = [
     { label: GROUP_LABELS.sale, value: r.gross.sale, hint: 'Müşterinin ödediği ürün tutarı (KDV dahil)' },
@@ -58,6 +90,7 @@ export function SummaryTab({ r, settings }: { r: FinResult; settings: FinSetting
 
   return (
     <>
+      {cov && onSync && <CoverageCard cov={cov} onSync={onSync} busy={!!busy} />}
       <div className="anp-kpis">
         <KpiCard icon="💰" label="Müşteri satışı" value={money2(r.gross.sale + r.gross.delivery)} color="#d4af37" sub={`${r.orders.toLocaleString('tr-TR')} sipariş`} />
         <KpiCard icon="💸" label="Trendyol komisyonu" value={money2(r.rawCommission)} color={RED} sub={`ort. %${fmtNum1(r.avgCommissionPct, 1)} · içinde KDV ${money2(r.vat.commission)}`} />
@@ -67,6 +100,16 @@ export function SummaryTab({ r, settings }: { r: FinResult; settings: FinSetting
         <KpiCard icon="✅" label="Hesabıma geçecek" value={money2(r.cashAfter)} color="#14b8a6" sub="hakediş − kesintiler" />
         <KpiCard icon="🍽️" label="Maliyet" value={money2(r.cost.total)} color="#7c4dff" sub={`ürün %${settings.foodCostPct} + ambalaj/kurye/diğer`} />
         <KpiCard icon="📈" label="NET KÂR" value={money2(r.netProfit)} color={r.netProfit >= 0 ? GREEN : RED} sub={`marj %${fmtNum1(r.marginPct, 1)} · KDV sonrası ${money2(r.netProfitExVat)}`} />
+      </div>
+
+      <div className="anp-kpis">
+        <KpiCard icon="🧾" label="Sipariş sayısı" value={r.orders.toLocaleString('tr-TR')} color="#0ea5e9" sub={`ort. sepet ${money2(r.avgBasket)}`} />
+        <KpiCard icon="↩️" label="İadeli sipariş" value={r.refundedOrders.toLocaleString('tr-TR')} color="#f27a1a" sub={`iade oranı %${fmtNum1(r.refundRate, 1)}`} />
+        <KpiCard icon="💸" label="Sipariş başı komisyon" value={money2(r.commissionPerOrder)} color={RED} sub={`ort. %${fmtNum1(r.avgCommissionPct, 1)}`} />
+        <KpiCard icon="🏦" label="Sipariş başı hakediş" value={money2(r.payoutPerOrder)} color="#0ea5e9" />
+        <KpiCard icon="📈" label="Sipariş başı net kâr" value={money2(r.profitPerOrder)} color={r.profitPerOrder >= 0 ? GREEN : RED} />
+        <KpiCard icon="✅" label="Ödeme emri oluşan hakediş" value={money2(r.paidPayout)} color={GREEN} sub="Trendyol ödeme emrine bağlanmış" />
+        <KpiCard icon="⏳" label="Bekleyen hakediş (vade)" value={money2(r.pendingPayout)} color="#a16207" sub="henüz ödeme emri oluşmamış" />
       </div>
 
       <Grid cols={2}>
@@ -129,7 +172,7 @@ export function OrdersTab({ orders }: { orders: OrderFin[] }) {
 // ---------------------------------------------------------------------------
 // 3) Ödemeler / mutabakat
 // ---------------------------------------------------------------------------
-export function PaymentsTab({ recon, onRefresh }: { recon: PaymentRecon[]; onRefresh: (id: number) => Promise<void> }) {
+export function PaymentsTab({ recon, onRefresh, upcoming = [] }: { recon: PaymentRecon[]; onRefresh: (id: number) => Promise<void>; upcoming?: UpcomingFin[] }) {
   const [busy, setBusy] = useState<number | null>(null);
   const cols: Col<PaymentRecon>[] = [
     { key: 'id', label: 'Ödeme emri', value: (p) => p.id, render: (p) => <b>#{p.id}</b> },
@@ -146,18 +189,42 @@ export function PaymentsTab({ recon, onRefresh }: { recon: PaymentRecon[]; onRef
       </button>
     ) },
   ];
+  const upCols: Col<UpcomingFin>[] = [
+    { key: 'd', label: 'Vade / ödeme günü', value: (u) => u.ts, render: (u) => <b>{fmtDay(u.ts)}</b> },
+    { key: 'o', label: 'Sipariş', align: 'right', value: (u) => u.orders },
+    { key: 'p', label: 'Beklenen hakediş', align: 'right', value: (u) => u.payout, render: (u) => <b>{money2(u.payout)}</b> },
+  ];
   return (
+    <>
     <Card title="Haftalık ödemeler ve mutabakat" sub="Trendyol her çarşamba vadesi gelen siparişler için ödeme emri oluşturur. Fark ≈ 0 ise hesabımız Trendyol ile birebir tutuyor demektir. Ödeme emri oluştuktan sonra kayıtların güncellenmesi zaman alabilir; bir sonraki gün “Yenile” yapın.">
       <DataTable rows={recon} cols={cols} pageSize={12} csvName="trendyol-odeme-mutabakat" rowKey={(p) => String(p.id)} initialSort={{ key: 'dt', dir: 'desc' }} empty="Ödeme emri yok. Üstteki “Trendyol’dan çek” ile senkronlayın." />
     </Card>
+    <Card title="📅 Vade takvimi — yaklaşan hakedişler" sub="Henüz ödeme emri oluşmamış kayıtların vade tarihine göre beklenen hakedişi (kesintiler / stopaj hariç). Ödeme emri oluştukça yukarıdaki listeye geçer.">
+      <DataTable rows={upcoming} cols={upCols} pageSize={12} csvName="trendyol-vade-takvimi" rowKey={(u) => u.key} initialSort={{ key: 'd', dir: 'asc' }} empty="Bekleyen (ödeme emri oluşmamış) kayıt yok." />
+    </Card>
+    </>
   );
 }
 
 // ---------------------------------------------------------------------------
 // 4) Kesinti dökümü (şeffaflık)
 // ---------------------------------------------------------------------------
-export function BreakdownTab({ r }: { r: FinResult }) {
+export function BreakdownTab({ r, cargo = [] }: { r: FinResult; cargo?: CargoRow[] }) {
+  const cargoByType = new Map<string, { type: string; count: number; amount: number; desi: number }>();
+  cargo.forEach((c) => {
+    const k = c.package_type || 'Diğer';
+    const e = cargoByType.get(k) || { type: k, count: 0, amount: 0, desi: 0 };
+    e.count++; e.amount += c.amount; e.desi += c.desi || 0; cargoByType.set(k, e);
+  });
+  const cargoRows = [...cargoByType.values()].sort((a, b) => b.amount - a.amount);
+  const rateCols: Col<RateFin>[] = [
+    { key: 'r', label: 'Komisyon oranı', value: (x) => x.rate, render: (x) => <b>%{fmtNum1(x.rate, 1)}</b> },
+    { key: 'n', label: 'Satır', align: 'right', value: (x) => x.lines },
+    { key: 's', label: 'Satış', align: 'right', value: (x) => x.sales, render: (x) => money2(x.sales) },
+    { key: 'c', label: 'Komisyon', align: 'right', value: (x) => x.commission, render: (x) => money2(x.commission) },
+  ];
   return (
+    <>
     <Grid cols={2}>
       <Card title="Hareket türüne göre döküm (settlements)" sub="Komisyon / hakediş sütunları işaretli: + hesabınıza ekler, − düşer">
         <DataTable rows={r.byType} rowKey={(t) => t.type} pageSize={30} csvName="trendyol-hareket-turleri" empty="Kayıt yok." cols={[
@@ -180,6 +247,48 @@ export function BreakdownTab({ r }: { r: FinResult }) {
         ]} />
       </Card>
     </Grid>
+    <Grid cols={2}>
+      <Card title="Komisyon oranına göre satışlar" sub="Trendyol her ürün satırında farklı oran uygulayabilir">
+        <DataTable rows={r.byRate} cols={rateCols} pageSize={12} rowKey={(x) => String(x.rate)} csvName="trendyol-komisyon-oranlari" empty="Oran bilgisi yok." />
+      </Card>
+      <Card title="🚚 Kargo faturası detayı" sub="Cari ekstredeki “Kargo Fatura” kayıtlarının kalemleri (Kargo Faturası Detayları servisi). Restoran/Go siparişlerinde kargo faturası yoksa boş kalır.">
+        <DataTable rows={cargoRows} rowKey={(x) => x.type} pageSize={10} csvName="trendyol-kargo-faturasi" empty="Kargo faturası kalemi yok (veya henüz çekilmedi)."
+          cols={[
+            { key: 't', label: 'Kalem türü', value: (x) => x.type, render: (x) => <b>{x.type}</b> },
+            { key: 'n', label: 'Adet', align: 'right', value: (x) => x.count },
+            { key: 'd', label: 'Toplam desi', align: 'right', value: (x) => x.desi, render: (x) => fmtNum1(x.desi, 0) },
+            { key: 'a', label: 'Tutar', align: 'right', value: (x) => x.amount, render: (x) => money2(x.amount) },
+          ]} />
+      </Card>
+    </Grid>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 4b) Ürün bazında (barkod / açıklama)
+// ---------------------------------------------------------------------------
+export function ProductsTab({ products }: { products: ProductFin[] }) {
+  const top = products.slice(0, 10);
+  const cols: Col<ProductFin>[] = [
+    { key: 'n', label: 'Ürün (barkod / açıklama)', value: (p) => p.name, render: (p) => <b>{p.name}</b> },
+    { key: 'l', label: 'Satış satırı', align: 'right', value: (p) => p.lines },
+    { key: 's', label: 'Satış', align: 'right', value: (p) => p.sales, render: (p) => money2(p.sales) },
+    { key: 'r', label: 'İade', align: 'right', value: (p) => p.returns, render: (p) => (p.returns ? <span className="anp-bad">{money2(p.returns)}</span> : '—') },
+    { key: 'd', label: 'İndirim', align: 'right', value: (p) => p.discounts, render: (p) => (p.discounts ? money2(p.discounts) : '—') },
+    { key: 'c', label: 'Komisyon', align: 'right', value: (p) => p.commission, render: (p) => money2(p.commission) },
+    { key: 'cp', label: 'Kom. %', align: 'right', value: (p) => p.commissionPct, render: (p) => `%${fmtNum1(p.commissionPct, 1)}` },
+    { key: 'p', label: 'Hakediş', align: 'right', value: (p) => p.payout, render: (p) => <b>{money2(p.payout)}</b> },
+  ];
+  return (
+    <>
+      <Card title="En çok satan 10 (Trendyol finansına göre)">
+        <HBarList rank rows={top.map((p) => ({ label: p.name, value: p.sales, sub: `${p.lines} satır · hakediş ${money2(p.payout)}` }))} format={fmtMoney} empty="Kayıt yok." />
+      </Card>
+      <Card title={`Ürün bazında satış, iade ve komisyon (${products.length.toLocaleString('tr-TR')})`} sub="Barkod yoksa işlem açıklaması kullanılır. Satış satırı = faturalanan ürün satırı adedi.">
+        <DataTable rows={products} cols={cols} pageSize={15} csvName="trendyol-urun-finans" rowKey={(p) => p.key} initialSort={{ key: 's', dir: 'desc' }} empty="Bu aralıkta kayıt yok." />
+      </Card>
+    </>
   );
 }
 

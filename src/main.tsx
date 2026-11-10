@@ -11,6 +11,13 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <App />
       <Toaster
         position="top-right"
+        // Bildirimleri sabit üst navigasyonun altına al; admin alarm çubuğının
+        // üzerinde katman oluşturmasın ve alarm butonlarının tıklanmasını engellemesin.
+        containerStyle={{
+          top: 'calc(76px + env(safe-area-inset-top))',
+          right: '16px',
+          zIndex: 240,
+        }}
         toastOptions={{
           duration: 3000,
           style: {
