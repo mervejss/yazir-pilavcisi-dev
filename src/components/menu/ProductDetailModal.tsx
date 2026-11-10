@@ -25,6 +25,12 @@ export default function ProductDetailModal({ product, onClose, discountPercent =
       <h2 style={{ marginTop: '1rem' }}>{product.name}</h2>
       <BadgeRow badges={product.badges} />
       <p>{product.description || 'Geleneksel lezzet, sıcacık servis edilir.'}</p>
+      {(product.is_sold_out || !variant) && (
+        <div className="note" role="status" style={{ margin: '.8rem 0', borderColor: 'var(--danger, #dc2626)' }}>
+          <b>{product.is_sold_out ? 'Bu ürün şu anda tükenmiştir.' : 'Bu ürünün aktif satış seçeneği bulunmuyor.'}</b>
+          <span className="small"> Ürünü inceleyebilirsiniz ancak şu anda sepete ekleyemezsiniz.</span>
+        </div>
+      )}
       <ProductExtras productId={product.id} allergens={product.allergens} />
       {product.variants.length > 1 && (
         <div className="seg" style={{ marginBottom: '0.8rem' }}>
@@ -55,7 +61,7 @@ export default function ProductDetailModal({ product, onClose, discountPercent =
             onClose();
           }}
         >
-          <Icon name="cart" size={17} /> {product.is_sold_out ? 'Tükendi' : `Sepete ekle · ${tl(discountPercent > 0 && variant ? variant.price * (1-discountPercent/100) : variant?.price || 0)}`}
+          <Icon name="cart" size={17} /> {product.is_sold_out ? 'Tükendi' : !variant ? 'Şu an satışta değil' : `Sepete ekle · ${tl(discountPercent > 0 && variant ? variant.price * (1-discountPercent/100) : variant?.price || 0)}`}
         </button>
         <button type="button" className="btn ghost" onClick={onClose}>Kapat</button>
       </div>

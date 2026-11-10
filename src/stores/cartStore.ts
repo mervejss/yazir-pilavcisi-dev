@@ -7,6 +7,7 @@ export interface CartItem {
   productId: string;
   variantId: string;
   productName: string;
+  productSlug?: string;
   variantName: string;
   emoji: string | null;
   image_path?: string | null;
@@ -54,6 +55,7 @@ export const useCartStore = create<CartState>()(
                 productId: product.id,
                 variantId: variant.id,
                 productName: product.name,
+                productSlug: product.slug || undefined,
                 variantName: variant.name,
                 emoji: product.emoji,
                 image_path: product.image_path,

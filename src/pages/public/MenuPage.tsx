@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMenu, type MenuProduct } from '@/hooks/useMenu';
 import { useCartStore } from '@/stores/cartStore';
-import { discountedPrice, tl } from '@/lib/helpers';
+import { discountedPrice, slugify, tl } from '@/lib/helpers';
 import { categoryIcon } from '@/lib/categoryIcon';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import Icon from '@/components/ui/Icon';
@@ -13,6 +13,9 @@ import { supabase } from '@/lib/supabase';
 
 export default function MenuPage() {
   const { categories, products, loading } = useMenu();
+  const { slug } = useParams<{ slug: string }>();
+  const location = useLocation();
+  const navigate = useNavigate();
   const items = useCartStore((s) => s.items);
   const tableToken = useCartStore((s) => s.tableToken);
   const user = useAuthStore((s) => s.user);
@@ -33,6 +36,53 @@ export default function MenuPage() {
     : total;
 
   const [selected, setSelected] = useState<MenuProduct | null>(null);
+  const [unavailableProduct, setUnavailableProduct] = useState<{ name: string; reason: string } | null>(null);
+  const [checkingArchivedProduct, setCheckingArchivedProduct] = useState(false);
+
+  // Ürün URL'si hem okunabilir Türkçe slug hem de doğru ürünü bulmak için ID taşır.
+  // Sepet/geçmiş siparişteki ürün sonradan pasife alınmışsa müşteriye açıkça bilgi verilir.
+  useEffect(() => {
+    if (!slug || loading) {
+      if (!slug) { setSelected(null); setUnavailableProduct(null); setCheckingArchivedProduct(false); }
+      return;
+    }
+    let cancelled = false;
+    const productId = new URLSearchParams(location.search).get('productId');
+    const product = (productId ? products.find((p) => p.id === productId) : undefined) || products.find((p) => p.slug === slug || slugify(p.name) === slug);
+    if (product) {
+      setCheckingArchivedProduct(false);
+      setUnavailableProduct(null);
+      setSelected(product);
+      return;
+    }
+    setSelected(null);
+    setCheckingArchivedProduct(false);
+    if (!productId) {
+      setUnavailableProduct({ name: slug.replace(/-/g, ' '), reason: 'Bu ürün menüde bulunamadı veya artık satışta değil.' });
+      return;
+    }
+    setCheckingArchivedProduct(true);
+    (async () => {
+      const { data, error } = await supabase.from('products').select('*').eq('id', productId).maybeSingle();
+      if (cancelled) return;
+      if (error || !data) {
+        setUnavailableProduct({ name: slug.replace(/-/g, ' '), reason: 'Bu ürün artık menüde bulunmuyor veya satıştan kaldırılmış.' });
+      } else {
+        const productName = (data as any).name || slug.replace(/-/g, ' ');
+        setUnavailableProduct({ name: productName, reason: (data as any).is_sold_out ? 'Bu ürün şu anda tükenmiştir.' : 'Bu ürün şu anda satışta değildir.' });
+      }
+      setCheckingArchivedProduct(false);
+    })();
+    return () => { cancelled = true; };
+  }, [slug, location.search, loading, products]);
+
+  const openProduct = (product: MenuProduct) => {
+    const productSlug = slugify(product.name);
+    setSelected(product);
+    setUnavailableProduct(null);
+    navigate(`/menu/${productSlug}?productId=${encodeURIComponent(product.id)}`);
+  };
+  const closeProduct = () => { setSelected(null); setUnavailableProduct(null); if (slug) navigate('/menu'); };
   const [q, setQ] = useState('');
   const [active, setActive] = useState<string>('');
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
@@ -72,6 +122,14 @@ export default function MenuPage() {
 
   return (
     <main className="page menu-page">
+      {checkingArchivedProduct && <div className="note" role="status">Ürün bilgisi kontrol ediliyor…</div>}
+      {unavailableProduct && !checkingArchivedProduct && (
+        <div className="note" role="alert" style={{ marginBottom: '1rem', borderColor: 'var(--danger, #dc2626)' }}>
+          <b>{unavailableProduct.name}</b><br />
+          {unavailableProduct.reason} Menüdeki diğer ürünleri inceleyebilirsiniz.
+          <div style={{ marginTop: '.7rem' }}><button type="button" className="btn ghost sm" onClick={() => navigate('/menu')}>Menüye dön</button></div>
+        </div>
+      )}
       <div className="page-head">
         <div>
           <h1>Menümüz</h1>
@@ -130,7 +188,7 @@ export default function MenuPage() {
           </header>
           <div className="grid">
             {list.map((p) => (
-              <ProductCard key={p.id} p={p} onOpen={setSelected} discountPercent={productDiscount} />
+              <ProductCard key={p.id} p={p} onOpen={openProduct} discountPercent={productDiscount} />
             ))}
           </div>
         </section>
@@ -144,7 +202,7 @@ export default function MenuPage() {
         </Link>
       )}
 
-      <ProductDetailModal product={selected} onClose={() => setSelected(null)} discountPercent={productDiscount} />
+      <ProductDetailModal product={selected} onClose={closeProduct} discountPercent={productDiscount} />
     </main>
   );
 }

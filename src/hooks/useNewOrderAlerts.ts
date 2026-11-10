@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { printOrderTicket } from '@/lib/printTicket';
 import { tl } from '@/lib/helpers';
 import { SOURCE_LABELS } from '@/lib/constants';
+import { orderAlertChannel } from '@/lib/alertChannels';
 
 export const ADMIN_ALERT_KEY = 'yz_alert_admin';
 
@@ -27,12 +28,13 @@ export function useNewOrderAlerts(enabled: boolean) {
         useAlertStore.getState().push({
           id: `order-${o.id}`,
           kind: 'order',
+          channel: orderAlertChannel(o.source, o.order_type),
           title: `🛎️ Yeni sipariş #${o.order_no}`,
           body: [SOURCE_LABELS[o.source] || o.source, o.customer_name, o.district, tl(o.total)].filter(Boolean).join(' · '),
           link: '/admin/siparisler',
         });
 
-        if (loadAlertSettings(userAlertKey(ADMIN_ALERT_KEY, useAuthStore.getState().user?.id), ADMIN_ALERT_KEY).autoPrint) {
+        if (loadAlertSettings(`${userAlertKey(ADMIN_ALERT_KEY, useAuthStore.getState().user?.id)}:${orderAlertChannel(o.source, o.order_type)}`, userAlertKey(ADMIN_ALERT_KEY, useAuthStore.getState().user?.id)).autoPrint) {
           // Kalemler siparişten hemen sonra eklenir; kısa bekleyip tam siparişi çek
           setTimeout(async () => {
             const { data } = await supabase.from('orders').select('*, order_items(*)').eq('id', o.id).single();

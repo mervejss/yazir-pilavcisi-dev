@@ -92,6 +92,7 @@ export default function CourierApp() {
   const [route, setRoute] = useState<Record<string, RouteSummary | null>>({});
   const prevMine = useRef<Set<string> | null>(null);
   const prevOpen = useRef<Set<string> | null>(null);
+  const prevReady = useRef<Set<string> | null>(null);
 
   const track = useCourierTracking(online);
 
@@ -130,12 +131,21 @@ export default function CourierApp() {
           useAlertStore.getState().push({
             id: `assigned-${added[0]}`,
             kind: 'assigned',
+            channel: 'courier_assigned',
             title: `🛵 Size yeni paket atandı${o ? ` #${o.order_no}` : ''}`,
             body: o ? `${o.district || ''} · ${tl(o.total)}` : undefined,
           });
         }
       }
       prevMine.current = mineNow;
+      const readyNow = new Set(rows.filter((r) => r.is_mine && r.status === 'ready').map((r) => r.id));
+      if (prevReady.current) {
+        [...readyNow].filter((id) => !prevReady.current!.has(id)).forEach((id) => {
+          const o = rows.find((r) => r.id === id);
+          useAlertStore.getState().push({ id: `ready-${id}`, kind: 'assigned', channel: 'courier_ready', title: `📦 Hazır paket bekliyor${o ? ` #${o.order_no}` : ''}`, body: 'Teslimat için siparişi yola çıkarın.' });
+        });
+      }
+      prevReady.current = readyNow;
       // Restorana yeni sipariş düştü (henüz kimsede değil) → tüm kuryelere sesli uyarı
       const openNow = new Set(rows.filter((r) => !r.is_mine && !r.taken_by_other).map((r) => r.id));
       if (prevOpen.current) {
@@ -146,6 +156,7 @@ export default function CourierApp() {
             useAlertStore.getState().push({
               id: `open-${id}`,
               kind: 'open_order',
+              channel: 'courier_open',
               title: `📦 Yeni sipariş #${o.order_no}`,
               body: `${o.district || 'Teslimat'} · ${tl(o.total)} — almak için isteyin`,
             });
@@ -157,7 +168,7 @@ export default function CourierApp() {
       const stillNew = new Set(rows.filter((r) => r.status === 'new' && !r.is_mine && !r.taken_by_other).map((r) => r.id));
       const stillAssigned = new Set(rows.filter((r) => r.is_mine && r.status === 'assigned').map((r) => r.id));
       useAlertStore.getState().dismissWhere(
-        (a) => (a.kind === 'open_order' && !stillNew.has(a.id.replace(/^open-/, ''))) || (a.kind === 'assigned' && !stillAssigned.has(a.id.replace(/^assigned-/, ''))),
+        (a) => (a.kind === 'open_order' && !stillNew.has(a.id.replace(/^open-/, ''))) || (a.kind === 'assigned' && a.channel === 'courier_assigned' && !stillAssigned.has(a.id.replace(/^assigned-/, ''))) || (a.channel === 'courier_ready' && !readyNow.has(a.id.replace(/^ready-/, ''))),
       );
       setAll(rows);
     }

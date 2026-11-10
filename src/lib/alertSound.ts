@@ -3,6 +3,8 @@
  * Her cihaz kendi ses ayarını saklar (yönetici bilgisayarı / kurye telefonu ayrı ayarlanabilir).
  */
 import { getToneUrl } from '@/lib/ringtoneStore';
+import { supabase } from '@/lib/supabase';
+import type { AlertChannel } from '@/lib/alertChannels';
 
 export type AlertTone = 'siren' | 'bell' | 'chime' | 'beep' | 'custom';
 export type AlertMode = 'once' | 'timed' | 'until_ack';
@@ -18,6 +20,9 @@ export interface AlertSettings {
   /** Tarayıcı bildirimi (sekme arka plandayken) */
   notify: boolean;
   vibrate: boolean;
+  /** Kanal için Türkçe sesli anons */
+  speak: boolean;
+  announcement?: string;
   /** Yeni siparişte otomatik mutfak fişi yazdır (yalnızca yönetici) */
   autoPrint: boolean;
   /** Kendi yüklediği zil sesinin adı (tone = 'custom') */
@@ -34,6 +39,7 @@ export const DEFAULT_ALERT: AlertSettings = {
   seconds: 20,
   notify: true,
   vibrate: true,
+  speak: false,
   autoPrint: false,
 };
 
@@ -138,6 +144,9 @@ export class AlertPlayer {
     unlockAudio();
     const my = ++this.token;
     this.playing = true;
+    if (s.speak && s.announcement && 'speechSynthesis' in window) {
+      try { window.speechSynthesis.cancel(); const utterance = new SpeechSynthesisUtterance(s.announcement); utterance.lang = 'tr-TR'; utterance.volume = Math.max(0.1, Math.min(1, s.volume)); window.speechSynthesis.speak(utterance); } catch { /* speech unavailable */ }
+    }
     if (s.vibrate && 'vibrate' in navigator) navigator.vibrate?.([300, 150, 300, 150, 600]);
 
     if (s.tone === 'custom' && s.customKey) {
@@ -205,6 +214,7 @@ export class AlertPlayer {
       this.audio = null;
     }
     this.playing = false;
+    if ('speechSynthesis' in window) { try { window.speechSynthesis.cancel(); } catch { /* ignore */ } }
     if ('vibrate' in navigator) navigator.vibrate?.(0);
   }
 }
@@ -223,4 +233,73 @@ export function testTone(s: AlertSettings) {
     return;
   }
   playCycle(s.tone === 'custom' ? 'siren' : s.tone, s.volume);
+}
+
+
+/** Hesap + sipariş kanalı bazında susturma tercihi. 0 = süresiz. */
+export function alertMuteKey(userId: string | undefined, hostKey: string, channel: AlertChannel) {
+  return `yz_alert_mute_v2:${userId || 'anon'}:${hostKey}:${channel}`;
+}
+export function getAlertMutedUntil(userId: string | undefined, hostKey: string, channel: AlertChannel): number | null {
+  try {
+    const raw = localStorage.getItem(alertMuteKey(userId, hostKey, channel));
+    if (raw === 'forever') return 0;
+    if (!raw) return null;
+    const until = Number(raw);
+    if (!Number.isFinite(until) || until <= Date.now()) {
+      localStorage.removeItem(alertMuteKey(userId, hostKey, channel));
+      return null;
+    }
+    return until;
+  } catch { return null; }
+}
+export function setAlertMuted(userId: string | undefined, hostKey: string, channel: AlertChannel, durationMs: number | null) {
+  try {
+    const key = alertMuteKey(userId, hostKey, channel);
+    if (durationMs === null) localStorage.removeItem(key);
+    else if (durationMs === 0) localStorage.setItem(key, 'forever');
+    else localStorage.setItem(key, String(Date.now() + durationMs));
+  } catch { /* local storage unavailable */ }
+}
+
+/** Ayarları hesaba da yedekler; tablo yoksa yerel ayarlar çalışmaya devam eder. */
+export async function syncAlertSettingsFromAccount(userId: string, hostKey: string): Promise<Record<string, AlertSettings> | null> {
+  const { data, error } = await supabase.from('user_notification_settings').select('settings').eq('user_id', userId).maybeSingle();
+  if (error || !data?.settings) return null;
+  const remote = data.settings as Record<string, AlertSettings>;
+  Object.entries(remote).filter(([channel]) => !channel.startsWith('__')).forEach(([channel, value]) => saveAlertSettings(`${hostKey}:${userId}:${channel}`, { ...DEFAULT_ALERT, ...value }));
+  return remote;
+}
+export async function saveAccountAlertSettings(userId: string | undefined, channel: string, settings: AlertSettings) {
+  if (!userId) return;
+  const { data } = await supabase.from('user_notification_settings').select('settings').eq('user_id', userId).maybeSingle();
+  const all = { ...((data?.settings || {}) as Record<string, AlertSettings>), [channel]: settings };
+  await supabase.from('user_notification_settings').upsert({ user_id: userId, settings: all, updated_at: new Date().toISOString() } as any);
+}
+
+
+export async function syncAlertMutesFromAccount(userId: string, hostKey: string) {
+  const { data, error } = await supabase.from('user_notification_settings').select('settings').eq('user_id', userId).maybeSingle();
+  if (error || !data?.settings) return;
+  const muteMap = ((data.settings as any)[`__mute:${hostKey}`] || {}) as Record<string, number | string>;
+  Object.entries(muteMap).forEach(([channel, until]) => {
+    const value = until === 'forever' ? 'forever' : Number(until);
+    try {
+      const key = alertMuteKey(userId, hostKey, channel as AlertChannel);
+      if (value === 'forever') localStorage.setItem(key, 'forever');
+      else if (Number.isFinite(value) && Number(value) > Date.now()) localStorage.setItem(key, String(value));
+      else localStorage.removeItem(key);
+    } catch { /* ignore */ }
+  });
+}
+export async function saveAccountAlertMute(userId: string | undefined, hostKey: string, channel: AlertChannel, until: number | null) {
+  if (!userId) return;
+  const { data } = await supabase.from('user_notification_settings').select('settings').eq('user_id', userId).maybeSingle();
+  const all = { ...((data?.settings || {}) as Record<string, any>) };
+  const key = `__mute:${hostKey}`;
+  const map = { ...(all[key] || {}) };
+  if (until === null) delete map[channel];
+  else map[channel] = until === 0 ? 'forever' : Date.now() + until;
+  all[key] = map;
+  await supabase.from('user_notification_settings').upsert({ user_id: userId, settings: all, updated_at: new Date().toISOString() } as any);
 }

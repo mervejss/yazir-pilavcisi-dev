@@ -37,6 +37,7 @@ export default function PublicLayout() {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [headerReferral, setHeaderReferral] = useState<any>(null);
   const accountMenuRef = useRef<HTMLDivElement>(null);
+  const accountCloseTimer = useRef<number | null>(null);
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { settings, hours, overrides, status, loading } = useBusinessSettings();
@@ -99,6 +100,15 @@ export default function PublicLayout() {
     document.addEventListener('keydown', onKeyDown);
     return () => { document.removeEventListener('pointerdown', onPointerDown); document.removeEventListener('keydown', onKeyDown); };
   }, [accountMenuOpen]);
+
+  const openAccountMenu = () => {
+    if (accountCloseTimer.current) window.clearTimeout(accountCloseTimer.current);
+    setAccountMenuOpen(true);
+  };
+  const scheduleAccountMenuClose = () => {
+    if (accountCloseTimer.current) window.clearTimeout(accountCloseTimer.current);
+    accountCloseTimer.current = window.setTimeout(() => setAccountMenuOpen(false), 1000);
+  };
 
   const handleSignOut = async () => {
     setAccountMenuOpen(false);
@@ -178,8 +188,8 @@ export default function PublicLayout() {
               <div
                 className={`account-dropdown${accountMenuOpen ? ' open' : ''}`}
                 ref={accountMenuRef}
-                onMouseEnter={() => { if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) setAccountMenuOpen(true); }}
-                onMouseLeave={() => { if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) setAccountMenuOpen(false); }}
+                onMouseEnter={() => { if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) openAccountMenu(); }}
+                onMouseLeave={() => { if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) scheduleAccountMenuClose(); }}
               >
                 <button
                   type="button"

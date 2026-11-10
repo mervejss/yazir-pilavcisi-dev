@@ -67,6 +67,8 @@ export async function getToneName(key: string): Promise<string | null> {
   return (await idbGet(key))?.name || null;
 }
 
+const toneChannel = (key: string) => key.split(':').slice(2).join(':') || 'default';
+
 const toB64 = (buf: ArrayBuffer) => {
   let s = '';
   const b = new Uint8Array(buf);
@@ -91,7 +93,7 @@ export async function saveTone(key: string, userId: string | undefined, file: Fi
   let cloud = false;
   if (userId) {
     const data = toB64(await file.arrayBuffer());
-    const { error } = await supabase.from('user_ringtones').upsert({ user_id: userId, name: file.name, mime: file.type, data, updated_at: new Date().toISOString() } as any);
+    const { error } = await supabase.from('user_alert_ringtones').upsert({ user_id: userId, channel: toneChannel(key), name: file.name, mime: file.type, data, updated_at: new Date().toISOString() } as any);
     cloud = !error;
   }
   return { cloud };
@@ -102,15 +104,20 @@ export async function removeTone(key: string, userId: string | undefined): Promi
   const old = urlCache.get(key);
   if (old) URL.revokeObjectURL(old);
   urlCache.delete(key);
-  if (userId) await supabase.from('user_ringtones').delete().eq('user_id', userId);
+  if (userId) await supabase.from('user_alert_ringtones').delete().eq('user_id', userId).eq('channel', toneChannel(key));
 }
 
 /** Bu cihazda yoksa hesaptan indirip cihaza yazar. Dönen değer: ad (yoksa null) */
 export async function syncToneFromAccount(key: string, userId: string): Promise<string | null> {
   const local = await idbGet(key);
   if (local) return local.name;
-  const { data, error } = await supabase.from('user_ringtones').select('name,mime,data').eq('user_id', userId).maybeSingle();
-  if (error || !data) return null;
+  let { data, error } = await supabase.from('user_alert_ringtones').select('name,mime,data').eq('user_id', userId).eq('channel', toneChannel(key)).maybeSingle();
+  // Eski sürümdeki tekil zil sesini varsayılan web kanalına aktar.
+  if ((!data || error) && toneChannel(key) === 'web') {
+    const legacy = await supabase.from('user_ringtones').select('name,mime,data').eq('user_id', userId).maybeSingle();
+    data = legacy.data as any;
+  }
+  if (!data) return null;
   await idbPut(key, { blob: fromB64((data as any).data, (data as any).mime), name: (data as any).name });
   return (data as any).name as string;
 }

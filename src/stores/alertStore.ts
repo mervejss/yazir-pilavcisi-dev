@@ -1,9 +1,11 @@
 import { create } from 'zustand';
+import type { AlertChannel } from '@/lib/alertChannels';
 
 export interface AlertItem {
   /** Aynı kimlikle gelen uyarı tekrar eklenmez */
   id: string;
   kind: 'order' | 'courier_request' | 'assigned' | 'open_order' | 'info';
+  channel: AlertChannel;
   title: string;
   body?: string;
   link?: string;

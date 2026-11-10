@@ -4,7 +4,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useCustomerAddresses } from '@/hooks/useCustomerAddresses';
 import { useCustomerOrders } from '@/hooks/useCustomerOrders';
 import { useCartStore } from '@/stores/cartStore';
-import { tl, formatDateTime } from '@/lib/helpers';
+import { tl, formatDateTime, slugify } from '@/lib/helpers';
 import { ORDER_STATUS_LABELS, PAYMENT_METHOD_LABELS } from '@/lib/constants';
 import StatusBadge from '@/components/ui/StatusBadge';
 import Modal from '@/components/ui/Modal';
@@ -164,7 +164,7 @@ function CustomerProfile() {
           id: item.product_id || item.id,
           name: item.product_name,
           category_id: '',
-          slug: '',
+          slug: slugify(item.product_name),
           description: '',
           emoji: '🍚',
           image_path: null,
@@ -201,7 +201,7 @@ function CustomerProfile() {
         id: item.product_id || item.id,
         name: item.product_name,
         category_id: '',
-        slug: '',
+        slug: slugify(item.product_name),
         description: '',
         emoji: '🍚',
         image_path: null,
@@ -347,36 +347,30 @@ function CustomerProfile() {
                     Ödeme: {PAYMENT_METHOD_LABELS[o.payment_method || ''] || o.payment_method || 'Kapıda Nakit'}
                   </p>
 
+                  {/* Siparişin finansal özeti: orders tablosundaki gerçek kayıtlı değerler */}
+                  <div className="past-order-summary">
+                    <div><span>İndirimsiz ürün toplamı</span><b>{tl(Number(o.subtotal || 0))}</b></div>
+                    {Number(o.delivery_fee || 0) > 0 && <div><span>Teslimat ücreti</span><b>{tl(Number(o.delivery_fee))}</b></div>}
+                    {Number(o.discount || 0) > 0 && <div className="discount"><span>Toplam kampanya / kupon / puan indirimi</span><b>−{tl(Number(o.discount))}</b></div>}
+                    <div className="net"><span>Ödenen net tutar</span><b>{tl(Number(o.total || 0))}</b></div>
+                  </div>
+
                   {/* Kalemler */}
-                  <div style={{ background: 'var(--surface)', borderRadius: '10px', padding: '0.8rem', margin: '0.8rem 0' }}>
-                    <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.95rem' }}>Sipariş Kalemleri:</h4>
+                  <div className="past-order-items">
+                    <h4>Sipariş Kalemleri</h4>
                     {o.order_items?.map((item) => (
-                      <div
-                        key={item.id}
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          padding: '0.35rem 0',
-                          borderBottom: '1px solid var(--line)',
-                          fontSize: '0.9rem',
-                        }}
-                      >
-                        <span>
-                          <b>{item.quantity}×</b> {item.product_name}
-                          {item.variant_name && <small className="muted"> ({item.variant_name})</small>}
-                        </span>
-                        <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
-                          <span>{tl(item.line_total || item.unit_price * item.quantity)}</span>
-                          <button
-                            type="button"
-                            className="btn ghost sm"
-                            style={{ padding: '0.2em 0.6em', fontSize: '0.75rem' }}
-                            onClick={() => handleAddSingleItem(item)}
-                            title="Bu ürünü tek başına sepete ekle"
-                          >
-                            + Sepete Ekle
-                          </button>
+                      <div key={item.id} className="past-order-item">
+                        <div className="past-order-item-main">
+                          <b>{item.quantity}×</b>
+                          <span>
+                            <Link to={`/menu/${slugify(item.product_name)}${item.product_id ? `?productId=${encodeURIComponent(item.product_id)}` : ''}`} className="past-order-product-link">{item.product_name}</Link>
+                            {item.variant_name && <small className="muted">{item.variant_name}</small>}
+                            <small className="muted">Birim: {tl(Number(item.unit_price))}</small>
+                          </span>
+                        </div>
+                        <div className="past-order-item-actions">
+                          <b>{tl(Number(item.line_total ?? Number(item.unit_price) * item.quantity))}</b>
+                          <button type="button" className="btn ghost sm" onClick={() => handleAddSingleItem(item)} title="Bu ürünü tek başına sepete ekle">+ Sepete Ekle</button>
                         </div>
                       </div>
                     ))}

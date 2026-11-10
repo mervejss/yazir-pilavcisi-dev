@@ -41,6 +41,7 @@ export function useCourierRequests(opts?: { notify?: boolean }) {
             useAlertStore.getState().push({
               id: `req-${r.id}`,
               kind: 'courier_request',
+              channel: 'courier_request',
               title: `🛵 Kurye isteği${r.orders ? ` · #${r.orders.order_no}` : ''}`,
               body: 'Bir kurye paketi götürmek istiyor — onay bekliyor',
               link: '/admin/siparisler',

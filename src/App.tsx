@@ -118,6 +118,7 @@ export default function App() {
             <Route element={<PublicLayout />}>
                 <Route index element={<Home />} />
                 <Route path="menu" element={<MenuPage />} />
+                <Route path="menu/:slug" element={<MenuPage />} />
                 <Route path="siparis" element={<OrderPage />} />
                 <Route path="profil" element={<ProfilePage />} />
                 <Route path="toplu" element={<BulkPage />} />

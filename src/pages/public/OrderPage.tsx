@@ -5,9 +5,10 @@ import { useAuthStore } from '@/stores/authStore';
 import { useCustomerAddresses } from '@/hooks/useCustomerAddresses';
 import { useBusinessSettings } from '@/hooks/useBusinessSettings';
 import { supabase } from '@/lib/supabase';
-import { discountedPrice, tl } from '@/lib/helpers';
+import { discountedPrice, slugify, tl } from '@/lib/helpers';
 import { PAYMENT_METHOD_LABELS } from '@/lib/constants';
 import ProductImage from '@/components/ui/ProductImage';
+import Icon from '@/components/ui/Icon';
 import LocationPicker from '@/components/maps/LocationPicker';
 import VoiceDictateButton from '@/components/ui/VoiceDictateButton';
 import { normalizePhone } from '@/lib/staffCustomers';
@@ -22,13 +23,30 @@ interface OrderResult {
 }
 
 export default function OrderPage() {
-  const { items, changeQty, clearCart, total, tableToken } = useCartStore();
+  const { items, changeQty, removeItem, clearCart, total, tableToken } = useCartStore();
+  const [selectedCartKeys, setSelectedCartKeys] = useState<string[]>([]);
   const { user, profile } = useAuthStore();
   const { addresses } = useCustomerAddresses();
   const { settings, status } = useBusinessSettings();
   // Sahip siparişi kapattıysa VEYA "çalışma saati dışında engelle" açıkken kapalıysak sipariş verilemez
   const orderBlocked = status.paused || (!!settings?.enforce_opening_hours && status.outsideHours);
   const cartTotal = total();
+  const selectedCartItems = items.filter((item) => selectedCartKeys.includes(item.key));
+  useEffect(() => {
+    setSelectedCartKeys((current) => current.filter((key) => items.some((item) => item.key === key)));
+  }, [items]);
+  const removeSelectedItems = () => {
+    if (!selectedCartItems.length) return;
+    selectedCartItems.forEach((item) => removeItem(item.key));
+    setSelectedCartKeys([]);
+    toast.success(`${selectedCartItems.length} sepet satırı kaldırıldı`);
+  };
+  const emptyCart = () => {
+    if (!items.length || !window.confirm('Sepetinizdeki tüm ürünleri kaldırmak istiyor musunuz?')) return;
+    clearCart();
+    setSelectedCartKeys([]);
+    toast.success('Sepetiniz temizlendi');
+  };
 
   // ---- Kupon & sadakat puanı ----
   const [couponInput, setCouponInput] = useState('');
@@ -477,19 +495,45 @@ export default function OrderPage() {
 
       {/* Sepet Özeti */}
       <aside className="cart">
-        <h2>Sepetiniz</h2>
-        <div style={{ maxHeight: '380px', overflowY: 'auto' }}>
+        <div className="cart-heading-row">
+          <h2>Sepetiniz ({items.reduce((sum, item) => sum + item.quantity, 0)} ürün)</h2>
+          <button type="button" className="btn ghost sm cart-clear-btn" onClick={emptyCart} disabled={!items.length}>🗑 Sepeti Temizle</button>
+        </div>
+        {items.length > 0 && (
+          <div className="cart-bulk-actions">
+            <label className="cart-select-all">
+              <input
+                type="checkbox"
+                checked={items.length > 0 && selectedCartItems.length === items.length}
+                onChange={(e) => setSelectedCartKeys(e.target.checked ? items.map((item) => item.key) : [])}
+              />
+              Tüm satırları seç
+            </label>
+            <button type="button" className="btn ghost sm" onClick={removeSelectedItems} disabled={!selectedCartItems.length}>
+              Seçilenleri kaldır ({selectedCartItems.length})
+            </button>
+          </div>
+        )}
+        <div className="cart-items-scroll">
           {items.map((i) => (
-            <div key={i.key} className="crow" style={{ alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <div key={i.key} className="crow cart-item-row" style={{ alignItems: 'center' }}>
+              <input
+                className="cart-item-check"
+                type="checkbox"
+                aria-label={`${i.productName} satırını seç`}
+                checked={selectedCartKeys.includes(i.key)}
+                onChange={(e) => setSelectedCartKeys((current) => e.target.checked ? [...current, i.key] : current.filter((key) => key !== i.key))}
+              />
+              <Link className="cart-product-link" to={`/menu/${slugify(i.productName)}?productId=${encodeURIComponent(i.productId)}`} title={`${i.productName} detaylarını görüntüle`}>
                 <ProductImage imagePath={i.image_path} emoji={i.emoji} name={i.productName} size="sm" />
-                <div>
+                <span>
                   <b>{i.productName}</b>
-                  {i.variantName && <div className="small muted">{i.variantName}</div>}
-                </div>
-              </div>
+                  {i.variantName && <span className="small muted">{i.variantName}</span>}
+                  <small className="cart-detail-hint">Ürün detayını gör</small>
+                </span>
+              </Link>
               <div className="qty">
-                <button type="button" onClick={() => changeQty(i.key, -1)}>−</button>
+                <button type="button" onClick={() => changeQty(i.key, -1)} aria-label="Adedi azalt">−</button>
                 <input
                   type="number"
                   min={1}
@@ -497,14 +541,12 @@ export default function OrderPage() {
                   value={i.quantity}
                   onChange={(e) => {
                     const val = parseInt(e.target.value, 10);
-                    if (!isNaN(val) && val >= 1) {
-                      changeQty(i.key, val - i.quantity);
-                    }
+                    if (!isNaN(val) && val >= 1) changeQty(i.key, val - i.quantity);
                   }}
                 />
-                <button type="button" onClick={() => changeQty(i.key, 1)}>+</button>
+                <button type="button" onClick={() => changeQty(i.key, 1)} aria-label="Adedi artır">+</button>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px', minWidth: '78px' }}>
+              <div className="cart-line-price" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px', minWidth: '78px' }}>
                 {productReferral ? (
                   <>
                     <small style={{ textDecoration: 'line-through', opacity: .6 }}>{tl(i.quantity * i.price)}</small>
@@ -516,6 +558,9 @@ export default function OrderPage() {
                   <b style={{ color: 'var(--gold-ink)' }}>{tl(i.quantity * i.price)}</b>
                 )}
               </div>
+              <button type="button" className="cart-remove-line" onClick={() => { removeItem(i.key); setSelectedCartKeys((current) => current.filter((key) => key !== i.key)); }} aria-label={`${i.productName} satırını sepetten kaldır`} title="Bu satırı tamamen kaldır">
+                <Icon name="trash" size={16} />
+              </button>
             </div>
           ))}
         </div>

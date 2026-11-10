@@ -100,17 +100,29 @@ export default function TablesAdmin() {
 
     const fetchOrders = async () => {
       setLoadingOrders(true);
-      const { data } = await supabase
+      // Yalnızca seçili AÇIK OTURUMUN siparişlerini getir.
+      // Masa ID'sine göre son 20 kaydı almak, uzun oturumlarda eski/yeni
+      // oturumları karıştırıp hesap dökümünü eksik gösterebiliyordu.
+      if (!selectedTable.activeSession?.id) {
+        setTableOrders([]);
+        setLoadingOrders(false);
+        return;
+      }
+      const { data, error } = await supabase
         .from('orders')
         .select('*, order_items(*)')
-        .eq('table_id', selectedTable.id)
+        .eq('table_session_id', selectedTable.activeSession.id)
         .neq('status', 'cancelled')
-        .order('created_at', { ascending: false })
-        .limit(20);
-      if (data) setTableOrders(data);
+        .order('created_at', { ascending: true });
+      if (error) {
+        toast.error(`Masa siparişleri yüklenemedi: ${error.message}`);
+        setTableOrders([]);
+      } else {
+        setTableOrders(data || []);
+      }
       setLoadingOrders(false);
     };
-    fetchOrders();
+    void fetchOrders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTable?.id, selectedTable?.qrCode?.token, selectedTable?.activeSession?.id, selectedTable?.status, selectedTable?.sessionTotal]);
 
@@ -158,29 +170,40 @@ export default function TablesAdmin() {
     setClosingBill(true);
 
     try {
-      // If there are unserved orders and autoDeliverOnClose is enabled, deliver them first
-      const unserved = tableOrders.filter(
-        (o) =>
-          o.table_session_id === selectedTable.activeSession?.id &&
-          ['new', 'preparing', 'ready', 'assigned', 'on_the_way'].includes(o.status),
+      const sessionId = selectedTable.activeSession?.id;
+      if (!sessionId) throw new Error('Bu masada açık oturum bulunamadı. Masayı yenileyip tekrar deneyin.');
+
+      // Kapatma anında veritabanından oturumun TÜM siparişlerini tekrar oku.
+      // Böylece hızlı sipariş ve masa düzeninden eklenen kayıtlar aynı hesaba girer;
+      // ekranda kalmış eski/stale state ile kapatma yapılmaz.
+      const { data: currentOrders, error: ordersError } = await supabase
+        .from('orders')
+        .select('id,status')
+        .eq('table_session_id', sessionId)
+        .neq('status', 'cancelled');
+      if (ordersError) throw ordersError;
+
+      const unserved = (currentOrders || []).filter((o: any) =>
+        ['new', 'preparing', 'ready', 'assigned', 'on_the_way'].includes(o.status),
       );
 
       if (unserved.length > 0) {
         if (!autoDeliverOnClose) {
-          throw new Error('Hazırlanan siparişler var. Lütfen önce servis edildi yapın.');
+          throw new Error(`Bu masada servis edilmemiş ${unserved.length} sipariş var. Önce servis edin veya otomatik servis seçeneğini açın.`);
         }
 
-        // Deliver all unserved orders
+        // Her durum güncellemesinin hatasını kontrol et; sessizce devam etme.
         for (const order of unserved) {
-          await supabase.rpc('update_order_status', {
+          const { error: statusError } = await supabase.rpc('update_order_status', {
             p_order_id: order.id,
             p_status: 'delivered',
             p_note: 'Hesap kapatılırken otomatik servis edildi',
           });
+          if (statusError) throw statusError;
         }
       }
 
-      // Close the bill
+      // Hızlı sipariş ve Masa Düzeni aynı atomik veritabanı kapatma fonksiyonunu kullanır.
       const { data, error } = await supabase.rpc('close_table_bill', {
         p_table_id: selectedTable.id,
         p_payment: billPayment,
@@ -614,6 +637,14 @@ export default function TablesAdmin() {
                     {tl(tableTotal)}
                   </b>
                 </div>
+
+                {selectedTable.activeSession?.opened_at &&
+                  Date.now() - new Date(selectedTable.activeSession.opened_at).getTime() > 12 * 60 * 60 * 1000 && (
+                    <div style={{ marginTop: '0.65rem', padding: '0.7rem', borderRadius: 8, background: 'var(--gold-bg)', color: 'var(--gold-text)', fontSize: '0.82rem' }}>
+                      <b>⚠️ Uzun süredir açık hesap</b>
+                      <div>Bu masa oturumu 12 saatten uzun süredir açık. Önceki saatlerdeki siparişler de aynı hesaba dahil olabilir. Sipariş saatlerini kontrol etmeden hesabı kapatmayın.</div>
+                    </div>
+                  )}
 
                 {tableTotal > 0 && (
                   <button

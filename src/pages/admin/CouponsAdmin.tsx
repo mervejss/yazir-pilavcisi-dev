@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
@@ -89,7 +90,16 @@ export default function CouponsAdmin() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [custQ, setCustQ] = useState('');
   const [filter, setFilter] = useState<'all' | 'ok' | 'off'>('all');
-  const [view, setView] = useState<'list' | 'report' | 'referrals'>('list');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const view = (searchParams.get('view') === 'report' || searchParams.get('view') === 'referrals' ? searchParams.get('view') : 'list') as 'list' | 'report' | 'referrals';
+  const setView = (next: 'list' | 'report' | 'referrals') => { if (next !== view) setSearchParams(next === 'list' ? {} : { view: next }); };
+  const viewNavigation = (
+    <nav className="coupon-view-tabs" aria-label="Kupon yönetimi bölümleri">
+      <button type="button" className={`btn sm ${view === 'list' ? 'gold' : 'ghost'}`} aria-current={view === 'list' ? 'page' : undefined} onClick={() => setView('list')}>🎟️ Kuponlar</button>
+      <button type="button" className={`btn sm ${view === 'referrals' ? 'gold' : 'ghost'}`} aria-current={view === 'referrals' ? 'page' : undefined} onClick={() => setView('referrals')}>🤝 Referans Kampanyaları</button>
+      <button type="button" className={`btn sm ${view === 'report' ? 'gold' : 'ghost'}`} aria-current={view === 'report' ? 'page' : undefined} onClick={() => setView('report')}>📈 Kullanım Raporu</button>
+    </nav>
+  );
 
   const load = useCallback(async () => {
     const { data, error } = await supabase.from('coupons').select('*').order('created_at', { ascending: false });
@@ -208,10 +218,10 @@ export default function CouponsAdmin() {
   if (view === 'referrals') {
     return (
       <>
-        <div className="bar mx-bar">
-          <div><h1>Referans Kampanyaları</h1><p className="muted" style={{margin:0}}>Anlaşmalı işletmeler için personel ve üye referans kodları.</p></div>
-          <div className="mx-bar-actions"><button type="button" className="btn ghost sm" onClick={() => setView('list')}>← Kuponlara dön</button></div>
+        <div className="bar mx-bar coupon-subpage-head">
+          <div style={{display:'flex',alignItems:'center',gap:'.8rem',flexWrap:'wrap'}}><button type="button" className="btn ghost sm" onClick={() => setView('list')}>← Kuponlara dön</button><div><h1>Referans Kampanyaları</h1><p className="muted" style={{margin:0}}>Anlaşmalı işletmeler için personel ve üye referans kodları.</p></div></div>
         </div>
+        {viewNavigation}
         <ReferralCampaignsAdmin />
       </>
     );
@@ -220,10 +230,10 @@ export default function CouponsAdmin() {
   if (view === 'report') {
     return (
       <>
-        <div className="bar mx-bar">
-          <div><h1>Kupon &amp; Kampanya Yönetimi</h1></div>
-          <div className="mx-bar-actions"><button type="button" className="btn ghost sm" onClick={() => setView('list')}>← Kuponlara dön</button></div>
+        <div className="bar mx-bar coupon-subpage-head">
+          <div style={{display:'flex',alignItems:'center',gap:'.8rem',flexWrap:'wrap'}}><button type="button" className="btn ghost sm" onClick={() => setView('list')}>← Kuponlara dön</button><div><h1>Kupon &amp; Kampanya Yönetimi</h1><p className="muted" style={{margin:0}}>Kupon performansı ve kullanım istatistikleri.</p></div></div>
         </div>
+        {viewNavigation}
         <CouponReport />
       </>
     );
@@ -237,12 +247,11 @@ export default function CouponsAdmin() {
           <p className="muted" style={{ margin: 0 }}>Kupon kodları, saat/gün bazlı ve kontenjanlı kampanyalar. "Sitede göster" açık olanlar müşteri sitesindeki Kampanyalar bölümünde görünür.</p>
         </div>
         <div className="mx-bar-actions">
-          <button type="button" className="btn ghost sm" onClick={() => setView('referrals')}>🤝 Referans Kampanyaları</button>
-          <button type="button" className="btn ghost sm" onClick={() => setView('report')}>📈 Kullanım Raporu</button>
           <a className="btn ghost sm" href="/kampanyalar" target="_blank" rel="noreferrer">Kampanyalar sayfası ↗</a>
           {canWrite && <button type="button" className="btn gold sm" onClick={() => openNew()}>+ Yeni Kupon</button>}
         </div>
       </div>
+      {viewNavigation}
 
       {missingSql && <div className="note">Kupon sistemi için <code>sql/15_coupons_loyalty.sql</code> dosyasını Supabase SQL Editor'de çalıştırın.</div>}
 
