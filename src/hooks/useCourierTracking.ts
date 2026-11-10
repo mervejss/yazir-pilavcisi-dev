@@ -5,9 +5,9 @@ import { distanceM } from '@/lib/googleMaps';
 
 export type TrackStatus = 'off' | 'starting' | 'sharing' | 'denied' | 'unsupported' | 'error';
 
-const MIN_INTERVAL_MS = 5000; // en sık 5 sn'de bir gönder
-const MAX_INTERVAL_MS = 20000; // hareketsiz olsa bile 20 sn'de bir "buradayım" gönder
-const MIN_MOVE_M = 12;
+const MIN_INTERVAL_MS = 8000; // en sık 8 sn'de bir gönder (egress/log tasarrufu)
+const MAX_INTERVAL_MS = 30000; // hareketsiz olsa bile 30 sn'de bir "buradayım" gönder
+const MIN_MOVE_M = 20;
 
 /**
  * Kurye konum paylaşımı:

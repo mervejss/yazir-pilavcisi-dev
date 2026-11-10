@@ -34,10 +34,18 @@ export function useBusinessSettings() {
 
   useEffect(() => {
     refetch();
-    const refreshTimer = setInterval(refetch, 60_000);
-    const tickTimer = setInterval(() => setTick((t) => t + 1), 30_000);
-    const onVisible = () => {
+    // Ayarlar nadiren değişir: 5 dakikada bir (eskiden 60 sn) ve yalnızca sekme görünürken; her ziyaretçide çalıştığı için egress'in büyük kalemiydi
+    const refreshTimer = setInterval(() => {
       if (document.visibilityState === 'visible') refetch();
+    }, 5 * 60_000);
+    const tickTimer = setInterval(() => setTick((t) => t + 1), 30_000);
+    let lastFetch = Date.now();
+    const onVisible = () => {
+      // Sekme öne gelince, son yüklemeden 2 dk geçtiyse tazele (sık sekme değişiminde sorgu yağmuru olmasın)
+      if (document.visibilityState === 'visible' && Date.now() - lastFetch > 120_000) {
+        lastFetch = Date.now();
+        refetch();
+      }
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => {

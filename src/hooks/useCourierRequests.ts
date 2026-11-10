@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { coalesce, visiblePoll } from '@/lib/polling';
 import { useAlertStore } from '@/stores/alertStore';
 import toast from 'react-hot-toast';
 
@@ -58,13 +59,15 @@ export function useCourierRequests(opts?: { notify?: boolean }) {
 
   useEffect(() => {
     fetchRequests();
+    const co = coalesce(fetchRequests, 1000);
     const ch = supabase
       .channel(`courier-req-${Math.random().toString(36).slice(2)}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'courier_order_requests' }, () => fetchRequests())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'courier_order_requests' }, () => co.call())
       .subscribe();
-    const iv = setInterval(fetchRequests, 20000);
+    const stopPoll = visiblePoll(fetchRequests, 60_000);
     return () => {
-      clearInterval(iv);
+      stopPoll();
+      co.cancel();
       supabase.removeChannel(ch);
     };
   }, [fetchRequests]);

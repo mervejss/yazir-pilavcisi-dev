@@ -87,14 +87,15 @@ export default function TrackPage() {
 
   useEffect(() => {
     fetchOrder();
-    const a = setInterval(fetchOrder, 10000);
+    // Gizli sekmede sorgu yok; görünürken 20 sn (eskiden 10 sn)
+    const a = setInterval(() => { if (document.visibilityState === 'visible') fetchOrder(); }, 20000);
     return () => clearInterval(a);
   }, [fetchOrder]);
 
   const isLive = !!live?.live;
   useEffect(() => {
     fetchLive();
-    const b = setInterval(fetchLive, isLive ? 5000 : 15000);
+    const b = setInterval(() => { if (document.visibilityState === 'visible') fetchLive(); }, isLive ? 8000 : 30000);
     const t = setInterval(() => tick((n) => n + 1), 1000);
     const onVis = () => document.visibilityState === 'visible' && (fetchOrder(), fetchLive());
     document.addEventListener('visibilitychange', onVis);

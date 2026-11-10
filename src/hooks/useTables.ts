@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { coalesce } from '@/lib/polling';
 import type { DiningTable, TableSession, TableQrCode } from '@/types/database';
 
 export interface TableWithSession extends DiningTable {
@@ -18,7 +19,6 @@ const UNSERVED = ['new', 'preparing', 'ready', 'assigned', 'on_the_way'];
 export function useTables() {
   const [tables, setTables] = useState<TableWithSession[]>([]);
   const [loading, setLoading] = useState(true);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const fetchTables = useCallback(async () => {
     const [tableRes, sessionRes, qrRes] = await Promise.all([
@@ -68,10 +68,8 @@ export function useTables() {
   useEffect(() => {
     void fetchTables();
 
-    const schedule = () => {
-      if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => void fetchTables(), 300);
-    };
+    const co = coalesce(fetchTables, 1500);
+    const schedule = () => co.call();
 
     const channel = supabase
       .channel(`tables-realtime-${Math.random()}`)
@@ -82,7 +80,7 @@ export function useTables() {
       .subscribe();
 
     return () => {
-      if (timer.current) clearTimeout(timer.current);
+      co.cancel();
       void supabase.removeChannel(channel);
     };
   }, [fetchTables]);

@@ -1,3 +1,4 @@
+import { coalesce, visiblePoll } from '@/lib/polling';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
@@ -174,14 +175,17 @@ export default function CourierApp() {
 
   useEffect(() => {
     load();
-    const iv = setInterval(load, 15000);
+    // Olaylar 1,2 sn'de tek yüklemeye birleşir; yedek yenileme 45 sn ve yalnızca ekran görünürken (eskiden 15 sn)
+    const co = coalesce(load, 1200);
+    const stopPoll = visiblePoll(load, 45_000);
     const ch = supabase
       .channel(`courier-app-${Math.random().toString(36).slice(2)}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => load())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'courier_order_requests' }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => co.call())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'courier_order_requests' }, () => co.call())
       .subscribe();
     return () => {
-      clearInterval(iv);
+      stopPoll();
+      co.cancel();
       supabase.removeChannel(ch);
     };
   }, [load]);

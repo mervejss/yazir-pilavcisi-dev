@@ -111,7 +111,7 @@ const lsSet = (k: string, v: string) => {
 
 export default function AdminLayout() {
   const { profile, signOut } = useAuthStore();
-  const { orders } = useOrders({ statusFilter: ['new'] });
+  const { orders } = useOrders({ statusFilter: ['new'], light: true });
   const { requests: courierRequests } = useCourierRequests({ notify: true });
   const navigate = useNavigate();
   const [quickOpen, setQuickOpen] = useState(false);

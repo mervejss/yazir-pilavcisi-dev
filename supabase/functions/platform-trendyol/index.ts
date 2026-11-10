@@ -116,7 +116,8 @@ Deno.serve(async (req) => {
       default: return json({ ok: false, error: 'Bilinmeyen işlem: ' + action }, 400);
     }
 
-    const quiet = az.via === 'cron' && action === 'sync_orders' && !result?.created && !result?.status_updated && !result?.failed;
+    // Değişiklik yoksa (yeni sipariş / durum güncellemesi / hata yok) olay kaydı YAZILMAZ — panelden (user) tetiklenen çekimler de dahil
+    const quiet = action === 'sync_orders' && !result?.created && !result?.status_updated && !result?.failed;
     const w1 = quiet ? null : await logEvent(db, PLATFORM, action === 'sync_orders' ? 'in' : 'out', action, { ms: Date.now() - t0, payload: summarize(result) });
     const w2 = action !== 'reviews' && action !== 'diagnose' && action !== 'probe_actions' && !action.startsWith('finance_') ? await touchPlatform(db, PLATFORM, true) : null;
     return json({ ok: true, result, db_warning: w1 || w2 || undefined });

@@ -23,7 +23,7 @@ import toast from 'react-hot-toast';
 const COLUMNS = [
   { key: 'new', label: 'Yeni' },
   { key: 'preparing', label: 'Hazırlanıyor' },
-  { key: 'assigned_way', label: 'Kuryede / Yolda / Masada' },
+  { key: 'assigned_way', label: 'Kuryede / Yolda' },
   { key: 'delivered', label: 'Teslim Edildi' },
   { key: 'cancelled', label: 'İptal Edildi' },
 ];
@@ -47,6 +47,11 @@ export default function OrdersBoard() {
   const [editOrder, setEditOrder] = useState<OrderWithItems | null>(null);
   const [editItems, setEditItems] = useState<Array<{ variant_id: string; quantity: number }>>([]);
   const [editReason, setEditReason] = useState('');
+
+  // Masa siparişinden doğrudan hesap kapatma
+  const [billOrder, setBillOrder] = useState<OrderWithItems | null>(null);
+  const [billPayment, setBillPayment] = useState<'cash_at_table' | 'card_at_table' | 'iban'>('cash_at_table');
+  const [closingBill, setClosingBill] = useState(false);
 
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [dragId, setDragId] = useState<string | null>(null);
@@ -139,7 +144,40 @@ export default function OrdersBoard() {
     if (colKey === 'delivered') {
       // Kurye zorunlu değil: hazır / kuryeye atandı / yolda olan sipariş doğrudan teslim edilebilir
       if (o.status === 'new' || o.status === 'preparing') return void toast.error('Önce "Hazır" yapılmalı');
+      if (isTableBill(o)) return void openBillModal(o);
       handleStatusChange(o.id, 'delivered');
+    }
+  };
+
+  // Masa (restoranda servis) siparişi mi? Açık hesaba bağlıysa "Servis edildi" yerine "Hesabı Kapat" gösterilir
+  const isTableBill = (o: OrderWithItems) => o.order_type === 'dine_in' && !!o.table_id && !!o.table_session_id;
+
+  // Aynı masa hesabındaki (iptal edilmemiş) siparişler ve toplamı
+  const sessionOrders = (o: OrderWithItems) =>
+    orders.filter((x) => x.table_session_id === o.table_session_id && x.status !== 'cancelled');
+  const sessionTotal = (o: OrderWithItems) => sessionOrders(o).reduce((sum, x) => sum + Number(x.total || 0), 0);
+
+  const openBillModal = (o: OrderWithItems) => {
+    setBillPayment('cash_at_table');
+    setBillOrder(o);
+  };
+
+  const handleCloseBill = async () => {
+    if (!billOrder) return;
+    setClosingBill(true);
+    try {
+      const { data, error } = await supabase.rpc('close_table_from_order', {
+        p_order_id: billOrder.id,
+        p_payment: billPayment,
+      });
+      if (error) throw error;
+      toast.success(`Hesap kapatıldı: ${tl((data as any)?.total || 0)}`);
+      setBillOrder(null);
+      refetch();
+    } catch (err: any) {
+      toast.error(err.message || 'Hesap kapatılamadı');
+    } finally {
+      setClosingBill(false);
     }
   };
 
@@ -470,13 +508,24 @@ export default function OrdersBoard() {
                             </button>
                           </>
                         ) : (
-                          <button
-                            type="button"
-                            className="btn gold sm"
-                            onClick={() => handleStatusChange(o.id, 'delivered')}
-                          >
-                            {o.order_type === 'dine_in' ? 'Servis edildi' : 'Teslim edildi'}
-                          </button>
+                          isTableBill(o) ? (
+                            <button
+                              type="button"
+                              className="btn gold sm"
+                              title="Masadaki siparişleri servis edilmiş yapar, ödemeyi alır ve hesabı kapatır"
+                              onClick={() => openBillModal(o)}
+                            >
+                              💳 HESABI KAPAT
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn gold sm"
+                              onClick={() => handleStatusChange(o.id, 'delivered')}
+                            >
+                              {o.order_type === 'dine_in' ? 'Servis edildi' : 'Teslim edildi'}
+                            </button>
+                          )
                         ))}
 
                       {o.status === 'on_the_way' && (
@@ -649,6 +698,56 @@ export default function OrdersBoard() {
             </div>
             <AddressMap lat={mapOrder.lat} lng={mapOrder.lng} address={[mapOrder.delivery_address, mapOrder.district].filter(Boolean).join(', ')} label={`#${mapOrder.order_no}`} height="360px" />
             {mapOrder.lat == null && <p className="small muted" style={{ marginTop: '0.5rem' }}>Bu siparişte işaretli konum yok; harita yazılı adrese göre çözülür.</p>}
+          </>
+        )}
+      </Modal>
+
+      {/* MASA HESABINI KAPAT (sipariş kartından) */}
+      <Modal open={!!billOrder} onClose={() => !closingBill && setBillOrder(null)}>
+        <h2>
+          {billOrder ? `Masa ${tables.find((t) => t.id === billOrder.table_id)?.number || ''}` : ''} · Hesabı Kapat
+        </h2>
+        {billOrder && (
+          <>
+            <p className="muted">
+              {sessionOrders(billOrder).length} sipariş · Tahsil edilecek tutar:{' '}
+              <b className="price">{tl(sessionTotal(billOrder))}</b>
+            </p>
+            <ul className="small" style={{ margin: '0.4rem 0 0.8rem', paddingLeft: '1.1rem' }}>
+              {sessionOrders(billOrder).flatMap((x) =>
+                x.items.map((i) => (
+                  <li key={`${x.id}-${i.id}`}>
+                    {i.quantity}× {i.product_name}
+                    {i.variant_name && ` (${i.variant_name})`}
+                  </li>
+                )),
+              )}
+            </ul>
+
+            <fieldset style={{ margin: '1rem 0' }}>
+              <legend>Tahsilat Şekli</legend>
+              <label className="radio">
+                <input type="radio" name="boardBillPay" checked={billPayment === 'cash_at_table'} onChange={() => setBillPayment('cash_at_table')} />
+                Nakit
+              </label>
+              <label className="radio">
+                <input type="radio" name="boardBillPay" checked={billPayment === 'card_at_table'} onChange={() => setBillPayment('card_at_table')} />
+                Kredi / Banka Kartı (POS)
+              </label>
+              <label className="radio">
+                <input type="radio" name="boardBillPay" checked={billPayment === 'iban'} onChange={() => setBillPayment('iban')} />
+                IBAN / Havale
+              </label>
+            </fieldset>
+
+            <div className="prow">
+              <button type="button" className="btn gold sm" disabled={closingBill} onClick={handleCloseBill}>
+                {closingBill ? 'Kapatılıyor...' : 'Tahsilatı Onayla ve Hesabı Kapat'}
+              </button>
+              <button type="button" className="btn ghost sm" disabled={closingBill} onClick={() => setBillOrder(null)}>
+                Vazgeç
+              </button>
+            </div>
           </>
         )}
       </Modal>
