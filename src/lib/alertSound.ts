@@ -2,7 +2,9 @@
  * Sesli uyarı sistemi (dosya gerektirmez — Web Audio ile üretilir).
  * Her cihaz kendi ses ayarını saklar (yönetici bilgisayarı / kurye telefonu ayrı ayarlanabilir).
  */
-export type AlertTone = 'siren' | 'bell' | 'chime' | 'beep';
+import { getToneUrl } from '@/lib/ringtoneStore';
+
+export type AlertTone = 'siren' | 'bell' | 'chime' | 'beep' | 'custom';
 export type AlertMode = 'once' | 'timed' | 'until_ack';
 
 export interface AlertSettings {
@@ -18,6 +20,10 @@ export interface AlertSettings {
   vibrate: boolean;
   /** Yeni siparişte otomatik mutfak fişi yazdır (yalnızca yönetici) */
   autoPrint: boolean;
+  /** Kendi yüklediği zil sesinin adı (tone = 'custom') */
+  customName?: string;
+  /** Çalma anında AlertHost tarafından eklenir: kullanıcıya özel ses anahtarı */
+  customKey?: string;
 }
 
 export const DEFAULT_ALERT: AlertSettings = {
@@ -36,11 +42,15 @@ export const TONE_LABELS: Record<AlertTone, string> = {
   bell: '🔔 Zil',
   chime: '🎶 Melodi',
   beep: '📟 Bip',
+  custom: '🎵 Kendi zil sesim',
 };
 
-export function loadAlertSettings(key: string): AlertSettings {
+/** Ayarlar kişiye özeldir: aynı cihazı kullanan farklı kullanıcıların ayarı karışmaz */
+export const userAlertKey = (base: string, uid?: string | null) => (uid ? `${base}:${uid}` : base);
+
+export function loadAlertSettings(key: string, legacyKey?: string): AlertSettings {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = localStorage.getItem(key) ?? (legacyKey ? localStorage.getItem(legacyKey) : null);
     if (raw) return { ...DEFAULT_ALERT, ...JSON.parse(raw) };
   } catch {
     /* yoksay */
@@ -81,7 +91,7 @@ export function isAudioLocked(): boolean {
 }
 
 type Note = [freq: number, at: number, dur: number, type: OscillatorType];
-const PATTERNS: Record<AlertTone, { notes: Note[]; length: number }> = {
+const PATTERNS: Record<Exclude<AlertTone, 'custom'>, { notes: Note[]; length: number }> = {
   siren: {
     notes: [
       [988, 0, 0.28, 'square'], [784, 0.28, 0.28, 'square'], [988, 0.56, 0.28, 'square'], [784, 0.84, 0.28, 'square'],
@@ -93,7 +103,7 @@ const PATTERNS: Record<AlertTone, { notes: Note[]; length: number }> = {
   beep: { notes: [[880, 0, 0.15, 'sine'], [880, 0.25, 0.15, 'sine'], [880, 0.5, 0.15, 'sine']], length: 1.0 },
 };
 
-function playCycle(tone: AlertTone, volume: number) {
+function playCycle(tone: Exclude<AlertTone, 'custom'>, volume: number) {
   const c = getCtx();
   if (!c) return;
   const p = PATTERNS[tone];
@@ -118,16 +128,52 @@ function playCycle(tone: AlertTone, volume: number) {
 export class AlertPlayer {
   private timer: ReturnType<typeof setInterval> | null = null;
   private stopTimer: ReturnType<typeof setTimeout> | null = null;
+  private audio: HTMLAudioElement | null = null;
+  private token = 0;
   playing = false;
 
   start(s: AlertSettings, onEnd?: () => void) {
     this.stop();
     if (!s.enabled) return;
     unlockAudio();
+    const my = ++this.token;
     this.playing = true;
-    const len = PATTERNS[s.tone].length * 1000;
-    playCycle(s.tone, s.volume);
     if (s.vibrate && 'vibrate' in navigator) navigator.vibrate?.([300, 150, 300, 150, 600]);
+
+    if (s.tone === 'custom' && s.customKey) {
+      getToneUrl(s.customKey).then((url) => {
+        if (my !== this.token) return; // bu arada durduruldu
+        if (!url) return this.startBuiltin(s, 'siren', onEnd); // dosya yoksa siren
+        const a = new Audio(url);
+        a.volume = Math.max(0.05, Math.min(1, s.volume));
+        a.loop = s.mode !== 'once';
+        a.onended = () => {
+          if (s.mode === 'once') {
+            this.playing = false;
+            onEnd?.();
+          }
+        };
+        this.audio = a;
+        a.play().catch(() => this.startBuiltin(s, 'siren', onEnd)); // tarayıcı engellerse siren
+        if (s.mode === 'timed') {
+          this.stopTimer = setTimeout(() => {
+            this.stop();
+            onEnd?.();
+          }, Math.max(2, s.seconds) * 1000);
+        }
+      });
+      return;
+    }
+    this.startBuiltin(s, s.tone === 'custom' ? 'siren' : s.tone, onEnd);
+  }
+
+  private startBuiltin(s: AlertSettings, tone: Exclude<AlertTone, 'custom'>, onEnd?: () => void) {
+    if (this.audio) {
+      this.audio.pause();
+      this.audio = null;
+    }
+    const len = PATTERNS[tone].length * 1000;
+    playCycle(tone, s.volume);
     if (s.mode === 'once') {
       this.stopTimer = setTimeout(() => {
         this.playing = false;
@@ -136,7 +182,7 @@ export class AlertPlayer {
       return;
     }
     this.timer = setInterval(() => {
-      playCycle(s.tone, s.volume);
+      playCycle(tone, s.volume);
       if (s.vibrate && 'vibrate' in navigator) navigator.vibrate?.([300, 150, 300]);
     }, len);
     if (s.mode === 'timed') {
@@ -148,10 +194,16 @@ export class AlertPlayer {
   }
 
   stop() {
+    this.token++;
     if (this.timer) clearInterval(this.timer);
     if (this.stopTimer) clearTimeout(this.stopTimer);
     this.timer = null;
     this.stopTimer = null;
+    if (this.audio) {
+      this.audio.pause();
+      this.audio.currentTime = 0;
+      this.audio = null;
+    }
     this.playing = false;
     if ('vibrate' in navigator) navigator.vibrate?.(0);
   }
@@ -160,5 +212,15 @@ export class AlertPlayer {
 /** Ayar ekranındaki "Dene" düğmesi: tek döngü çalar */
 export function testTone(s: AlertSettings) {
   unlockAudio();
-  playCycle(s.tone, s.volume);
+  if (s.tone === 'custom' && s.customKey) {
+    getToneUrl(s.customKey).then((url) => {
+      if (!url) return playCycle('siren', s.volume);
+      const a = new Audio(url);
+      a.volume = Math.max(0.05, Math.min(1, s.volume));
+      a.play().catch(() => undefined);
+      setTimeout(() => a.pause(), 6000);
+    });
+    return;
+  }
+  playCycle(s.tone === 'custom' ? 'siren' : s.tone, s.volume);
 }

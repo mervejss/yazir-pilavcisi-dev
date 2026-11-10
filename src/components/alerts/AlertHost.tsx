@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAlertStore } from '@/stores/alertStore';
-import { AlertPlayer, isAudioLocked, loadAlertSettings, unlockAudio, type AlertSettings } from '@/lib/alertSound';
+import { AlertPlayer, isAudioLocked, loadAlertSettings, unlockAudio, userAlertKey, type AlertSettings } from '@/lib/alertSound';
+import { syncToneFromAccount } from '@/lib/ringtoneStore';
+import { useAuthStore } from '@/stores/authStore';
 import SoundSettingsModal from '@/components/alerts/SoundSettingsModal';
 
 interface Props {
@@ -19,7 +21,50 @@ interface Props {
  */
 export default function AlertHost({ storageKey, defaultLink, showButton = true }: Props) {
   const { alerts, silenced, silence, dismiss, dismissAll } = useAlertStore();
-  const [settings, setSettings] = useState<AlertSettings>(() => loadAlertSettings(storageKey));
+  const uid = useAuthStore((s) => s.user?.id);
+  // Ayar ve zil sesi KİŞİYE özeldir (aynı cihazda başka hesap açılırsa onun ayarı gelir)
+  const key = userAlertKey(storageKey, uid);
+  const [settings, setSettings] = useState<AlertSettings>(() => loadAlertSettings(key, storageKey));
+  const ringKey = `ring:${uid || 'anon'}`;
+  useEffect(() => {
+    setSettings(loadAlertSettings(key, storageKey));
+    // Başka cihazda yüklenmiş kendi zil sesi varsa bu cihaza indir
+    if (uid) syncToneFromAccount(ringKey, uid).then((name) => name && setSettings((st) => (st.tone === 'custom' && !st.customName ? { ...st, customName: name } : st)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  const playSettings = { ...settings, customKey: ringKey };
+
+  // Zil ikonu: çift dokunuşla sağ kenara gizlenir, kenardaki tutamaçla geri gelir (yazıların üstüne binmesin)
+  const [fabHidden, setFabHidden] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('yz_alert_fab_hidden') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const fabClicks = useRef(0);
+  const fabTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const setHidden = (v: boolean) => {
+    setFabHidden(v);
+    try {
+      localStorage.setItem('yz_alert_fab_hidden', v ? '1' : '0');
+    } catch {
+      /* yoksay */
+    }
+  };
+  const onFab = () => {
+    fabClicks.current += 1;
+    if (fabTimer.current) clearTimeout(fabTimer.current);
+    if (fabClicks.current >= 2) {
+      fabClicks.current = 0;
+      setHidden(true);
+      return;
+    }
+    fabTimer.current = setTimeout(() => {
+      fabClicks.current = 0;
+      setOpen(true);
+    }, 260);
+  };
   const [open, setOpen] = useState(false);
   const [locked, setLocked] = useState(isAudioLocked());
   const player = useRef(new AlertPlayer());
@@ -44,7 +89,7 @@ export default function AlertHost({ storageKey, defaultLink, showButton = true }
   useEffect(() => {
     const p = player.current;
     if (alerts.length > prevCount.current && !silenced) {
-      p.start(settings);
+      p.start(playSettings);
       if (settings.notify && document.visibilityState === 'hidden' && 'Notification' in window && Notification.permission === 'granted') {
         try {
           new Notification(alerts[0].title, { body: alerts[0].body, tag: alerts[0].id, requireInteraction: true });
@@ -55,7 +100,8 @@ export default function AlertHost({ storageKey, defaultLink, showButton = true }
     }
     if (alerts.length === 0 || silenced) p.stop();
     prevCount.current = alerts.length;
-  }, [alerts, silenced, settings]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alerts, silenced, settings, ringKey]);
 
   useEffect(() => () => player.current.stop(), []);
 
@@ -114,9 +160,14 @@ export default function AlertHost({ storageKey, defaultLink, showButton = true }
         </button>
       )}
 
-      {showButton && (
-        <button type="button" className="alert-fab" onClick={() => setOpen(true)} title="Ses ve bildirim ayarları" aria-label="Ses ayarları">
+      {showButton && !fabHidden && (
+        <button type="button" className="alert-fab" onClick={onFab} title="Ses ayarları — gizlemek için iki kez dokunun" aria-label="Ses ayarları (iki kez dokunun: gizle)">
           {settings.enabled ? '🔔' : '🔕'}
+        </button>
+      )}
+      {showButton && fabHidden && (
+        <button type="button" className="alert-tab" onClick={() => setHidden(false)} aria-label="Zil düğmesini göster" title="Zil düğmesini göster">
+          ‹ 🔔
         </button>
       )}
 
@@ -124,7 +175,9 @@ export default function AlertHost({ storageKey, defaultLink, showButton = true }
         open={open}
         onClose={() => setOpen(false)}
         value={settings}
-        storageKey={storageKey}
+        storageKey={key}
+        ringKey={ringKey}
+        userId={uid}
         showAutoPrint={storageKey.includes('admin')}
         onChange={(s) => setSettings(s)}
       />

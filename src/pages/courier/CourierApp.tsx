@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { tl, hhmm, timeAgo, beep, businessDayStart } from '@/lib/helpers';
 import { ORDER_STATUS_LABELS } from '@/lib/constants';
 import { HAS_GMAPS_KEY, mapsDirUrl, distanceM, fmtKm, type Destination } from '@/lib/googleMaps';
+import { useBackTrap } from '@/hooks/useBackTrap';
 import { useCourierTracking } from '@/hooks/useCourierTracking';
 import RouteMap, { type RouteSummary } from '@/components/maps/RouteMap';
 import Icon from '@/components/ui/Icon';
@@ -12,6 +13,7 @@ import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import Logo from '@/components/ui/Logo';
 import ThemeToggle from '@/components/ui/ThemeToggle';
 import AlertHost from '@/components/alerts/AlertHost';
+import OrderDetailSheet from '@/components/courier/OrderDetailSheet';
 import CourierSelfStats from '@/components/analytics/CourierSelfStats';
 import { useAlertStore } from '@/stores/alertStore';
 import toast from 'react-hot-toast';
@@ -65,6 +67,13 @@ export default function CourierApp() {
   const sheetRef = useRef<string | null>(null);
   const tabRef = useRef<Tab>('mine');
   const exitRef = useRef(false);
+  const detailRef = useRef<string | null>(null);
+  const [offline, setOffline] = useState(typeof navigator !== 'undefined' && navigator.onLine === false);
+  const [battery, setBattery] = useState<{ level: number; charging: boolean } | null>(null);
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [detailId, setDetailId] = useState<string | null>(null);
+  detailRef.current = detailId;
+  const [splitRows, setSplitRows] = useState<Array<{ order_id: string; method: string; amount: number }>>([]);
   sheetRef.current = sheet;
   tabRef.current = tab;
   exitRef.current = exitAsk;
@@ -121,7 +130,7 @@ export default function CourierApp() {
         const fresh = [...openNow].filter((id) => !prevOpen.current!.has(id));
         fresh.forEach((id) => {
           const o = rows.find((r) => r.id === id);
-          if (o) {
+          if (o && o.status === 'new') {
             useAlertStore.getState().push({
               id: `open-${id}`,
               kind: 'open_order',
@@ -132,9 +141,22 @@ export default function CourierApp() {
         });
       }
       prevOpen.current = openNow;
+      // Sipariş onaylandı (hazırlanıyor) / başkası aldı / paket yola çıktı → bu cihazda zil susar
+      const stillNew = new Set(rows.filter((r) => r.status === 'new' && !r.is_mine && !r.taken_by_other).map((r) => r.id));
+      const stillAssigned = new Set(rows.filter((r) => r.is_mine && r.status === 'assigned').map((r) => r.id));
+      useAlertStore.getState().dismissWhere(
+        (a) => (a.kind === 'open_order' && !stillNew.has(a.id.replace(/^open-/, ''))) || (a.kind === 'assigned' && !stillAssigned.has(a.id.replace(/^assigned-/, ''))),
+      );
       setAll(rows);
     }
     setHist(hist);
+    // Bugünkü ayrı ödemeler (gün sonu kasası için); SQL 31 yoksa sessizce atlanır
+    const { data: sp, error: spErr } = await supabase
+      .from('order_split_payments')
+      .select('order_id,method,amount')
+      .eq('courier_id', profile.id)
+      .gte('created_at', businessDayStart().toISOString());
+    if (!spErr && sp) setSplitRows(sp as any);
     setLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id]);
@@ -235,6 +257,28 @@ export default function CourierApp() {
     navigate('/personel-giris', { replace: true });
   };
 
+  // İnternet / pil durumu uyarıları
+  useEffect(() => {
+    const up = () => setOffline(false);
+    const down = () => setOffline(true);
+    window.addEventListener('online', up);
+    window.addEventListener('offline', down);
+    let bat: any;
+    const upd = () => bat && setBattery({ level: Math.round(bat.level * 100), charging: !!bat.charging });
+    (navigator as any).getBattery?.().then((b: any) => {
+      bat = b;
+      upd();
+      b.addEventListener('levelchange', upd);
+      b.addEventListener('chargingchange', upd);
+    }).catch(() => undefined);
+    return () => {
+      window.removeEventListener('online', up);
+      window.removeEventListener('offline', down);
+      bat?.removeEventListener?.('levelchange', upd);
+      bat?.removeEventListener?.('chargingchange', upd);
+    };
+  }, []);
+
   // Kurye uygulaması olarak yüklenebilsin (ana ekrana ekle) ve durum çubuğu rengi uyumlu olsun
   useEffect(() => {
     const l = document.createElement('link');
@@ -244,27 +288,61 @@ export default function CourierApp() {
     return () => l.remove();
   }, []);
 
-  // Telefondaki GERİ tuşu: önce açık harita/sekmeyi kapatır; ana ekrandaysa hesaptan çıkmadan önce onay ister
-  useEffect(() => {
-    const guard = () => window.history.pushState({ crGuard: true }, '', window.location.href);
-    guard();
-    const onPop = () => {
-      guard(); // sayfadan ayrılmayı engelle
-      if (exitRef.current) return setExitAsk(false);
-      if (sheetRef.current) return setSheet(null);
-      if (tabRef.current !== 'mine') return setTab('mine');
-      setExitAsk(true);
-    };
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
-  }, []);
+  // Telefondaki GERİ tuşu: önce açık pencere/haritayı kapatır, sonra ana sekmeye döner; uygulamadan ASLA çıkarmaz.
+  // (Çıkış yalnızca üstteki çıkış düğmesi + onay ile yapılır.)
+  useBackTrap(true, () => {
+    if (exitRef.current) return setExitAsk(false);
+    if (detailRef.current) return setDetailId(null);
+    if (sheetRef.current) return setSheet(null);
+    if (tabRef.current !== 'mine') return setTab('mine');
+  });
 
   /* ---------------- Türetilmiş ---------------- */
   const mine = useMemo(() => all.filter((o) => o.is_mine), [all]);
+
+  // Önerilen teslimat sırası: bulunduğum yerden en yakın adres, sonra ona en yakın… (kuş uçuşu, yalnızca öneri)
+  const seq = useMemo(() => {
+    const map: Record<string, number> = {};
+    const left = mine.filter((o) => ['assigned', 'on_the_way'].includes(o.status) && o.lat != null && o.lng != null);
+    if (left.length < 2) return map;
+    let cur: { lat: number; lng: number } | null = track.position;
+    if (!cur) cur = { lat: Number(left[0].lat), lng: Number(left[0].lng) };
+    let n = 1;
+    const rest = [...left];
+    while (rest.length) {
+      let bi = 0;
+      let bd = Infinity;
+      rest.forEach((o, i) => {
+        const d = distanceM(cur!, { lat: Number(o.lat), lng: Number(o.lng) });
+        if (d < bd) {
+          bd = d;
+          bi = i;
+        }
+      });
+      const [pick] = rest.splice(bi, 1);
+      map[pick.id] = n++;
+      cur = { lat: Number(pick.lat), lng: Number(pick.lng) };
+    }
+    return map;
+  }, [mine, track.position]);
+
+  const saveNote = async (o: COrder, text: string) => {
+    const next = notes[o.id] === text ? '' : text; // aynı seçeneğe tekrar basınca notu kaldırır
+    const { error } = await supabase.rpc('courier_set_note', { p_order: o.id, p_note: next } as any);
+    if (error) return toast.error(/function|does not exist/i.test(error.message) ? 'Not için yönetici SQL 30 dosyasını çalıştırmalı' : error.message);
+    setNotes((n) => ({ ...n, [o.id]: next }));
+    toast.success(next ? 'Not yöneticiye iletildi' : 'Not kaldırıldı');
+  };
   const free = useMemo(() => all.filter((o) => !o.is_mine), [all]);
   const todayStart = businessDayStart();
   const todayHist = history.filter((h) => h.delivered_at && new Date(h.delivered_at) >= todayStart);
-  const todayCash = todayHist.filter((h) => ['cash_on_delivery', 'card_on_delivery'].includes(h.payment_method)).reduce((s, h) => s + Number(h.total), 0);
+  const todayCash = todayHist.reduce((sum, h) => {
+    const rows = splitRows.filter((r) => r.order_id === h.id);
+    const sp = rows.filter((r) => r.method !== 'iban').reduce((a, r) => a + Number(r.amount), 0);
+    const spAll = rows.reduce((a, r) => a + Number(r.amount), 0);
+    const rest = ['cash_on_delivery', 'card_on_delivery'].includes(h.payment_method) ? Math.max(Number(h.total) - spAll, 0) : 0;
+    return sum + sp + rest;
+  }, 0);
   const sheetOrder = mine.find((o) => o.id === sheet) || null;
   const activeOnWay = mine.find((o) => o.status === 'on_the_way') || null;
 
@@ -319,6 +397,7 @@ export default function CourierApp() {
     return (
       <article className={`cr-card mine${onWay ? ' onway' : ''}`}>
         <div className="cr-card-top">
+          {seq[o.id] != null && <span className="cr-seq" title="Önerilen teslimat sırası">{seq[o.id]}</span>}
           <b>#{o.order_no}</b>
           <span className={`st ${o.status}`}>{ORDER_STATUS_LABELS[o.status]}</span>
           <span className="muted small">{hhmm(o.created_at)}</span>
@@ -350,10 +429,19 @@ export default function CourierApp() {
         <div className={`cr-cash${cash.due ? ' due' : ''}`}><Icon name={cash.icon} size={18} /> {cash.text}</div>
 
         <div className="cr-actions">
+          <button type="button" className="btn gold" onClick={() => setDetailId(o.id)}><Icon name="clipboard" size={17} /> Detay · Hesap</button>
           <button type="button" className="btn dark" onClick={() => setSheet(o.id)}><Icon name="map" size={17} /> Haritada göster</button>
           <a className="btn ghost" href={mapsDirUrl(d, track.position)} target="_blank" rel="noreferrer"><Icon name="navigation" size={17} /> Google Haritalar</a>
           {o.customer_phone && <a className="btn ghost" href={`tel:${o.customer_phone}`}><Icon name="phone" size={17} /> Ara</a>}
         </div>
+
+        {['assigned', 'on_the_way'].includes(o.status) && (
+          <div className="cr-note" aria-label="Yöneticiye not">
+            {['Müşteriye ulaşamadım', 'Adres bulunamadı', 'Kapıda bekliyorum', 'Zil çalışmıyor'].map((t) => (
+              <button key={t} type="button" className={notes[o.id] === t ? 'on' : ''} onClick={() => saveNote(o, t)}>{t}</button>
+            ))}
+          </div>
+        )}
 
         {o.status === 'assigned' && (
           <button type="button" className="btn gold lg block" disabled={busy === o.id} onClick={() => startDelivery(o)}>
@@ -375,6 +463,7 @@ export default function CourierApp() {
   return (
     <div className="cr-app">
       <AlertHost storageKey="yz_alert_courier" />
+      <OrderDetailSheet orderId={detailId} customerName={mine.find((o) => o.id === detailId)?.customer_name} onClose={() => setDetailId(null)} />
       <ConfirmationModal
         open={exitAsk}
         onClose={() => !signingOut && setExitAsk(false)}
@@ -395,6 +484,11 @@ export default function CourierApp() {
         <ThemeToggle />
         <button type="button" className="icon-btn cr-out" onClick={() => setExitAsk(true)} aria-label="Çıkış"><Icon name="logout" size={18} /></button>
       </header>
+
+      {offline && <div className="cr-warn" role="alert">📵 İnternet bağlantısı yok — konum ve sipariş güncellemeleri bağlantı gelince devam eder.</div>}
+      {battery && battery.level <= 15 && !battery.charging && <div className="cr-warn" role="alert">🔋 Pil %{battery.level} — şarja takın, konum paylaşımı kesilebilir.</div>}
+      {online && (track.status === 'denied' || track.status === 'unsupported') && <div className="cr-warn" role="alert">📍 Konum izni kapalı — tarayıcı ayarlarından konuma izin verin, yoksa müşteri sizi haritada göremez.</div>}
+      {mine.length > 1 && Object.keys(seq).length > 1 && <div className="cr-warn info">🧭 Önerilen sıra rakamlarla gösterildi (en yakın adresten başlar).</div>}
 
       {/* Karşılama + bugünün özeti */}
       <section className="cr-hero">
@@ -487,6 +581,32 @@ export default function CourierApp() {
               <div><b>{history.length}</b><small>Son teslimatlar</small></div>
               <div><b>{tl(todayCash)}</b><small>Bugün tahsilat</small></div>
             </div>
+            <section className="cr-eod">
+              <h3>🧾 Gün sonu kasası</h3>
+              {(() => {
+                // Ayrı ödeme kaydı olan siparişte yönteme göre kayıt, kalan ise siparişin ana yöntemine yazılır
+                const tot: Record<string, number> = { cash_on_delivery: 0, card_on_delivery: 0, iban: 0, other: 0 };
+                todayHist.forEach((h) => {
+                  const rows = splitRows.filter((r) => r.order_id === h.id);
+                  const sp = rows.reduce((a, r) => a + Number(r.amount), 0);
+                  rows.forEach((r) => (tot[r.method] = (tot[r.method] || 0) + Number(r.amount)));
+                  const rest = Math.max(Number(h.total) - sp, 0);
+                  const k = ['cash_on_delivery', 'card_on_delivery', 'iban'].includes(h.payment_method) ? h.payment_method : 'other';
+                  tot[k] += rest;
+                });
+                const cash = tot.cash_on_delivery;
+                const card = tot.card_on_delivery;
+                const paid = tot.iban + tot.other;
+                return (
+                  <>
+                    <div className="dash-row"><span>💵 Kasaya teslim edeceğim nakit</span><b>{tl(cash)}</b></div>
+                    <div className="dash-row"><span>💳 Kapıda kart</span><b>{tl(card)}</b></div>
+                    <div className="dash-row"><span>🏦 IBAN / önceden ödenmiş</span><b>{tl(Math.max(paid, 0))}</b></div>
+                    <div className="dash-row"><span>🛵 Bugünkü teslimat</span><b>{todayHist.length}</b></div>
+                  </>
+                );
+              })()}
+            </section>
             <div className="cr-sec-title">Teslim ettiğim siparişler</div>
             {history.length === 0 && <div className="cr-empty"><Icon name="clock" size={38} /><p>Henüz teslim edilmiş sipariş yok.</p></div>}
             {history.map((h) => (

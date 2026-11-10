@@ -3646,3 +3646,85 @@ a, button, summary, [role='button'], label, select { touch-action: manipulation;
   .seo-cats { grid-template-columns: 1fr 1fr; }
 }
 @media (hover: none) { .btn:hover { transform: none; } }
+
+/* ---- v39 · müşteri ek özellikleri ---- */
+.os-actions { display: flex; gap: 0.6rem; justify-content: center; flex-wrap: wrap; }
+.install-box { display: contents; }
+.install-btn { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; }
+.install-help { margin: 0.2rem 0 0.5rem; max-width: 240px; }
+.tk-review { display: grid; gap: 0.4rem; }
+.tk-review-btns { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.tk-near { border-left-color: var(--success); font-weight: 700; animation: tkpulse 1.6s ease-in-out infinite; }
+@keyframes tkpulse { 50% { opacity: 0.6; } }
+
+/* ---- v39 · Admin panosu ---- */
+.late-banner { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; padding: 0.7rem 1rem; margin: 1rem 0; border-radius: 12px; border: 1px solid var(--danger); background: var(--danger-bg); animation: tkpulse 2s ease-in-out infinite; }
+.late-banner span { flex: 1; min-width: 200px; font-size: 0.9rem; }
+.dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 0.8rem; margin: 1rem 0; }
+.dash-grid h3, .card h3 { margin: 0 0 0.5rem; font-size: 1rem; }
+.dash-row { display: flex; justify-content: space-between; gap: 0.6rem; padding: 0.3rem 0; border-bottom: 1px dashed var(--line); font-size: 0.9rem; }
+.dash-row:last-child { border-bottom: 0; }
+.hour-bars { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; height: 110px; align-items: end; }
+.hb { height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 2px; }
+.hb i { width: 100%; min-height: 2px; border-radius: 3px 3px 0 0; background: var(--gold-grad); }
+.hb small { font-size: 0.6rem; color: var(--text-muted); height: 10px; }
+.sh .sh-row { margin-bottom: 0.7rem; }
+.sh-top { display: flex; justify-content: space-between; gap: 0.6rem; font-size: 0.85rem; margin-bottom: 0.25rem; flex-wrap: wrap; }
+.sh-fill.warn { background: #f59e0b; }
+.sh-fill.bad { background: var(--danger); }
+.sh-tables { list-style: none; padding: 0; margin: 0.4rem 0; display: grid; gap: 0.25rem; font-size: 0.85rem; }
+.sh-tables li { display: flex; justify-content: space-between; gap: 0.6rem; }
+.sh, .heat, .dash-solo { margin: 0.8rem 0; padding: 1rem; }
+.heat-head { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.heat-head h2 { margin: 0; }
+.heat-bars { display: grid; gap: 0.35rem; }
+.heat-row { display: grid; grid-template-columns: minmax(90px, 140px) 1fr auto; gap: 0.6rem; align-items: center; font-size: 0.85rem; }
+@media (max-width: 560px) { .heat-row { grid-template-columns: 1fr; gap: 0.15rem; } }
+.cr-note { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.5rem; }
+.cr-note button { padding: 0.45rem 0.7rem; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface); color: inherit; font: inherit; font-size: 0.82rem; min-height: 38px; }
+.cr-note button.on { background: var(--gold-grad); color: #14110c; border-color: transparent; font-weight: 700; }
+.cr-warn { display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 0.8rem; border-radius: 10px; margin: 0.5rem 0; font-size: 0.88rem; border: 1px solid var(--danger); background: var(--danger-bg); }
+.cr-warn.info { border-color: var(--gold); background: transparent; }
+.cr-seq { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--gold-grad); color: #14110c; font-weight: 800; font-size: 0.8rem; }
+.cr-eod { padding: 0.9rem 1rem; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); margin-bottom: 0.8rem; }
+.cr-eod h3 { margin: 0 0 0.4rem; font-size: 1rem; }
+
+/* ---- v40 · Kurye sipariş detayı / ayrı ödeme ---- */
+.osd-hint { margin: 0 0 0.6rem; }
+.osd-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+.osd-line { width: 100%; display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 0.5rem; text-align: left; padding: 0.7rem 0.8rem; min-height: 52px; border-radius: 12px; border: 2px solid var(--line); background: var(--surface); color: inherit; font: inherit; cursor: pointer; }
+.osd-line.on { border-color: var(--gold); background: var(--gold-bg); }
+.osd-line.paid { opacity: 0.6; border-style: dashed; cursor: default; }
+.osd-chk { font-size: 1.3rem; line-height: 1; text-align: center; }
+.osd-name { display: grid; gap: 0.1rem; font-weight: 600; }
+.osd-name em { font-style: normal; font-weight: 400; font-size: 0.78rem; color: var(--text-muted); }
+.osd-name .osd-by { color: var(--success); font-weight: 700; }
+.osd-line b { font-size: 1.05rem; white-space: nowrap; }
+.osd-line b.neg { color: var(--success); }
+.osd-sum { margin: 0.8rem 0; padding: 0.7rem 0.9rem; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); display: grid; gap: 0.25rem; }
+.osd-sum > div { display: flex; justify-content: space-between; gap: 0.6rem; }
+.osd-sum .tot { font-size: 1.1rem; border-top: 1px dashed var(--line-strong); padding-top: 0.3rem; margin-top: 0.2rem; }
+.osd-sum .ok b { color: var(--success); }
+.osd-sum .rem { font-size: 1.25rem; font-weight: 800; }
+.osd-sum .rem.done b { color: var(--success); }
+.osd-pay { display: grid; gap: 0.6rem; padding: 0.8rem; border-radius: 14px; border: 2px solid var(--gold); background: var(--surface); }
+.osd-pay-top { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.osd-method { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4rem; }
+.osd-method button { padding: 0.75rem 0.3rem; min-height: 50px; border-radius: 12px; border: 2px solid var(--line-strong); background: var(--surface); color: inherit; font: inherit; font-weight: 700; cursor: pointer; }
+.osd-method button.on { background: var(--gold-grad); color: #14110c; border-color: transparent; }
+.osd-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+@media (max-width: 420px) { .osd-fields { grid-template-columns: 1fr; } }
+.osd-done { margin-top: 0.8rem; display: grid; gap: 0.35rem; }
+.osd-done h3 { margin: 0; font-size: 1rem; }
+.osd-g { display: grid; grid-template-columns: 1fr auto auto; gap: 0.6rem; align-items: center; padding: 0.5rem 0.7rem; border-radius: 10px; background: var(--success-bg); border: 1px solid var(--success); }
+.osd-bym { display: flex; gap: 0.8rem; flex-wrap: wrap; font-weight: 700; }
+
+/* ---- v40 · Zil ikonu gizle/göster + kendi zil sesi ---- */
+.alert-tab { position: fixed; right: 0; bottom: 20px; z-index: 250; padding: 0.55rem 0.5rem 0.55rem 0.7rem; border: 2px solid var(--gold); border-right: 0; border-radius: 14px 0 0 14px; background: #14110c; color: #fff; font-size: 0.95rem; cursor: pointer; opacity: 0.75; box-shadow: 0 6px 16px rgba(0,0,0,0.4); }
+.alert-tab:hover, .alert-tab:focus-visible { opacity: 1; }
+.alert-fab { bottom: calc(16px + env(safe-area-inset-bottom)); right: calc(14px + env(safe-area-inset-right)); }
+.ringtone-up { display: grid; gap: 0.35rem; }
+.ringtone-btns { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.cr-app .alert-fab { bottom: calc(84px + env(safe-area-inset-bottom)); }
+.cr-app .alert-tab { bottom: calc(92px + env(safe-area-inset-bottom)); }
+.cr-app .alert-unlock { bottom: calc(150px + env(safe-area-inset-bottom)); }

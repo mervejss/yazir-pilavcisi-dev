@@ -64,6 +64,7 @@ export default function MenuAdmin() {
   const [editor, setEditor] = useState<{ mode: 'create' | 'edit'; product: AdminProduct | null } | null>(null);
   const [catModal, setCatModal] = useState(false);
   const [qrModal, setQrModal] = useState(false);
+  const [qrTarget, setQrTarget] = useState<'menu' | 'linktree'>('menu');
   const [priceModal, setPriceModal] = useState(false);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
@@ -154,21 +155,21 @@ export default function MenuAdmin() {
   const groups = useMemo(() => {
     if (!grouped) return [{ id: 'flat', name: '', items: filtered }];
     return [...categories]
-      .sort((a, b) => a.sort_order - b.sort_order)
-      .map((c) => ({ id: c.id, name: c.name, items: filtered.filter((p) => p.category_id === c.id) }))
-      .filter((g) => g.items.length > 0);
+        .sort((a, b) => a.sort_order - b.sort_order)
+        .map((c) => ({ id: c.id, name: c.name, items: filtered.filter((p) => p.category_id === c.id) }))
+        .filter((g) => g.items.length > 0);
   }, [grouped, filtered, categories]);
 
   const selectedProducts = products.filter((p) => selected.has(p.id));
   const allVisibleSelected = filtered.length > 0 && filtered.every((p) => selected.has(p.id));
 
   const toggleSelect = (id: string) =>
-    setSelected((s) => {
-      const n = new Set(s);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
-    });
+      setSelected((s) => {
+        const n = new Set(s);
+        if (n.has(id)) n.delete(id);
+        else n.add(id);
+        return n;
+      });
 
   /* ------------------------------------------------------------------ */
   /* Tek ürün işlemleri                                                  */
@@ -206,7 +207,7 @@ export default function MenuAdmin() {
     [list[i], list[j]] = [list[j], list[i]];
     try {
       await Promise.all(
-        list.map((x, idx) => (x.sort_order !== idx + 1 ? supabase.from('products').update({ sort_order: idx + 1 }).eq('id', x.id) : null)),
+          list.map((x, idx) => (x.sort_order !== idx + 1 ? supabase.from('products').update({ sort_order: idx + 1 }).eq('id', x.id) : null)),
       );
       refetch();
     } catch (err) {
@@ -220,29 +221,29 @@ export default function MenuAdmin() {
       const slug = `${slugify(p.name) || 'urun'}-kopya-${randId(4)}`;
       const inCat = products.filter((x) => x.category_id === p.category_id);
       const { data, error } = await supabase
-        .from('products')
-        .insert({
-          name: `${p.name} (Kopya)`,
-          slug,
-          category_id: p.category_id,
-          description: p.description,
-          emoji: p.emoji,
-          kcal: p.kcal,
-          protein_g: p.protein_g,
-          carb_g: p.carb_g,
-          is_daily: p.is_daily,
-          is_active: false, // kopya gizli başlar; düzenleyip yayınlayın
-          is_sold_out: false,
-          sort_order: inCat.length ? Math.max(...inCat.map((x) => x.sort_order)) + 1 : 1,
-        })
-        .select('id')
-        .single();
+          .from('products')
+          .insert({
+            name: `${p.name} (Kopya)`,
+            slug,
+            category_id: p.category_id,
+            description: p.description,
+            emoji: p.emoji,
+            kcal: p.kcal,
+            protein_g: p.protein_g,
+            carb_g: p.carb_g,
+            is_daily: p.is_daily,
+            is_active: false,
+            is_sold_out: false,
+            sort_order: inCat.length ? Math.max(...inCat.map((x) => x.sort_order)) + 1 : 1,
+          })
+          .select('id')
+          .single();
       if (error) throw error;
       const newId = (data as any).id as string;
 
       if (p.variants.length) {
         const { error: vErr } = await supabase.from('product_variants').insert(
-          p.variants.map((v, i) => ({ product_id: newId, name: v.name, price: v.price, is_active: v.is_active, sort_order: i + 1 })),
+            p.variants.map((v, i) => ({ product_id: newId, name: v.name, price: v.price, is_active: v.is_active, sort_order: i + 1 })),
         );
         if (vErr) throw vErr;
       }
@@ -267,26 +268,26 @@ export default function MenuAdmin() {
       message: `"${p.name}" ürününü ve tüm porsiyon/fiyatlarını kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`,
       label: 'Evet, ürünü sil',
       body: (
-        <div className="mx-del-body">
-          <ProductImage imagePath={p.image_path} emoji={p.emoji} name={p.name} size="md" />
-          <div>
-            <b>{p.name}</b>
-            <small>{p.categoryName} · {tl(minPrice(p))}</small>
-            {p.is_active && (
-              <button
-                type="button"
-                className="btn ghost sm"
-                style={{ marginTop: '0.4rem' }}
-                onClick={async () => {
-                  setConfirm(null);
-                  if (p.is_active) await toggleActive(p);
-                }}
-              >
-                Silmek yerine menüden gizle
-              </button>
-            )}
+          <div className="mx-del-body">
+            <ProductImage imagePath={p.image_path} emoji={p.emoji} name={p.name} size="md" />
+            <div>
+              <b>{p.name}</b>
+              <small>{p.categoryName} · {tl(minPrice(p))}</small>
+              {p.is_active && (
+                  <button
+                      type="button"
+                      className="btn ghost sm"
+                      style={{ marginTop: '0.4rem' }}
+                      onClick={async () => {
+                        setConfirm(null);
+                        if (p.is_active) await toggleActive(p);
+                      }}
+                  >
+                    Silmek yerine menüden gizle
+                  </button>
+              )}
+            </div>
           </div>
-        </div>
       ),
       run: async () => {
         await removeFromBucket(PRODUCT_BUCKET, p.image_path);
@@ -340,9 +341,9 @@ export default function MenuAdmin() {
       message: `"${p.name}" ürününün fotoğrafı silinecek; yerine emoji gösterilecek.`,
       label: 'Evet, kaldır',
       body: (
-        <div className="mx-del-body">
-          <ProductImage imagePath={p.image_path} emoji={p.emoji} name={p.name} size="lg" />
-        </div>
+          <div className="mx-del-body">
+            <ProductImage imagePath={p.image_path} emoji={p.emoji} name={p.name} size="lg" />
+          </div>
       ),
       run: async () => {
         const { error } = await supabase.from('products').update({ image_path: null }).eq('id', p.id);
@@ -398,12 +399,12 @@ export default function MenuAdmin() {
       message: 'Seçili ürünler ve porsiyonları kalıcı olarak silinecek. Bu işlem geri alınamaz.',
       label: `Evet, ${list.length} ürünü sil`,
       body: (
-        <ul className="mx-del-list">
-          {list.slice(0, 8).map((p) => (
-            <li key={p.id}>{p.emoji || '🍽️'} {p.name}</li>
-          ))}
-          {list.length > 8 && <li>… ve {list.length - 8} ürün daha</li>}
-        </ul>
+          <ul className="mx-del-list">
+            {list.slice(0, 8).map((p) => (
+                <li key={p.id}>{p.emoji || '🍽️'} {p.name}</li>
+            ))}
+            {list.length > 8 && <li>… ve {list.length - 8} ürün daha</li>}
+          </ul>
       ),
       run: async () => {
         for (const p of list) await removeFromBucket(PRODUCT_BUCKET, p.image_path);
@@ -425,7 +426,7 @@ export default function MenuAdmin() {
   const [priceBusy, setPriceBusy] = useState(false);
 
   const priceTargets =
-    priceScope === 'selected' ? selectedProducts : priceScope === 'filtered' ? filtered : products;
+      priceScope === 'selected' ? selectedProducts : priceScope === 'filtered' ? filtered : products;
 
   const newPrice = (old: number) => {
     const raw = old * (1 + Number(pricePct || 0) / 100);
@@ -463,7 +464,7 @@ export default function MenuAdmin() {
     filtered.forEach((p) => {
       const durum = !p.is_active ? 'Gizli' : p.is_sold_out ? 'Tükendi' : 'Satışta';
       (p.variants.length ? p.variants : [{ name: '', price: '' } as any]).forEach((v: any) =>
-        rows.push([p.categoryName, p.name, p.description, v.name, v.price, p.kcal, p.protein_g, p.carb_g, durum]),
+          rows.push([p.categoryName, p.name, p.description, v.name, v.price, p.kcal, p.protein_g, p.carb_g, durum]),
       );
     });
     const csv = '\ufeff' + rows.map((r) => r.map(esc).join(';')).join('\r\n');
@@ -477,21 +478,22 @@ export default function MenuAdmin() {
   /* ------------------------------------------------------------------ */
   /* QR                                                                  */
   /* ------------------------------------------------------------------ */
-  const menuUrl = window.location.origin + '/menu';
+  const targetUrl = qrTarget === 'linktree' ? 'https://linktr.ee/yazirpilavcisi' : window.location.origin + '/menu';
   const [qrPng, setQrPng] = useState('');
   useEffect(() => {
     if (!qrModal) return;
-    QRCode.toDataURL(menuUrl, { width: 640, margin: 2 }, (err, url) => {
+    setQrPng('');
+    QRCode.toDataURL(targetUrl, { width: 640, margin: 2 }, (err, url) => {
       if (!err && url) setQrPng(url);
     });
-  }, [qrModal, menuUrl]);
+  }, [qrModal, targetUrl]);
 
   const downloadQrSvg = () => {
-    QRCode.toString(menuUrl, { type: 'svg', margin: 2 }, (err, svg) => {
+    QRCode.toString(targetUrl, { type: 'svg', margin: 2 }, (err, svg) => {
       if (err || !svg) return;
       const a = document.createElement('a');
       a.href = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
-      a.download = 'menu-qr.svg';
+      a.download = qrTarget === 'linktree' ? 'linktree-qr.svg' : 'menu-qr.svg';
       a.click();
     });
   };
@@ -500,615 +502,622 @@ export default function MenuAdmin() {
   /* Görünüm parçaları                                                   */
   /* ------------------------------------------------------------------ */
   const StatusBadges = ({ p }: { p: AdminProduct }) => (
-    <>
-      {!p.is_active && <span className="mx-badge hid">Gizli</span>}
-      {p.is_active && p.is_sold_out && <span className="mx-badge out">Tükendi</span>}
-      {p.is_daily && <span className="mx-badge daily">Günlük</span>}
-    </>
+      <>
+        {!p.is_active && <span className="mx-badge hid">Gizli</span>}
+        {p.is_active && p.is_sold_out && <span className="mx-badge out">Tükendi</span>}
+        {p.is_daily && <span className="mx-badge daily">Günlük</span>}
+      </>
   );
 
   const PriceInputs = ({ p }: { p: AdminProduct }) => (
-    <div className="mx-prices">
-      {p.variants.map((v) => (
-        <label key={v.id} className={`mx-price${v.is_active ? '' : ' off'}`} title={v.is_active ? v.name : `${v.name} (pasif)`}>
-          <span>{v.name}</span>
-          <input
-            key={`${v.id}-${v.price}`}
-            type="number"
-            min={0}
-            step="0.5"
-            defaultValue={v.price}
-            onBlur={(e) => updatePrice(v.id, Number(v.price), e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-          />
-          <i>₺</i>
-        </label>
-      ))}
-      {p.variants.length === 0 && <small className="muted">Porsiyon yok — Düzenle'den ekleyin</small>}
-    </div>
+      <div className="mx-prices">
+        {p.variants.map((v) => (
+            <label key={v.id} className={`mx-price${v.is_active ? '' : ' off'}`} title={v.is_active ? v.name : `${v.name} (pasif)`}>
+              <span>{v.name}</span>
+              <input
+                  key={`${v.id}-${v.price}`}
+                  type="number"
+                  min={0}
+                  step="0.5"
+                  defaultValue={v.price}
+                  onBlur={(e) => updatePrice(v.id, Number(v.price), e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+              />
+              <i>₺</i>
+            </label>
+        ))}
+        {p.variants.length === 0 && <small className="muted">Porsiyon yok — Düzenle'den ekleyin</small>}
+      </div>
   );
 
   const OrderBox = ({ p }: { p: AdminProduct }) => (
-    <div className="mx-order" title={sort === 'manual' ? 'Kategori içi sıralama' : 'Sıralamak için "Sıralama: Manuel" seçin'}>
-      <button type="button" onClick={() => moveOrder(p, -1)} disabled={sort !== 'manual'} aria-label="Yukarı taşı">
-        ▲
-      </button>
-      <b>{p.sort_order}</b>
-      <button type="button" onClick={() => moveOrder(p, 1)} disabled={sort !== 'manual'} aria-label="Aşağı taşı">
-        ▼
-      </button>
-    </div>
+      <div className="mx-order" title={sort === 'manual' ? 'Kategori içi sıralama' : 'Sıralamak için "Sıralama: Manuel" seçin'}>
+        <button type="button" onClick={() => moveOrder(p, -1)} disabled={sort !== 'manual'} aria-label="Yukarı taşı">
+          ▲
+        </button>
+        <b>{p.sort_order}</b>
+        <button type="button" onClick={() => moveOrder(p, 1)} disabled={sort !== 'manual'} aria-label="Aşağı taşı">
+          ▼
+        </button>
+      </div>
   );
 
   const renderCard = (p: AdminProduct) => {
     const sel = selected.has(p.id);
     return (
-      <article key={p.id} className={`mx-card${p.is_sold_out ? ' out' : ''}${!p.is_active ? ' hidden' : ''}${sel ? ' sel' : ''}`}>
-        <div className="mx-media">
-          <button type="button" className="mx-img" onClick={() => openLightbox(p)} aria-label={`${p.name} fotoğrafını incele`}>
-            <ProductImage imagePath={p.image_path} emoji={p.emoji} name={p.name} />
-            <span className="mx-zoom">{p.image_path ? '🔍 İncele' : '📷 Fotoğraf ekle'}</span>
-          </button>
-          <label className="mx-check" title="Seç">
-            <input type="checkbox" checked={sel} onChange={() => toggleSelect(p.id)} />
-          </label>
-          <div className="mx-badges">
-            {StatusBadges({ p })}
-          </div>
-          <div className="mx-photo-actions">
-            <button type="button" onClick={() => pickPhotoFor(p)} title="Fotoğraf yükle / değiştir" aria-label="Fotoğraf yükle">
-              📷
+        <article key={p.id} className={`mx-card${p.is_sold_out ? ' out' : ''}${!p.is_active ? ' hidden' : ''}${sel ? ' sel' : ''}`}>
+          <div className="mx-media">
+            <button type="button" className="mx-img" onClick={() => openLightbox(p)} aria-label={`${p.name} fotoğrafını incele`}>
+              <ProductImage imagePath={p.image_path} emoji={p.emoji} name={p.name} />
+              <span className="mx-zoom">{p.image_path ? '🔍 İncele' : '📷 Fotoğraf ekle'}</span>
             </button>
-            {p.image_path && (
-              <>
-                <button type="button" onClick={() => setStudio({ product: p, source: { url: productImageUrl(p.image_path) } })} title="Düzenle / kırp / boyutlandır" aria-label="Fotoğrafı düzenle">
-                  ✂️
-                </button>
-                <button type="button" className="danger" onClick={() => askRemovePhoto(p)} title="Fotoğrafı kaldır" aria-label="Fotoğrafı kaldır">
-                  ✕
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className="mx-body">
-          <div className="mx-cat">{p.categoryName}</div>
-          <h3 title={p.name}>{p.name}</h3>
-          <p className="mx-desc">{p.description || <em>Açıklama yok</em>}</p>
-          <div className="mx-macros">
-            <span>🔥 {p.kcal} kcal</span>
-            <span>💪 {p.protein_g} g</span>
-            <span>🌾 {p.carb_g} g</span>
-          </div>
-          {PriceInputs({ p })}
-          <div className="mx-switches">
-            <div>
-              <span>Satışta</span>
-              <Switch checked={!p.is_sold_out} onChange={() => toggleSoldOut(p)} label={p.is_sold_out ? 'Tükendi' : 'Satışta'} />
+            <label className="mx-check" title="Seç">
+              <input type="checkbox" checked={sel} onChange={() => toggleSelect(p.id)} />
+            </label>
+            <div className="mx-badges">
+              {StatusBadges({ p })}
             </div>
-            <div>
-              <span>Yayında</span>
-              <Switch checked={p.is_active} onChange={() => toggleActive(p)} label={p.is_active ? 'Yayında' : 'Gizli'} />
+            <div className="mx-photo-actions">
+              <button type="button" onClick={() => pickPhotoFor(p)} title="Fotoğraf yükle / değiştir" aria-label="Fotoğraf yükle">
+                📷
+              </button>
+              {p.image_path && (
+                  <>
+                    <button type="button" onClick={() => setStudio({ product: p, source: { url: productImageUrl(p.image_path) } })} title="Düzenle / kırp / boyutlandır" aria-label="Fotoğrafı düzenle">
+                      ✂️
+                    </button>
+                    <button type="button" className="danger" onClick={() => askRemovePhoto(p)} title="Fotoğrafı kaldır" aria-label="Fotoğrafı kaldır">
+                      ✕
+                    </button>
+                  </>
+              )}
             </div>
           </div>
-        </div>
 
-        <div className="mx-foot">
-          {OrderBox({ p })}
-          <button type="button" className="btn ghost sm" onClick={() => setEditor({ mode: 'edit', product: p })}>
-            ✏️ Düzenle
-          </button>
-          <button type="button" className="btn ghost sm" onClick={() => duplicateProduct(p)} title="Ürünü çoğalt">
-            📄 Çoğalt
-          </button>
-          <button type="button" className="btn ghost sm danger-txt" onClick={() => askDeleteProduct(p)} title="Ürünü sil" aria-label="Ürünü sil">
-            🗑️
-          </button>
-        </div>
-      </article>
+          <div className="mx-body">
+            <div className="mx-cat">{p.categoryName}</div>
+            <h3 title={p.name}>{p.name}</h3>
+            <p className="mx-desc">{p.description || <em>Açıklama yok</em>}</p>
+            <div className="mx-macros">
+              <span>🔥 {p.kcal} kcal</span>
+              <span>💪 {p.protein_g} g</span>
+              <span>🌾 {p.carb_g} g</span>
+            </div>
+            {PriceInputs({ p })}
+            <div className="mx-switches">
+              <div>
+                <span>Satışta</span>
+                <Switch checked={!p.is_sold_out} onChange={() => toggleSoldOut(p)} label={p.is_sold_out ? 'Tükendi' : 'Satışta'} />
+              </div>
+              <div>
+                <span>Yayında</span>
+                <Switch checked={p.is_active} onChange={() => toggleActive(p)} label={p.is_active ? 'Yayında' : 'Gizli'} />
+              </div>
+            </div>
+          </div>
+
+          <div className="mx-foot">
+            {OrderBox({ p })}
+            <button type="button" className="btn ghost sm" onClick={() => setEditor({ mode: 'edit', product: p })}>
+              ✏️ Düzenle
+            </button>
+            <button type="button" className="btn ghost sm" onClick={() => duplicateProduct(p)} title="Ürünü çoğalt">
+              📄 Çoğalt
+            </button>
+            <button type="button" className="btn ghost sm danger-txt" onClick={() => askDeleteProduct(p)} title="Ürünü sil" aria-label="Ürünü sil">
+              🗑️
+            </button>
+          </div>
+        </article>
     );
   };
 
   const renderRow = (p: AdminProduct) => {
     const sel = selected.has(p.id);
     return (
-      <div key={p.id} className={`mx-row${p.is_sold_out ? ' out' : ''}${!p.is_active ? ' hidden' : ''}${sel ? ' sel' : ''}`}>
-        <label className="mx-check inline">
-          <input type="checkbox" checked={sel} onChange={() => toggleSelect(p.id)} />
-        </label>
-        {OrderBox({ p })}
-        <button type="button" className="mx-thumb" onClick={() => openLightbox(p)} aria-label="Fotoğrafı incele">
-          <ProductImage imagePath={p.image_path} emoji={p.emoji} name={p.name} />
-        </button>
-        <div className="mx-info">
-          <div className="mx-info-top">
-            <b>{p.name}</b>
-            {StatusBadges({ p })}
+        <div key={p.id} className={`mx-row${p.is_sold_out ? ' out' : ''}${!p.is_active ? ' hidden' : ''}${sel ? ' sel' : ''}`}>
+          <label className="mx-check inline">
+            <input type="checkbox" checked={sel} onChange={() => toggleSelect(p.id)} />
+          </label>
+          {OrderBox({ p })}
+          <button type="button" className="mx-thumb" onClick={() => openLightbox(p)} aria-label="Fotoğrafı incele">
+            <ProductImage imagePath={p.image_path} emoji={p.emoji} name={p.name} />
+          </button>
+          <div className="mx-info">
+            <div className="mx-info-top">
+              <b>{p.name}</b>
+              {StatusBadges({ p })}
+            </div>
+            <small className="muted">{p.categoryName} · 🔥 {p.kcal} kcal · 💪 {p.protein_g} g · 🌾 {p.carb_g} g</small>
+            {p.description && <small className="mx-rowdesc">{p.description}</small>}
           </div>
-          <small className="muted">{p.categoryName} · 🔥 {p.kcal} kcal · 💪 {p.protein_g} g · 🌾 {p.carb_g} g</small>
-          {p.description && <small className="mx-rowdesc">{p.description}</small>}
-        </div>
-        {PriceInputs({ p })}
-        <div className="mx-row-sw">
-          <div>
-            <small>Satışta</small>
-            <Switch checked={!p.is_sold_out} onChange={() => toggleSoldOut(p)} label="Satışta" />
+          {PriceInputs({ p })}
+          <div className="mx-row-sw">
+            <div>
+              <small>Satışta</small>
+              <Switch checked={!p.is_sold_out} onChange={() => toggleSoldOut(p)} label="Satışta" />
+            </div>
+            <div>
+              <small>Yayında</small>
+              <Switch checked={p.is_active} onChange={() => toggleActive(p)} label="Yayında" />
+            </div>
           </div>
-          <div>
-            <small>Yayında</small>
-            <Switch checked={p.is_active} onChange={() => toggleActive(p)} label="Yayında" />
+          <div className="mx-row-actions">
+            <button type="button" className="btn ghost sm" onClick={() => setEditor({ mode: 'edit', product: p })}>
+              ✏️ Düzenle
+            </button>
+            <button type="button" className="btn ghost sm" onClick={() => pickPhotoFor(p)} title="Fotoğraf yükle / değiştir">
+              📷
+            </button>
+            <button type="button" className="btn ghost sm" onClick={() => duplicateProduct(p)} title="Çoğalt">
+              📄
+            </button>
+            <button type="button" className="btn ghost sm danger-txt" onClick={() => askDeleteProduct(p)} title="Sil">
+              🗑️
+            </button>
           </div>
         </div>
-        <div className="mx-row-actions">
-          <button type="button" className="btn ghost sm" onClick={() => setEditor({ mode: 'edit', product: p })}>
-            ✏️ Düzenle
-          </button>
-          <button type="button" className="btn ghost sm" onClick={() => pickPhotoFor(p)} title="Fotoğraf yükle / değiştir">
-            📷
-          </button>
-          <button type="button" className="btn ghost sm" onClick={() => duplicateProduct(p)} title="Çoğalt">
-            📄
-          </button>
-          <button type="button" className="btn ghost sm danger-txt" onClick={() => askDeleteProduct(p)} title="Sil">
-            🗑️
-          </button>
-        </div>
-      </div>
     );
   };
 
   if (loading) return <p className="muted center">Menü yükleniyor...</p>;
 
   return (
-    <>
-      {/* Başlık + ana eylemler */}
-      <div className="bar mx-bar">
-        <div>
-          <h1>Menü Yönetimi</h1>
-          <p className="muted" style={{ margin: 0 }}>
-            Ürünler, fotoğraflar, fiyatlar ve kategoriler — değişiklikler anında müşteri menüsüne yansır
-          </p>
-        </div>
-        <div className="mx-bar-actions">
-          <button type="button" className="btn ghost sm" onClick={() => setQrModal(true)}>
-            🔳 QR Kod
-          </button>
-          <button type="button" className="btn ghost sm" onClick={exportCsv}>
-            ⬇ CSV
-          </button>
-          <button type="button" className="btn ghost sm" onClick={() => setPriceModal(true)}>
-            % Toplu Fiyat
-          </button>
-          <button type="button" className="btn ghost sm" onClick={() => setCatModal(true)}>
-            🗂️ Kategoriler
-          </button>
-          <button type="button" className="btn gold sm" onClick={() => setEditor({ mode: 'create', product: null })}>
-            + Yeni Ürün
-          </button>
-        </div>
-      </div>
-
-      {/* İstatistik kartları */}
-      <div className="ad-stats">
-        <button type="button" className={`ad-stat${status === 'all' ? ' on' : ''}`} onClick={() => setStatus('all')}>
-          <small>Toplam ürün</small>
-          <b>{stats.total}</b>
-          <span>{stats.cats} kategori</span>
-        </button>
-        <button type="button" className={`ad-stat ok${status === 'on' ? ' on' : ''}`} onClick={() => setStatus('on')}>
-          <small>Satışta</small>
-          <b>{stats.onSale}</b>
-          <span>müşteri sipariş verebilir</span>
-        </button>
-        <button type="button" className={`ad-stat warn${status === 'out' ? ' on' : ''}`} onClick={() => setStatus('out')}>
-          <small>Tükendi</small>
-          <b>{stats.out}</b>
-          <span>görünür ama alınamaz</span>
-        </button>
-        <button type="button" className={`ad-stat mute${status === 'hidden' ? ' on' : ''}`} onClick={() => setStatus('hidden')}>
-          <small>Gizli</small>
-          <b>{stats.hidden}</b>
-          <span>menüde görünmüyor</span>
-        </button>
-        <button type="button" className={`ad-stat bad${status === 'nophoto' ? ' on' : ''}`} onClick={() => setStatus('nophoto')}>
-          <small>Fotoğrafsız</small>
-          <b>{stats.noPhoto}</b>
-          <span>emoji gösteriliyor</span>
-        </button>
-        <div className="ad-stat static">
-          <small>Ort. fiyat</small>
-          <b>{tl(stats.avg)}</b>
-          <span>başlangıç fiyatları</span>
-        </div>
-      </div>
-
-      {/* Araç çubuğu */}
-      <div className="ad-toolbar">
-        <div className="ad-search">
-          <span aria-hidden="true">🔍</span>
-          <input
-            type="search"
-            placeholder="Ürün, açıklama veya kategori ara…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            aria-label="Menüde ara"
-          />
-          {search && (
-            <button type="button" onClick={() => setSearch('')} aria-label="Aramayı temizle">
-              ✕
-            </button>
-          )}
-        </div>
-        <label className="ad-select">
-          <span>Durum</span>
-          <select value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)}>
-            {(Object.keys(STATUS_LABEL) as StatusFilter[]).map((k) => (
-              <option key={k} value={k}>
-                {STATUS_LABEL[k]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="ad-select">
-          <span>Sıralama</span>
-          <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
-            <option value="manual">Manuel (kategori sırası)</option>
-            <option value="name">Ada göre (A→Z)</option>
-            <option value="price_asc">Fiyat (artan)</option>
-            <option value="price_desc">Fiyat (azalan)</option>
-            <option value="newest">En yeni eklenen</option>
-          </select>
-        </label>
-        <div className="ad-viewtoggle" role="group" aria-label="Görünüm">
-          <button type="button" className={view === 'grid' ? 'on' : ''} onClick={() => setView('grid')} title="Kart görünümü">
-            ▦ Kartlar
-          </button>
-          <button type="button" className={view === 'list' ? 'on' : ''} onClick={() => setView('list')} title="Liste görünümü">
-            ☰ Liste
-          </button>
-        </div>
-      </div>
-
-      {/* Kategori sekmeleri */}
-      <div className="ad-tabs" role="tablist">
-        <button type="button" role="tab" aria-selected={catTab === 'all'} className={catTab === 'all' ? 'on' : ''} onClick={() => setCatTab('all')}>
-          Tüm Ürünler <i>{products.length}</i>
-        </button>
-        {[...categories]
-          .sort((a, b) => a.sort_order - b.sort_order)
-          .map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              role="tab"
-              aria-selected={catTab === c.id}
-              className={`${catTab === c.id ? 'on' : ''}${c.is_active ? '' : ' off'}`}
-              onClick={() => setCatTab(c.id)}
-            >
-              {c.name} <i>{counts[c.id] || 0}</i>
-            </button>
-          ))}
-      </div>
-
-      {/* Toplu işlem çubuğu */}
-      {selected.size > 0 && (
-        <div className="ad-bulk" role="region" aria-label="Toplu işlemler">
-          <b>{selected.size} ürün seçildi</b>
-          <div className="ad-bulk-actions">
-            <button type="button" className="btn ghost sm" onClick={() => bulkUpdate({ is_sold_out: false }, 'satışa açıldı')}>
-              Satışa aç
-            </button>
-            <button type="button" className="btn ghost sm" onClick={() => bulkUpdate({ is_sold_out: true }, 'tükendi yapıldı')}>
-              Tükendi yap
-            </button>
-            <button type="button" className="btn ghost sm" onClick={() => bulkUpdate({ is_active: true }, 'yayına alındı')}>
-              Yayınla
-            </button>
-            <button type="button" className="btn ghost sm" onClick={() => bulkUpdate({ is_active: false }, 'gizlendi')}>
-              Gizle
-            </button>
-            <select
-              value=""
-              onChange={(e) => bulkMoveCategory(e.target.value)}
-              aria-label="Kategoriye taşı"
-            >
-              <option value="">Kategoriye taşı…</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-            <button type="button" className="btn ghost sm" onClick={() => { setPriceScope('selected'); setPriceModal(true); }}>
-              % Fiyat
-            </button>
-            <button type="button" className="btn ghost sm danger-txt" onClick={askBulkDelete}>
-              🗑️ Sil
-            </button>
+      <>
+        {/* Başlık + ana eylemler */}
+        <div className="bar mx-bar">
+          <div>
+            <h1>Menü Yönetimi</h1>
+            <p className="muted" style={{ margin: 0 }}>
+              Ürünler, fotoğraflar, fiyatlar ve kategoriler — değişiklikler anında müşteri menüsüne yansır
+            </p>
           </div>
-          <button type="button" className="btn ghost sm" onClick={() => setSelected(new Set())}>
-            Seçimi temizle
-          </button>
-        </div>
-      )}
-
-      {/* Liste */}
-      {filtered.length > 0 && (
-        <div className="ad-listhead">
-          <label className="mx-check inline">
-            <input
-              type="checkbox"
-              checked={allVisibleSelected}
-              onChange={() =>
-                setSelected((s) => {
-                  const n = new Set(s);
-                  if (allVisibleSelected) filtered.forEach((p) => n.delete(p.id));
-                  else filtered.forEach((p) => n.add(p.id));
-                  return n;
-                })
-              }
-            />
-            <span>Görünenleri seç</span>
-          </label>
-          <span className="muted small">
-            {filtered.length} ürün gösteriliyor{filtered.length !== products.length ? ` (toplam ${products.length})` : ''}
-          </span>
-        </div>
-      )}
-
-      {filtered.length === 0 ? (
-        <div className="ad-empty">
-          <div>🍽️</div>
-          <h3>Bu filtreye uygun ürün bulunamadı</h3>
-          <p className="muted">Filtreleri temizleyin ya da yeni bir ürün ekleyin.</p>
-          <div className="prow" style={{ justifyContent: 'center' }}>
-            <button
-              type="button"
-              className="btn ghost"
-              onClick={() => {
-                setSearch('');
-                setStatus('all');
-                setCatTab('all');
-              }}
-            >
-              Filtreleri temizle
+          <div className="mx-bar-actions">
+            <button type="button" className="btn ghost sm" onClick={() => { setQrTarget('linktree'); setQrModal(true); }}>
+              🌳 LİNKTREE QR KOD
             </button>
-            <button type="button" className="btn gold" onClick={() => setEditor({ mode: 'create', product: null })}>
+            <button type="button" className="btn ghost sm" onClick={() => { setQrTarget('menu'); setQrModal(true); }}>
+              🔳 QR KOD
+            </button>
+            <button type="button" className="btn ghost sm" onClick={exportCsv}>
+              ⬇ CSV
+            </button>
+            <button type="button" className="btn ghost sm" onClick={() => setPriceModal(true)}>
+              % Toplu Fiyat
+            </button>
+            <button type="button" className="btn ghost sm" onClick={() => setCatModal(true)}>
+              🗂️ Kategoriler
+            </button>
+            <button type="button" className="btn gold sm" onClick={() => setEditor({ mode: 'create', product: null })}>
               + Yeni Ürün
             </button>
           </div>
         </div>
-      ) : (
-        groups.map((g) => (
-          <section key={g.id} className="mx-group">
-            {grouped && (
-              <h2 className="mx-group-h">
-                {g.name} <i>{g.items.length}</i>
-              </h2>
-            )}
-            {view === 'grid' ? <div className="mx-grid">{g.items.map(renderCard)}</div> : <div className="mx-rows">{g.items.map(renderRow)}</div>}
-          </section>
-        ))
-      )}
 
-      {/* Gizli dosya seçici */}
-      <input ref={fileRef} type="file" hidden accept="image/jpeg,image/png,image/webp" onChange={onFilePicked} />
-
-      {/* Ürün ekle / düzenle */}
-      <ProductEditor
-        open={!!editor}
-        mode={editor?.mode || 'create'}
-        product={editor?.product || null}
-        categories={categories}
-        allProducts={products}
-        defaultCategoryId={catTab !== 'all' ? catTab : undefined}
-        onClose={() => setEditor(null)}
-        onSaved={refetch}
-        onDuplicate={duplicateProduct}
-        onDelete={askDeleteProduct}
-      />
-
-      {/* Kategoriler */}
-      <CategoryManagerModal open={catModal} onClose={() => setCatModal(false)} categories={categories} counts={counts} onChanged={refetch} />
-
-      {/* Görsel stüdyosu (kart üzerinden) */}
-      <ImageStudio
-        open={!!studio}
-        source={studio?.source || null}
-        title={studio?.product.name || ''}
-        defaultAspect="4:3"
-        saveLabel="Fotoğrafı Kaydet"
-        onClose={() => setStudio(null)}
-        onSave={saveStudio}
-      />
-
-      {/* Tam ekran görüntüleyici */}
-      <Lightbox
-        open={!!lightbox}
-        items={lbProducts.map((p) => ({
-          url: productImageUrl(p.image_path) || '',
-          title: p.name,
-          subtitle: `${p.categoryName} · ${tl(minPrice(p))}`,
-          filename: `${p.slug}.webp`,
-        }))}
-        index={lightbox?.index || 0}
-        onIndexChange={(i) => setLightbox((l) => (l ? { ...l, index: i } : l))}
-        onClose={() => setLightbox(null)}
-        actions={[
-          {
-            label: 'Düzenle / Kırp',
-            icon: '✂️',
-            primary: true,
-            onClick: (i) => {
-              const p = lbProducts[i];
-              setLightbox(null);
-              if (p) setStudio({ product: p, source: { url: productImageUrl(p.image_path) } });
-            },
-          },
-          {
-            label: 'Değiştir',
-            icon: '📷',
-            onClick: (i) => {
-              const p = lbProducts[i];
-              setLightbox(null);
-              if (p) pickPhotoFor(p);
-            },
-          },
-          {
-            label: 'Ürünü düzenle',
-            icon: '✏️',
-            onClick: (i) => {
-              const p = lbProducts[i];
-              setLightbox(null);
-              if (p) setEditor({ mode: 'edit', product: p });
-            },
-          },
-          {
-            label: 'Kaldır',
-            icon: '🗑️',
-            danger: true,
-            onClick: (i) => {
-              const p = lbProducts[i];
-              setLightbox(null);
-              if (p) askRemovePhoto(p);
-            },
-          },
-        ]}
-      />
-
-      {/* Silme / onay penceresi */}
-      <ConfirmationModal
-        open={!!confirm}
-        onClose={() => !confirmBusy && setConfirm(null)}
-        onConfirm={async () => {
-          if (!confirm) return;
-          setConfirmBusy(true);
-          try {
-            await confirm.run();
-            setConfirm(null);
-          } catch (err: any) {
-            toast.error(err?.message || 'İşlem başarısız');
-          } finally {
-            setConfirmBusy(false);
-          }
-        }}
-        title={confirm?.title || ''}
-        message={confirm?.message || ''}
-        confirmLabel={confirm?.label}
-        variant={confirm?.variant || 'danger'}
-        loading={confirmBusy}
-      >
-        {confirm?.body}
-      </ConfirmationModal>
-
-      {/* Toplu fiyat güncelleme */}
-      <Modal open={priceModal} onClose={() => !priceBusy && setPriceModal(false)} size="wide">
-        <div className="pe-head">
-          <div>
-            <h2>% Toplu Fiyat Güncelle</h2>
-            <p className="muted small">Seçtiğiniz ürünlerin tüm porsiyon fiyatlarını yüzde olarak artırın veya azaltın.</p>
-          </div>
-          <button type="button" className="icon-circle" onClick={() => setPriceModal(false)} aria-label="Kapat">
-            ✕
+        {/* İstatistik kartları */}
+        <div className="ad-stats">
+          <button type="button" className={`ad-stat${status === 'all' ? ' on' : ''}`} onClick={() => setStatus('all')}>
+            <small>Toplam ürün</small>
+            <b>{stats.total}</b>
+            <span>{stats.cats} kategori</span>
           </button>
+          <button type="button" className={`ad-stat ok${status === 'on' ? ' on' : ''}`} onClick={() => setStatus('on')}>
+            <small>Satışta</small>
+            <b>{stats.onSale}</b>
+            <span>müşteri sipariş verebilir</span>
+          </button>
+          <button type="button" className={`ad-stat warn${status === 'out' ? ' on' : ''}`} onClick={() => setStatus('out')}>
+            <small>Tükendi</small>
+            <b>{stats.out}</b>
+            <span>görünür ama alınamaz</span>
+          </button>
+          <button type="button" className={`ad-stat mute${status === 'hidden' ? ' on' : ''}`} onClick={() => setStatus('hidden')}>
+            <small>Gizli</small>
+            <b>{stats.hidden}</b>
+            <span>menüde görünmüyor</span>
+          </button>
+          <button type="button" className={`ad-stat bad${status === 'nophoto' ? ' on' : ''}`} onClick={() => setStatus('nophoto')}>
+            <small>Fotoğrafsız</small>
+            <b>{stats.noPhoto}</b>
+            <span>emoji gösteriliyor</span>
+          </button>
+          <div className="ad-stat static">
+            <small>Ort. fiyat</small>
+            <b>{tl(stats.avg)}</b>
+            <span>başlangıç fiyatları</span>
+          </div>
         </div>
-        <div className="two-col">
-          <label className="fld">
-            Değişim oranı (%) — eksi değer indirim
-            <input type="number" step="1" value={pricePct} onChange={(e) => setPricePct(e.target.value)} />
-          </label>
-          <label className="fld">
-            Yuvarlama
-            <select value={priceRound} onChange={(e) => setPriceRound(Number(e.target.value))}>
-              <option value={0.5}>0,50 ₺'ye</option>
-              <option value={1}>1 ₺'ye</option>
-              <option value={5}>5 ₺'ye</option>
-              <option value={10}>10 ₺'ye</option>
+
+        {/* Araç çubuğu */}
+        <div className="ad-toolbar">
+          <div className="ad-search">
+            <span aria-hidden="true">🔍</span>
+            <input
+                type="search"
+                placeholder="Ürün, açıklama veya kategori ara…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                aria-label="Menüde ara"
+            />
+            {search && (
+                <button type="button" onClick={() => setSearch('')} aria-label="Aramayı temizle">
+                  ✕
+                </button>
+            )}
+          </div>
+          <label className="ad-select">
+            <span>Durum</span>
+            <select value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)}>
+              {(Object.keys(STATUS_LABEL) as StatusFilter[]).map((k) => (
+                  <option key={k} value={k}>
+                    {STATUS_LABEL[k]}
+                  </option>
+              ))}
             </select>
           </label>
+          <label className="ad-select">
+            <span>Sıralama</span>
+            <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
+              <option value="manual">Manuel (kategori sırası)</option>
+              <option value="name">Ada göre (A→Z)</option>
+              <option value="price_asc">Fiyat (artan)</option>
+              <option value="price_desc">Fiyat (azalan)</option>
+              <option value="newest">En yeni eklenen</option>
+            </select>
+          </label>
+          <div className="ad-viewtoggle" role="group" aria-label="Görünüm">
+            <button type="button" className={view === 'grid' ? 'on' : ''} onClick={() => setView('grid')} title="Kart görünümü">
+              ▦ Kartlar
+            </button>
+            <button type="button" className={view === 'list' ? 'on' : ''} onClick={() => setView('list')} title="Liste görünümü">
+              ☰ Liste
+            </button>
+          </div>
         </div>
-        <div className="seg" style={{ margin: '0.4rem 0 1rem' }}>
-          <button type="button" className={priceScope === 'filtered' ? 'on' : ''} onClick={() => setPriceScope('filtered')}>
-            Görünen ürünler ({filtered.length})
+
+        {/* Kategori sekmeleri */}
+        <div className="ad-tabs" role="tablist">
+          <button type="button" role="tab" aria-selected={catTab === 'all'} className={catTab === 'all' ? 'on' : ''} onClick={() => setCatTab('all')}>
+            Tüm Ürünler <i>{products.length}</i>
           </button>
-          <button
-            type="button"
-            className={priceScope === 'selected' ? 'on' : ''}
-            onClick={() => setPriceScope('selected')}
-            disabled={selected.size === 0}
-          >
-            Seçililer ({selected.size})
-          </button>
-          <button type="button" className={priceScope === 'all' ? 'on' : ''} onClick={() => setPriceScope('all')}>
-            Tüm menü ({products.length})
-          </button>
+          {[...categories]
+              .sort((a, b) => a.sort_order - b.sort_order)
+              .map((c) => (
+                  <button
+                      key={c.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={catTab === c.id}
+                      className={`${catTab === c.id ? 'on' : ''}${c.is_active ? '' : ' off'}`}
+                      onClick={() => setCatTab(c.id)}
+                  >
+                    {c.name} <i>{counts[c.id] || 0}</i>
+                  </button>
+              ))}
         </div>
-        <div className="mx-preview">
-          <h4>Önizleme</h4>
-          {priceTargets.slice(0, 6).map((p) => (
-            <div key={p.id}>
-              <b>{p.name}</b>
-              <span>
+
+        {/* Toplu işlem çubuğu */}
+        {selected.size > 0 && (
+            <div className="ad-bulk" role="region" aria-label="Toplu işlemler">
+              <b>{selected.size} ürün seçildi</b>
+              <div className="ad-bulk-actions">
+                <button type="button" className="btn ghost sm" onClick={() => bulkUpdate({ is_sold_out: false }, 'satışa açıldı')}>
+                  Satışa aç
+                </button>
+                <button type="button" className="btn ghost sm" onClick={() => bulkUpdate({ is_sold_out: true }, 'tükendi yapıldı')}>
+                  Tükendi yap
+                </button>
+                <button type="button" className="btn ghost sm" onClick={() => bulkUpdate({ is_active: true }, 'yayına alındı')}>
+                  Yayınla
+                </button>
+                <button type="button" className="btn ghost sm" onClick={() => bulkUpdate({ is_active: false }, 'gizlendi')}>
+                  Gizle
+                </button>
+                <select
+                    value=""
+                    onChange={(e) => bulkMoveCategory(e.target.value)}
+                    aria-label="Kategoriye taşı"
+                >
+                  <option value="">Kategoriye taşı…</option>
+                  {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                  ))}
+                </select>
+                <button type="button" className="btn ghost sm" onClick={() => { setPriceScope('selected'); setPriceModal(true); }}>
+                  % Fiyat
+                </button>
+                <button type="button" className="btn ghost sm danger-txt" onClick={askBulkDelete}>
+                  🗑️ Sil
+                </button>
+              </div>
+              <button type="button" className="btn ghost sm" onClick={() => setSelected(new Set())}>
+                Seçimi temizle
+              </button>
+            </div>
+        )}
+
+        {/* Liste */}
+        {filtered.length > 0 && (
+            <div className="ad-listhead">
+              <label className="mx-check inline">
+                <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={() =>
+                        setSelected((s) => {
+                          const n = new Set(s);
+                          if (allVisibleSelected) filtered.forEach((p) => n.delete(p.id));
+                          else filtered.forEach((p) => n.add(p.id));
+                          return n;
+                        })
+                    }
+                />
+                <span>Görünenleri seç</span>
+              </label>
+              <span className="muted small">
+            {filtered.length} ürün gösteriliyor{filtered.length !== products.length ? ` (toplam ${products.length})` : ''}
+          </span>
+            </div>
+        )}
+
+        {filtered.length === 0 ? (
+            <div className="ad-empty">
+              <div>🍽️</div>
+              <h3>Bu filtreye uygun ürün bulunamadı</h3>
+              <p className="muted">Filtreleri temizleyin ya da yeni bir ürün ekleyin.</p>
+              <div className="prow" style={{ justifyContent: 'center' }}>
+                <button
+                    type="button"
+                    className="btn ghost"
+                    onClick={() => {
+                      setSearch('');
+                      setStatus('all');
+                      setCatTab('all');
+                    }}
+                >
+                  Filtreleri temizle
+                </button>
+                <button type="button" className="btn gold" onClick={() => setEditor({ mode: 'create', product: null })}>
+                  + Yeni Ürün
+                </button>
+              </div>
+            </div>
+        ) : (
+            groups.map((g) => (
+                <section key={g.id} className="mx-group">
+                  {grouped && (
+                      <h2 className="mx-group-h">
+                        {g.name} <i>{g.items.length}</i>
+                      </h2>
+                  )}
+                  {view === 'grid' ? <div className="mx-grid">{g.items.map(renderCard)}</div> : <div className="mx-rows">{g.items.map(renderRow)}</div>}
+                </section>
+            ))
+        )}
+
+        {/* Gizli dosya seçici */}
+        <input ref={fileRef} type="file" hidden accept="image/jpeg,image/png,image/webp" onChange={onFilePicked} />
+
+        {/* Ürün ekle / düzenle */}
+        <ProductEditor
+            open={!!editor}
+            mode={editor?.mode || 'create'}
+            product={editor?.product || null}
+            categories={categories}
+            allProducts={products}
+            defaultCategoryId={catTab !== 'all' ? catTab : undefined}
+            onClose={() => setEditor(null)}
+            onSaved={refetch}
+            onDuplicate={duplicateProduct}
+            onDelete={askDeleteProduct}
+        />
+
+        {/* Kategoriler */}
+        <CategoryManagerModal open={catModal} onClose={() => setCatModal(false)} categories={categories} counts={counts} onChanged={refetch} />
+
+        {/* Görsel stüdyosu (kart üzerinden) */}
+        <ImageStudio
+            open={!!studio}
+            source={studio?.source || null}
+            title={studio?.product.name || ''}
+            defaultAspect="4:3"
+            saveLabel="Fotoğrafı Kaydet"
+            onClose={() => setStudio(null)}
+            onSave={saveStudio}
+        />
+
+        {/* Tam ekran görüntüleyici */}
+        <Lightbox
+            open={!!lightbox}
+            items={lbProducts.map((p) => ({
+              url: productImageUrl(p.image_path) || '',
+              title: p.name,
+              subtitle: `${p.categoryName} · ${tl(minPrice(p))}`,
+              filename: `${p.slug}.webp`,
+            }))}
+            index={lightbox?.index || 0}
+            onIndexChange={(i) => setLightbox((l) => (l ? { ...l, index: i } : l))}
+            onClose={() => setLightbox(null)}
+            actions={[
+              {
+                label: 'Düzenle / Kırp',
+                icon: '✂️',
+                primary: true,
+                onClick: (i) => {
+                  const p = lbProducts[i];
+                  setLightbox(null);
+                  if (p) setStudio({ product: p, source: { url: productImageUrl(p.image_path) } });
+                },
+              },
+              {
+                label: 'Değiştir',
+                icon: '📷',
+                onClick: (i) => {
+                  const p = lbProducts[i];
+                  setLightbox(null);
+                  if (p) pickPhotoFor(p);
+                },
+              },
+              {
+                label: 'Ürünü düzenle',
+                icon: '✏️',
+                onClick: (i) => {
+                  const p = lbProducts[i];
+                  setLightbox(null);
+                  if (p) setEditor({ mode: 'edit', product: p });
+                },
+              },
+              {
+                label: 'Kaldır',
+                icon: '🗑️',
+                danger: true,
+                onClick: (i) => {
+                  const p = lbProducts[i];
+                  setLightbox(null);
+                  if (p) askRemovePhoto(p);
+                },
+              },
+            ]}
+        />
+
+        {/* Silme / onay penceresi */}
+        <ConfirmationModal
+            open={!!confirm}
+            onClose={() => !confirmBusy && setConfirm(null)}
+            onConfirm={async () => {
+              if (!confirm) return;
+              setConfirmBusy(true);
+              try {
+                await confirm.run();
+                setConfirm(null);
+              } catch (err: any) {
+                toast.error(err?.message || 'İşlem başarısız');
+              } finally {
+                setConfirmBusy(false);
+              }
+            }}
+            title={confirm?.title || ''}
+            message={confirm?.message || ''}
+            confirmLabel={confirm?.label}
+            variant={confirm?.variant || 'danger'}
+            loading={confirmBusy}
+        >
+          {confirm?.body}
+        </ConfirmationModal>
+
+        {/* Toplu fiyat güncelleme */}
+        <Modal open={priceModal} onClose={() => !priceBusy && setPriceModal(false)} size="wide">
+          <div className="pe-head">
+            <div>
+              <h2>% Toplu Fiyat Güncelle</h2>
+              <p className="muted small">Seçtiğiniz ürünlerin tüm porsiyon fiyatlarını yüzde olarak artırın veya azaltın.</p>
+            </div>
+            <button type="button" className="icon-circle" onClick={() => setPriceModal(false)} aria-label="Kapat">
+              ✕
+            </button>
+          </div>
+          <div className="two-col">
+            <label className="fld">
+              Değişim oranı (%) — eksi değer indirim
+              <input type="number" step="1" value={pricePct} onChange={(e) => setPricePct(e.target.value)} />
+            </label>
+            <label className="fld">
+              Yuvarlama
+              <select value={priceRound} onChange={(e) => setPriceRound(Number(e.target.value))}>
+                <option value={0.5}>0,50 ₺'ye</option>
+                <option value={1}>1 ₺'ye</option>
+                <option value={5}>5 ₺'ye</option>
+                <option value={10}>10 ₺'ye</option>
+              </select>
+            </label>
+          </div>
+          <div className="seg" style={{ margin: '0.4rem 0 1rem' }}>
+            <button type="button" className={priceScope === 'filtered' ? 'on' : ''} onClick={() => setPriceScope('filtered')}>
+              Görünen ürünler ({filtered.length})
+            </button>
+            <button
+                type="button"
+                className={priceScope === 'selected' ? 'on' : ''}
+                onClick={() => setPriceScope('selected')}
+                disabled={selected.size === 0}
+            >
+              Seçililer ({selected.size})
+            </button>
+            <button type="button" className={priceScope === 'all' ? 'on' : ''} onClick={() => setPriceScope('all')}>
+              Tüm menü ({products.length})
+            </button>
+          </div>
+          <div className="mx-preview">
+            <h4>Önizleme</h4>
+            {priceTargets.slice(0, 6).map((p) => (
+                <div key={p.id}>
+                  <b>{p.name}</b>
+                  <span>
                 {p.variants.map((v) => `${tl(Number(v.price))} → ${tl(newPrice(Number(v.price)))}`).join('  ·  ') || '—'}
               </span>
+                </div>
+            ))}
+            {priceTargets.length > 6 && <small className="muted">… ve {priceTargets.length - 6} ürün daha</small>}
+            {priceTargets.length === 0 && <small className="muted">Güncellenecek ürün yok.</small>}
+          </div>
+          <div className="pe-foot">
+            <div />
+            <div className="pe-foot-right">
+              <button type="button" className="btn ghost" onClick={() => setPriceModal(false)} disabled={priceBusy}>
+                Vazgeç
+              </button>
+              <button type="button" className="btn gold" onClick={applyPriceChange} disabled={priceBusy || priceTargets.length === 0}>
+                {priceBusy ? 'Uygulanıyor…' : `Uygula (${priceTargets.reduce((s, p) => s + p.variants.length, 0)} fiyat)`}
+              </button>
             </div>
-          ))}
-          {priceTargets.length > 6 && <small className="muted">… ve {priceTargets.length - 6} ürün daha</small>}
-          {priceTargets.length === 0 && <small className="muted">Güncellenecek ürün yok.</small>}
-        </div>
-        <div className="pe-foot">
-          <div />
-          <div className="pe-foot-right">
-            <button type="button" className="btn ghost" onClick={() => setPriceModal(false)} disabled={priceBusy}>
-              Vazgeç
-            </button>
-            <button type="button" className="btn gold" onClick={applyPriceChange} disabled={priceBusy || priceTargets.length === 0}>
-              {priceBusy ? 'Uygulanıyor…' : `Uygula (${priceTargets.reduce((s, p) => s + p.variants.length, 0)} fiyat)`}
-            </button>
           </div>
-        </div>
-      </Modal>
+        </Modal>
 
-      {/* QR modal */}
-      <Modal open={qrModal} onClose={() => setQrModal(false)}>
-        <div className="pe-head">
-          <div>
-            <h2>🔳 Menü QR Kodu</h2>
-            <p className="muted small">Müşteriler okuttuğunda güncel menü, fotoğraf ve fiyatlarla açılır.</p>
+        {/* QR modal */}
+        <Modal open={qrModal} onClose={() => setQrModal(false)}>
+          <div className="pe-head">
+            <div>
+              <h2>{qrTarget === 'linktree' ? '🌳 Linktree QR Kodu' : '🔳 Menü QR Kodu'}</h2>
+              <p className="muted small">
+                {qrTarget === 'linktree'
+                    ? 'Müşteriler okuttuğunda doğrudan Linktree profil adresinize yönlendirilir.'
+                    : 'Müşteriler okuttuğunda güncel menü, fotoğraf ve fiyatlarla açılır.'}
+              </p>
+            </div>
+            <button type="button" className="icon-circle" onClick={() => setQrModal(false)} aria-label="Kapat">
+              ✕
+            </button>
           </div>
-          <button type="button" className="icon-circle" onClick={() => setQrModal(false)} aria-label="Kapat">
-            ✕
-          </button>
-        </div>
-        <div className="mx-qr">
-          {qrPng ? <img src={qrPng} alt="Menü QR kodu" /> : <div className="mx-qr-load">QR üretiliyor…</div>}
-          <code>{menuUrl}</code>
-        </div>
-        <div className="mx-qr-actions">
-          {qrPng && (
-            <a className="btn gold sm" href={qrPng} download="menu-qr.png">
-              ⬇ PNG indir
+          <div className="mx-qr">
+            {qrPng ? <img src={qrPng} alt={qrTarget === 'linktree' ? 'Linktree QR kodu' : 'Menü QR kodu'} /> : <div className="mx-qr-load">QR üretiliyor…</div>}
+            <code>{targetUrl}</code>
+          </div>
+          <div className="mx-qr-actions">
+            {qrPng && (
+                <a className="btn gold sm" href={qrPng} download={qrTarget === 'linktree' ? 'linktree-qr.png' : 'menu-qr.png'}>
+                  ⬇ PNG indir
+                </a>
+            )}
+            <button type="button" className="btn ghost sm" onClick={downloadQrSvg}>
+              ⬇ SVG indir
+            </button>
+            <button
+                type="button"
+                className="btn ghost sm"
+                onClick={() => {
+                  navigator.clipboard?.writeText(targetUrl);
+                  toast.success('Bağlantı kopyalandı');
+                }}
+            >
+              📋 Bağlantıyı kopyala
+            </button>
+            <a className="btn ghost sm" href={targetUrl} target="_blank" rel="noreferrer">
+              {qrTarget === 'linktree' ? 'Linktree Aç ↗' : 'Menüyü önizle ↗'}
             </a>
-          )}
-          <button type="button" className="btn ghost sm" onClick={downloadQrSvg}>
-            ⬇ SVG indir
-          </button>
-          <button
-            type="button"
-            className="btn ghost sm"
-            onClick={() => {
-              navigator.clipboard?.writeText(menuUrl);
-              toast.success('Bağlantı kopyalandı');
-            }}
-          >
-            📋 Bağlantıyı kopyala
-          </button>
-          <a className="btn ghost sm" href="/menu" target="_blank" rel="noreferrer">
-            Menüyü önizle ↗
-          </a>
-        </div>
-      </Modal>
-    </>
+          </div>
+        </Modal>
+      </>
   );
 }

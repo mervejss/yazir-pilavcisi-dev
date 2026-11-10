@@ -47,6 +47,9 @@ export function useCourierRequests(opts?: { notify?: boolean }) {
           );
         }
       }
+      // Onaylanan / reddedilen isteklerin zili her cihazda susar
+      const pending = new Set(rows.map((r) => r.id));
+      useAlertStore.getState().dismissWhere((a) => a.kind === 'courier_request' && !pending.has(a.id.replace(/^req-/, '')));
       seen.current = new Set(rows.map((r) => r.id));
       setRequests(rows);
     }

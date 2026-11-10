@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import Logo from '@/components/ui/Logo';
@@ -9,6 +9,15 @@ export default function StaffLoginPage() {
   const [password, setPassword] = useState('');
   const { signIn, loading } = useAuthStore();
   const navigate = useNavigate();
+  const profile0 = useAuthStore((s) => s.profile);
+  const initialized = useAuthStore((s) => s.initialized);
+
+  // Zaten giriş yapılmışsa tekrar şifre sorma: doğrudan paneline git
+  useEffect(() => {
+    if (!initialized || !profile0) return;
+    if (profile0.role === 'courier') navigate('/kurye', { replace: true });
+    else if (['owner', 'sub_admin', 'operator'].includes(profile0.role)) navigate('/admin', { replace: true });
+  }, [initialized, profile0, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

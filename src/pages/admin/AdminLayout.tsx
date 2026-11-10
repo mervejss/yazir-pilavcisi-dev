@@ -9,6 +9,7 @@ import Icon, { type IconName } from '@/components/ui/Icon';
 import ThemeToggle from '@/components/ui/ThemeToggle';
 import NewOrderModal from '@/components/admin/NewOrderModal';
 import { usePlatformPolling } from '@/hooks/usePlatformPolling';
+import { useBackTrap } from '@/hooks/useBackTrap';
 import { useNewOrderAlerts, ADMIN_ALERT_KEY } from '@/hooks/useNewOrderAlerts';
 import AlertHost from '@/components/alerts/AlertHost';
 
@@ -116,6 +117,8 @@ export default function AdminLayout() {
   const [quickOpen, setQuickOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const { pathname } = useLocation();
+  // Panelin ana ekranında geri tuşu oturumu/paneli kapatmasın (çıkış yalnızca çıkış düğmesiyle)
+  useBackTrap(pathname === '/admin' || pathname === '/admin/');
   const [width, setWidth] = useState<number>(() => Math.min(W_MAX, Math.max(W_MIN, Number(lsGet('adm.side.w')) || W_DEF)));
   const [collapsed, setCollapsed] = useState<boolean>(() => lsGet('adm.side.c') === '1');
   const [dragging, setDragging] = useState(false);

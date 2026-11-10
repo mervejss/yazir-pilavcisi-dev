@@ -25,6 +25,24 @@ interface AuthState {
   hasRole: (...roles: AppRole[]) => boolean;
 }
 
+const PROFILE_CACHE = 'yz_profile_cache';
+const readProfileCache = (uid: string): Profile | null => {
+  try {
+    const p = JSON.parse(localStorage.getItem(PROFILE_CACHE) || 'null');
+    return p && p.id === uid ? (p as Profile) : null;
+  } catch {
+    return null;
+  }
+};
+const writeProfileCache = (p: Profile | null) => {
+  try {
+    if (p) localStorage.setItem(PROFILE_CACHE, JSON.stringify(p));
+    else localStorage.removeItem(PROFILE_CACHE);
+  } catch {
+    /* yoksay */
+  }
+};
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   session: null,
@@ -36,7 +54,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        set({ user: session.user, session });
+        // Önbellekteki profille anında aç (internet yavaş/yok olsa bile oturum düşmez), arkadan tazele
+        const cached = readProfileCache(session.user.id);
+        set({ user: session.user, session, ...(cached ? { profile: cached } : {}) });
         await get().fetchProfile();
       }
     } catch (err) {
@@ -46,13 +66,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     // Auth state listener
-    supabase.auth.onAuthStateChange(async (event, session) => {
-      set({ user: session?.user ?? null, session });
-      if (session?.user) {
-        await get().fetchProfile();
-      } else {
-        set({ profile: null });
+    // Oturum YALNIZCA kullanıcı çıkış yapınca kapanır: geçici ağ hatası / boş oturum olayları kullanıcıyı atmaz
+    supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        set({ user: null, session: null, profile: null });
+        writeProfileCache(null);
+        return;
       }
+      if (session?.user) {
+        set({ user: session.user, session });
+        // Supabase iç kilidiyle çakışmamak için profil okumayı olay döngüsünün dışında yap
+        setTimeout(() => get().fetchProfile(), 0);
+      }
+    });
+
+    // Uygulamaya/sekmeye dönünce oturumu sessizce tazele (telefon uzun süre arka plandaysa)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') supabase.auth.getSession().catch(() => undefined);
     });
   },
 
@@ -95,6 +125,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.warn('Signout warning:', e);
     }
     set({ user: null, session: null, profile: null });
+    writeProfileCache(null);
   },
 
   fetchProfile: async () => {
@@ -111,6 +142,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
       if (data) {
         set({ profile: data as unknown as Profile });
+        writeProfileCache(data as unknown as Profile);
       }
     } catch (e) {
       console.error('Fetch profile error:', e);

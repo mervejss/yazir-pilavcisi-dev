@@ -18,6 +18,8 @@ interface AlertState {
   silence: () => void;
   dismiss: (id: string) => void;
   dismissAll: () => void;
+  /** Koşula uyan uyarıları kaldırır (sipariş artık beklemiyorsa her cihazda zil susar) */
+  dismissWhere: (pred: (a: AlertItem) => boolean) => void;
 }
 
 export const useAlertStore = create<AlertState>((set, get) => ({
@@ -30,4 +32,9 @@ export const useAlertStore = create<AlertState>((set, get) => ({
   silence: () => set({ silenced: true }),
   dismiss: (id) => set((s) => ({ alerts: s.alerts.filter((x) => x.id !== id), silenced: s.alerts.length <= 1 ? false : s.silenced })),
   dismissAll: () => set({ alerts: [], silenced: false }),
+  dismissWhere: (pred) =>
+    set((s) => {
+      const left = s.alerts.filter((a) => !pred(a));
+      return left.length === s.alerts.length ? s : { alerts: left, silenced: left.length === 0 ? false : s.silenced };
+    }),
 }));

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { printOrderTicket } from '@/lib/printTicket';
+import OrderSplits from '@/components/admin/OrderSplits';
 import { useOrders, type OrderWithItems } from '@/hooks/useOrders';
 import { useCouriers } from '@/hooks/useCouriers';
 import { useCourierRequests } from '@/hooks/useCourierRequests';
@@ -338,6 +339,8 @@ export default function OrdersBoard() {
                     </div>
 
                     {o.note && <div className="note small">{o.note}</div>}
+                    {['on_the_way', 'delivered'].includes(o.status) && <OrderSplits orderId={o.id} />}
+                    {(o as any).courier_note && <div className="note small" style={{ borderLeftColor: 'var(--danger)' }}>🛵 Kurye notu: {(o as any).courier_note}</div>}
                     {o.status === 'cancelled' && o.cancel_reason && <div className="note small">İptal: {o.cancel_reason}</div>}
 
                     {/* Kurye Seçimi */}
@@ -410,15 +413,18 @@ export default function OrdersBoard() {
                         type="button"
                         className="btn ghost sm"
                         title="Mutfak / kurye fişi yazdır"
-                        onClick={() =>
+                        onClick={async () => {
+                          // Kuryenin aldığı ayrı ödemeler varsa fişe de yazılır (SQL 31 yoksa atlanır)
+                          const { data: sp } = await supabase.from('order_split_payments').select('label,method,amount').eq('order_id', o.id).order('seq');
                           printOrderTicket(
                             { ...(o as any), items: o.items },
                             {
                               courierName: assignedCourier?.full_name,
                               tableNo: o.table_id ? String(tables.find((t) => t.id === o.table_id)?.number || '') : null,
+                              splits: (sp as any) || undefined,
                             },
-                          )
-                        }
+                          );
+                        }}
                       >
                         🖨️ Fiş
                       </button>

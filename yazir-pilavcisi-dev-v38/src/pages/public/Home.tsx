@@ -58,7 +58,7 @@ export default function Home() {
           <div className="ticket">
             <small>Açılışa özel</small>
             <b>Tavuk pilav + ayran</b>
-            <strong>130 ₺</strong>
+            <strong>170 ₺</strong>
           </div>
         </div>
       </section>

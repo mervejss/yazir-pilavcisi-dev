@@ -12,6 +12,7 @@ import AddressMap from '@/components/maps/AddressMap';
 import LocationPicker from '@/components/maps/LocationPicker';
 import { mapsPlaceUrl, type LatLng } from '@/lib/googleMaps';
 import { fmtPhone, isMissingFn, normalizePhone } from '@/lib/staffCustomers';
+import VoiceDictateButton from '@/components/ui/VoiceDictateButton';
 
 interface Cust {
   id: string;
@@ -289,9 +290,25 @@ export default function CustomersAdmin() {
             <div className="cu-grid">
               <section className="pe-sec">
                 <h4>Bilgiler ve not</h4>
-                <label className="fld">Ad soyad<input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
-                <label className="fld">Telefon<input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
-                <label className="fld">Yönetici notu (müşteri görmez)<textarea rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Örn: Kapı zili bozuk, aramalı. Acısız sever." /></label>
+                <label className="fld">
+                  <span className="fld-row">Ad soyad<VoiceDictateButton value={form.name} onChange={(v) => setForm((f) => ({ ...f, name: v }))} /></span>
+                  <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                </label>
+                <label className="fld">
+                  <span className="fld-row">
+                    Telefon
+                    <VoiceDictateButton
+                      value={form.phone}
+                      onChange={(v) => setForm((f) => ({ ...f, phone: v }))}
+                      onFinalize={(spoken) => { const n = normalizePhone(spoken); if (n) setForm((f) => ({ ...f, phone: n })); }}
+                    />
+                  </span>
+                  <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                </label>
+                <label className="fld">
+                  <span className="fld-row">Yönetici notu (müşteri görmez)<VoiceDictateButton value={form.notes} onChange={(v) => setForm((f) => ({ ...f, notes: v }))} /></span>
+                  <textarea rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Örn: Kapı zili bozuk, aramalı. Acısız sever." />
+                </label>
                 <button type="button" className="btn gold sm" onClick={saveInfo}>Kaydet</button>
                 {sel.phone && <a className="btn ghost sm" href={`tel:${sel.phone}`}>📞 Ara</a>}
                 <button type="button" className="btn dark sm" onClick={() => orderFor(sel)}>🛒 Bu müşteri için sipariş al</button>
@@ -395,17 +412,36 @@ export default function CustomersAdmin() {
         {addOpen === 'customer' && (
           <>
             <div className="two-col">
-              <label className="fld">Telefon<input inputMode="tel" value={nf.phone} onChange={(e) => setNf({ ...nf, phone: e.target.value })} placeholder="05xx xxx xx xx" /></label>
-              <label className="fld">Ad soyad<input value={nf.name} onChange={(e) => setNf({ ...nf, name: e.target.value })} /></label>
+              <label className="fld">
+                <span className="fld-row">
+                  Telefon
+                  <VoiceDictateButton
+                    value={nf.phone}
+                    onChange={(v) => setNf((f) => ({ ...f, phone: v }))}
+                    onFinalize={(spoken) => { const n = normalizePhone(spoken); if (n) setNf((f) => ({ ...f, phone: n })); }}
+                  />
+                </span>
+                <input inputMode="tel" value={nf.phone} onChange={(e) => setNf({ ...nf, phone: e.target.value })} placeholder="05xx xxx xx xx" />
+              </label>
+              <label className="fld">
+                <span className="fld-row">Ad soyad<VoiceDictateButton value={nf.name} onChange={(v) => setNf((f) => ({ ...f, name: v }))} /></span>
+                <input value={nf.name} onChange={(e) => setNf({ ...nf, name: e.target.value })} />
+              </label>
             </div>
-            <label className="fld">Not (müşteri görmez)<input value={nf.notes} onChange={(e) => setNf({ ...nf, notes: e.target.value })} placeholder="Örn: Acısız sever, zili çalmayın" /></label>
+            <label className="fld">
+              <span className="fld-row">Not (müşteri görmez)<VoiceDictateButton value={nf.notes} onChange={(v) => setNf((f) => ({ ...f, notes: v }))} /></span>
+              <input value={nf.notes} onChange={(e) => setNf({ ...nf, notes: e.target.value })} placeholder="Örn: Acısız sever, zili çalmayın" />
+            </label>
           </>
         )}
         <div className="two-col">
           <label className="fld">Adres adı<input value={nf.title} onChange={(e) => setNf({ ...nf, title: e.target.value })} placeholder="Ev, İş…" /></label>
           <label className="fld">Mahalle<input value={nf.district} onChange={(e) => setNf({ ...nf, district: e.target.value })} /></label>
         </div>
-        <label className="fld">Açık adres <span className="muted">(isteğe bağlı)</span><textarea rows={2} value={nf.address} onChange={(e) => setNf({ ...nf, address: e.target.value })} placeholder="Sokak, bina, kapı / daire no" /></label>
+        <label className="fld">
+          <span className="fld-row">Açık adres <span className="muted">(isteğe bağlı)</span><VoiceDictateButton value={nf.address} onChange={(v) => setNf((f) => ({ ...f, address: v }))} /></span>
+          <textarea rows={2} value={nf.address} onChange={(e) => setNf({ ...nf, address: e.target.value })} placeholder="Sokak, bina, kapı / daire no" />
+        </label>
         <LocationPicker value={nfLoc} onChange={setNfLoc} address={nf.address} district={nf.district} height="240px" onAddress={(a) => setNf((f) => ({ ...f, address: a.address, district: a.district || f.district }))} />
         <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
           <button type="button" className="btn gold" disabled={nfBusy} onClick={saveNew}>{nfBusy ? 'Kaydediliyor…' : 'Kaydet'}</button>

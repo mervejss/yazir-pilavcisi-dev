@@ -6,6 +6,7 @@ import { tl, formatDateTime } from '@/lib/helpers';
 import { distanceM, fmtKm, type LatLng } from '@/lib/googleMaps';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import Icon from '@/components/ui/Icon';
+import { useBusinessSettings } from '@/hooks/useBusinessSettings';
 import TrackMap, { type LiveData, type TrackSummary } from '@/components/track/TrackMap';
 
 interface TrackData {
@@ -46,6 +47,9 @@ export default function TrackPage() {
   const [error, setError] = useState('');
   const [trailVer, setTrailVer] = useState(0);
   const [, tick] = useState(0);
+  const { settings } = useBusinessSettings();
+  const [notifyOn, setNotifyOn] = useState(() => typeof Notification !== 'undefined' && Notification.permission === 'granted');
+  const notified = useRef(false);
   const trail = useRef<LatLng[]>([]);
   const liveMissing = useRef(false);
 
@@ -109,6 +113,29 @@ export default function TrackPage() {
     return m;
   }, [live?.trail, localTrail]);
 
+  // Kurye yaklaşınca (≈3 dk veya 300 m) titreşim + bildirim
+  const nearEta = summary?.etaMin != null ? summary.etaMin : null;
+  const nearM = summary?.meters ?? null;
+  const isNear = isLive && ((nearEta != null && nearEta <= 3) || (nearM != null && nearM <= 300));
+  useEffect(() => {
+    if (!isNear || notified.current) return;
+    notified.current = true;
+    try {
+      navigator.vibrate?.([200, 100, 200]);
+      if (notifyOn && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        new Notification('Kurye yaklaşıyor 🛵', { body: 'Siparişiniz birkaç dakika içinde kapınızda olacak.', icon: '/courier-icon-192.png' });
+      }
+    } catch {
+      /* bildirim desteklenmiyor */
+    }
+  }, [isNear, notifyOn]);
+
+  const askNotify = async () => {
+    if (typeof Notification === 'undefined') return;
+    const p = await Notification.requestPermission();
+    setNotifyOn(p === 'granted');
+  };
+
   if (loading) return <LoadingSpinner text="Sipariş yükleniyor..." />;
   if (error && !data) {
     return (
@@ -164,7 +191,20 @@ export default function TrackPage() {
         </div>
       )}
 
-      {data.status === 'delivered' && <div className="note tk-ok">✅ Siparişiniz teslim edildi. Afiyet olsun!</div>}
+      {data.status === 'delivered' && (
+        <div className="note tk-ok tk-review">
+          <b>✅ Siparişiniz teslim edildi. Afiyet olsun!</b>
+          <span className="small muted">Deneyiminizi paylaşırsanız çok seviniriz:</span>
+          <div className="tk-review-btns">
+            <Link className="btn gold sm" to="/yorumlar">⭐ Siteden puanla</Link>
+            {settings?.google_place_id && (
+              <a className="btn ghost sm" target="_blank" rel="noreferrer" href={`https://search.google.com/local/writereview?placeid=${encodeURIComponent(settings.google_place_id)}`}>
+                Google'da yorum yaz
+              </a>
+            )}
+          </div>
+        </div>
+      )}
 
       {showMap && live && (
         <section className="tk-live" aria-label="Canlı kurye takibi">
@@ -189,6 +229,10 @@ export default function TrackPage() {
             </div>
           </div>
 
+          {isNear && <div className="note tk-near">🛵 Kurye çok yakında! Kapıya çıkabilirsiniz.</div>}
+          {isLive && typeof Notification !== 'undefined' && !notifyOn && Notification.permission !== 'denied' && (
+            <button type="button" className="btn ghost sm" onClick={askNotify}>🔔 Kurye yaklaşınca haber ver</button>
+          )}
           {isLive && !c && <p className="note small">Kuryenin konumu bekleniyor… Kurye yola çıktığında harita canlı güncellenecek.</p>}
           {isLive && c && stale && <p className="note small">Kurye konumu {ago(c.updated_at)} güncellendi (sinyal zayıf olabilir).</p>}
           {!isLive && <p className="note small">Kurye yola çıkınca konumu burada canlı görünecek. Harita teslimat adresinizi gösteriyor.</p>}

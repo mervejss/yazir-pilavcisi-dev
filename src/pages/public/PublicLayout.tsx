@@ -12,6 +12,7 @@ import { contactLinks, whatsappLink } from '@/lib/contact';
 import toast from 'react-hot-toast';
 import WhatsAppWidget from '@/components/public/WhatsAppWidget';
 import Seo from '@/components/seo/Seo';
+import InstallPrompt from '@/components/public/InstallPrompt';
 
 const LINKS: [string, string, IconName][] = [
   ['/', 'Ana Sayfa', 'home'],
@@ -185,6 +186,7 @@ export default function PublicLayout() {
             <nav className="sf-links" aria-label="Site bağlantıları">
               <h2><Icon name="arrowRight" size={17} /> Bağlantılar</h2>
               <Link to="/menu" className="foot-link"><Icon name="utensils" size={15} /> Online Menü</Link>
+              <InstallPrompt />
               <Link to="/pilav-restorani" className="foot-link"><Icon name="home" size={15} /> Yazır Pilav Restoranı</Link>
               <Link to="/kampanyalar" className="foot-link"><Icon name="tag" size={15} /> Kampanyalar</Link>
               <Link to="/yorumlar" className="foot-link"><Icon name="star" size={15} /> Müşteri Yorumları</Link>

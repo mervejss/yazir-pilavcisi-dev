@@ -1,7 +1,9 @@
 import Modal from '@/components/ui/Modal';
 import Switch from '@/components/ui/Switch';
 import { AlertPlayer, TONE_LABELS, saveAlertSettings, testTone, type AlertSettings, type AlertTone } from '@/lib/alertSound';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
+import toast from 'react-hot-toast';
+import { MAX_RINGTONE_BYTES, removeTone, saveTone } from '@/lib/ringtoneStore';
 
 interface Props {
   open: boolean;
@@ -10,14 +12,42 @@ interface Props {
   storageKey: string;
   onChange: (s: AlertSettings) => void;
   showAutoPrint?: boolean;
+  /** Kişiye özel zil sesi anahtarı ve kullanıcı */
+  ringKey?: string;
+  userId?: string;
 }
 
-export default function SoundSettingsModal({ open, onClose, value, storageKey, onChange, showAutoPrint }: Props) {
+export default function SoundSettingsModal({ open, onClose, value, storageKey, onChange, showAutoPrint, ringKey, userId }: Props) {
   const demo = useRef(new AlertPlayer());
+  const [busy, setBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const set = (patch: Partial<AlertSettings>) => {
     const next = { ...value, ...patch };
     onChange(next);
     saveAlertSettings(storageKey, next);
+  };
+
+  const onFile = async (f: File | undefined) => {
+    if (!f || !ringKey) return;
+    setBusy(true);
+    try {
+      const { cloud } = await saveTone(ringKey, userId, f);
+      set({ tone: 'custom', customName: f.name });
+      toast.success(cloud ? 'Zil sesi kaydedildi (hesabınıza bağlı)' : 'Zil sesi bu cihaza kaydedildi');
+    } catch (e: any) {
+      toast.error(e?.message || 'Ses dosyası yüklenemedi');
+    } finally {
+      setBusy(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+  const onRemove = async () => {
+    if (!ringKey) return;
+    setBusy(true);
+    await removeTone(ringKey, userId);
+    set({ tone: value.tone === 'custom' ? 'siren' : value.tone, customName: undefined });
+    setBusy(false);
+    toast.success('Kendi zil sesiniz kaldırıldı');
   };
 
   const askNotify = async (on: boolean) => {
@@ -57,11 +87,29 @@ export default function SoundSettingsModal({ open, onClose, value, storageKey, o
         <label className="fld">
           Ses türü
           <select value={value.tone} onChange={(e) => set({ tone: e.target.value as AlertTone })}>
-            {(Object.keys(TONE_LABELS) as AlertTone[]).map((t) => (
-              <option key={t} value={t}>{TONE_LABELS[t]}</option>
-            ))}
+            {(Object.keys(TONE_LABELS) as AlertTone[])
+              .filter((t) => t !== 'custom' || value.customName)
+              .map((t) => (
+                <option key={t} value={t}>{t === 'custom' ? `🎵 Kendi zil sesim (${value.customName})` : TONE_LABELS[t]}</option>
+              ))}
           </select>
         </label>
+
+        {ringKey && (
+          <div className="fld ringtone-up">
+            Kendi zil sesim
+            <input ref={fileRef} type="file" accept="audio/*" hidden onChange={(e) => onFile(e.target.files?.[0])} />
+            <div className="ringtone-btns">
+              <button type="button" className="btn ghost sm" disabled={busy} onClick={() => fileRef.current?.click()}>
+                {busy ? 'Yükleniyor…' : value.customName ? '🎵 Değiştir' : '📂 Telefondan ses seç'}
+              </button>
+              {value.customName && <button type="button" className="btn ghost sm danger-txt" disabled={busy} onClick={onRemove}>Kaldır</button>}
+            </div>
+            <small className="muted">
+              mp3, m4a, wav, ogg · en fazla {(MAX_RINGTONE_BYTES / 1024 / 1024).toFixed(1)} MB. Bu ses yalnızca <b>sizin hesabınızda</b> çalar; başka kullanıcıları etkilemez.
+            </small>
+          </div>
+        )}
 
         <div className="fld">
           Ne kadar çalsın?
@@ -99,8 +147,8 @@ export default function SoundSettingsModal({ open, onClose, value, storageKey, o
 
       <div className="pe-foot">
         <div className="pe-foot-left">
-          <button type="button" className="btn ghost" onClick={() => testTone(value)}>▶ Dene (tek döngü)</button>
-          <button type="button" className="btn ghost" onClick={() => demo.current.start({ ...value, enabled: true, mode: 'timed', seconds: 6 })}>▶ 6 sn çal</button>
+          <button type="button" className="btn ghost" onClick={() => testTone({ ...value, customKey: ringKey })}>▶ Dene (tek döngü)</button>
+          <button type="button" className="btn ghost" onClick={() => demo.current.start({ ...value, customKey: ringKey, enabled: true, mode: 'timed', seconds: 6 })}>▶ 6 sn çal</button>
           <button type="button" className="btn ghost" onClick={() => demo.current.stop()}>■ Durdur</button>
         </div>
         <div className="pe-foot-right">

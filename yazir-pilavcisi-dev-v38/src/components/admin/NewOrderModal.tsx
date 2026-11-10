@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { supabase } from '@/lib/supabase';
 import { tl } from '@/lib/helpers';
@@ -9,6 +9,8 @@ import { useCouriers } from '@/hooks/useCouriers';
 import { useBusinessSettings } from '@/hooks/useBusinessSettings';
 import { HAS_GMAPS_KEY, geocodeFull, mapsPlaceUrl, type LatLng } from '@/lib/googleMaps';
 import { isMissingFn, normalizePhone, type HistoryItem, type HistoryOrder } from '@/lib/staffCustomers';
+import { parseVoiceOrder } from '@/lib/voiceOrderParser';
+import VoiceDictateButton from '@/components/ui/VoiceDictateButton';
 import PhoneCustomerPanel, { type PickedAddress } from '@/components/admin/PhoneCustomerPanel';
 import LocationPicker from '@/components/maps/LocationPicker';
 import Modal from '@/components/ui/Modal';
@@ -167,6 +169,14 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
   const [source, setSource] = useState('counter');
   const [busy, setBusy] = useState(false);
 
+  // --- Sesle Sipariş Gir (telefon siparişleri için canlı konuşma-metin + akıllı ayrıştırma) ---
+  const [voiceActive, setVoiceActive] = useState(false);
+  const [voiceTranscript, setVoiceTranscript] = useState('');
+  const [voiceInterim, setVoiceInterim] = useState('');
+  const voiceSupported = typeof window !== 'undefined' && !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+  const recognitionRef = useRef<any>(null);
+  const voiceStoppedManually = useRef(true);
+
   // Masalar sayfasından gelen hazır masa
   const effectiveTable = tableId || presetTableId || '';
 
@@ -194,7 +204,113 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
     setFeeOverride('');
     setTableId('');
     setPay('cash_on_delivery');
+    voiceStoppedManually.current = true;
+    recognitionRef.current?.stop();
+    setVoiceActive(false);
+    setVoiceTranscript('');
+    setVoiceInterim('');
   };
+
+  const voiceFullText = () => `${voiceTranscript} ${voiceInterim}`.replace(/\s+/g, ' ').trim();
+
+  /** Mikrofona tıklandığında: durdurma butonuna basılana kadar ASLA kendiliğinden durmaz
+   *  (tarayıcı sessizlikte kapatırsa otomatik yeniden başlatılır). */
+  const startVoiceOrder = () => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) {
+      toast.error('Bu tarayıcı sesle yazmayı desteklemiyor. Lütfen Chrome kullanın.');
+      return;
+    }
+    voiceStoppedManually.current = false;
+    setVoiceTranscript('');
+    setVoiceInterim('');
+    const rec = new SR();
+    rec.lang = 'tr-TR';
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.onresult = (e: any) => {
+      let finalChunk = '';
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const r = e.results[i];
+        if (r.isFinal) finalChunk += r[0].transcript + ' ';
+        else interim += r[0].transcript;
+      }
+      if (finalChunk) setVoiceTranscript((prev) => `${prev} ${finalChunk}`.replace(/\s+/g, ' ').trim());
+      setVoiceInterim(interim);
+    };
+    rec.onerror = (e: any) => {
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        toast.error('Mikrofon izni verilmedi. Tarayıcı ayarlarından izin verin.');
+        voiceStoppedManually.current = true;
+        setVoiceActive(false);
+      }
+      // 'no-speech' / 'aborted' gibi geçici hatalarda sessizce devam — onend zaten yeniden başlatacak
+    };
+    rec.onend = () => {
+      if (!voiceStoppedManually.current) {
+        try { rec.start(); } catch { /* zaten başlatılmaya çalışılıyorsa yoksay */ }
+      }
+    };
+    recognitionRef.current = rec;
+    try {
+      rec.start();
+      setVoiceActive(true);
+    } catch {
+      toast.error('Mikrofon başlatılamadı, tekrar deneyin.');
+    }
+  };
+
+  /** Durdur butonu: dinlemeyi kapatır ve biriken tüm metni akıllıca ayrıştırıp formu doldurur.
+   *  Ham metnin TAMAMI her zaman nota eklenir, hiçbir şey unutulmaz. */
+  const stopVoiceOrder = () => {
+    voiceStoppedManually.current = true;
+    try { recognitionRef.current?.stop(); } catch { /* yoksay */ }
+    setVoiceActive(false);
+    const full = voiceFullText();
+    setVoiceInterim('');
+    if (!full) {
+      toast('Herhangi bir konuşma algılanmadı.', { icon: '🎙️' });
+      return;
+    }
+    const parsed = parseVoiceOrder(full);
+    // Akıllı ayrıştırma ile bulunan her şey ilgili alana YAZILIR (boş da olsa üzerine yazılır,
+    // çünkü bu akış tam olarak bu alanları doldurmak için kullanılıyor).
+    if (parsed.phone) setPhone(parsed.phone);
+    if (parsed.name) setName(parsed.name);
+    if (type === 'delivery') {
+      if (parsed.address) setAddress(parsed.address);
+      if (parsed.district) setDistrict(parsed.district);
+    }
+    setNote((cur) => {
+      const pieces = [cur.trim(), parsed.note, `🎙️ Sesli sipariş (tam metin, güvenlik için saklanır): ${parsed.raw}`].filter(Boolean);
+      return pieces.join('\n');
+    });
+    const found: string[] = [];
+    if (parsed.phone) found.push('telefon');
+    if (parsed.name) found.push('isim');
+    if (parsed.address) found.push('adres');
+    toast.success(
+      found.length
+        ? `Sesli sipariş metne döküldü · otomatik dolduruldu: ${found.join(', ')}`
+        : 'Sesli sipariş metne döküldü ama alanlar otomatik tanınamadı — tam metin Not kısmına eklendi, isterseniz oradan elle kopyalayın veya alanların yanındaki 🎙️ ile tekrar deneyin.',
+    );
+  };
+
+  // Modal kapanırken mikrofon açık kalmasın
+  useEffect(() => {
+    if (!open) {
+      voiceStoppedManually.current = true;
+      recognitionRef.current?.stop();
+      setVoiceActive(false);
+    }
+  }, [open]);
+
+  // Bileşen tamamen kaldırılırken de dinlemeyi kapat
+  useEffect(() => () => {
+    voiceStoppedManually.current = true;
+    try { recognitionRef.current?.stop(); } catch { /* yoksay */ }
+  }, []);
 
   const chooseType = (t: OType) => {
     setType(t);
@@ -400,8 +516,12 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
               <input inputMode="decimal" value={feeOverride} onChange={(e) => setFeeOverride(e.target.value.replace(',', '.'))} placeholder={String(defaultFee)} />
             </label>
           </div>
-          <label className="fld">Açık adres <span className="req">*</span>
-            <textarea rows={2} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Sokak, bina, kapı / daire no, tarif" />
+          <label className="fld">
+            <span className="fld-row">
+              Açık adres <span className="req">*</span>
+              <VoiceDictateButton value={address} onChange={setAddress} title="Adresi sesle yazdır" />
+            </span>
+            <textarea rows={2} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Sokak, bina, kapı / daire no, tarif — veya 🎙️ ile sesle söyleyin" />
           </label>
           <LocationPicker value={loc} onChange={setLoc} address={address} district={district} height="240px"
             onAddress={(a) => { setAddress(a.address); if (a.district) setDistrict(a.district); }} />
@@ -437,6 +557,35 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
         <button type="button" className={source === 'phone' ? 'on' : ''} onClick={() => setSource('phone')}>📞 Telefon</button>
         <button type="button" className={source === 'counter' ? 'on' : ''} onClick={() => setSource('counter')}>🏪 Restoran / Tezgâh</button>
         {mode === 'full' && <button type="button" className={source === 'web' ? 'on' : ''} onClick={() => setSource('web')}>🌐 Web</button>}
+      </div>
+    </div>
+  );
+
+  const voiceOrderBox = type !== 'dine_in' && source === 'phone' && (
+    <div className="fld voice-order-box">
+      <span>
+        🎙️ Sesle Sipariş Gir <span className="muted">(isteğe bağlı — elle yazmaya da devam edebilirsiniz)</span>
+      </span>
+      <textarea
+        className="voice-order-ta"
+        rows={4}
+        value={voiceActive ? voiceFullText() : voiceTranscript}
+        onChange={(e) => setVoiceTranscript(e.target.value)}
+        readOnly={voiceActive}
+        placeholder="Mikrofona basıp müşteriyle konuşurken söylenen her şey anlık olarak buraya yazılır. İsim, telefon, adres söyleyin — bitince Durdur'a basın, sistem akıllıca ayrıştırsın."
+      />
+      <div className="voice-order-actions">
+        {!voiceActive ? (
+          <button type="button" className="btn ghost small" onClick={startVoiceOrder} disabled={!voiceSupported}>
+            🎙️ Sesle Sipariş Gir
+          </button>
+        ) : (
+          <button type="button" className="btn danger small voice-recording" onClick={stopVoiceOrder}>
+            ⏹️ Durdur ve Ayrıştır
+          </button>
+        )}
+        {voiceActive && <span className="small muted voice-rec-dot">● Dinleniyor… bitirince Durdur'a basın, kendi kendine kesilmez.</span>}
+        {!voiceSupported && <span className="small muted">Bu tarayıcı sesle yazmayı desteklemiyor (Chrome önerilir).</span>}
       </div>
     </div>
   );
@@ -485,6 +634,7 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
           ) : (
             <>
               {sourceSeg}
+              {voiceOrderBox}
               {customerBlock}
             </>
           )}
@@ -505,8 +655,11 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
           )}
 
           <label className="fld" style={{ marginTop: '0.8rem' }}>
-            {mode === 'quick' ? 'Not' : 'Sipariş notu'} <span className="muted">(isteğe bağlı)</span>
-            <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Örn. acısız, bol soslu, zili çalmayın…" />
+            <span className="fld-row">
+              {mode === 'quick' ? 'Not' : 'Sipariş notu'} <span className="muted">(isteğe bağlı)</span>
+              <VoiceDictateButton value={note} onChange={setNote} title="Notu sesle yazdır" />
+            </span>
+            <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Örn. acısız, bol soslu, zili çalmayın… — veya 🎙️ ile sesle söyleyin" />
           </label>
 
           {type !== 'dine_in' && (

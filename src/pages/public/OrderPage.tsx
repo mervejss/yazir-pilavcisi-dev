@@ -12,6 +12,7 @@ import LocationPicker from '@/components/maps/LocationPicker';
 import VoiceDictateButton from '@/components/ui/VoiceDictateButton';
 import { normalizePhone } from '@/lib/staffCustomers';
 import toast from 'react-hot-toast';
+import { waUrl } from '@/lib/whatsapp';
 
 interface OrderResult {
   order_id: string;
@@ -197,14 +198,33 @@ export default function OrderPage() {
           Siparişiniz mutfağa iletildi ve hazırlanmaya başlandı. Tahmini teslimat süresi{' '}
           <b>{settings?.estimated_delivery_min || 15}–{settings?.estimated_delivery_max || 25} dakika</b>dır.
         </p>
-        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+        <div className="os-actions">
           <Link className="btn gold" to={`/takip/${result.order_id}`}>
             Siparişimi Canlı Takip Et
           </Link>
+          <a
+            className="btn wa-btn"
+            target="_blank"
+            rel="noreferrer"
+            href={waUrl(settings?.whatsapp, `Merhaba, #${result.order_no} numaralı siparişimi verdim. Takip bağlantım: ${window.location.origin}/takip/${result.order_id}`)}
+          >
+            WhatsApp'tan bildir
+          </a>
+          <button
+            type="button"
+            className="btn ghost"
+            onClick={() => {
+              const link = `${window.location.origin}/takip/${result.order_id}`;
+              navigator.clipboard?.writeText(link).then(() => toast.success('Takip bağlantısı kopyalandı'), () => toast.error('Kopyalanamadı'));
+            }}
+          >
+            Takip linkini kopyala
+          </button>
           <Link className="btn ghost" to="/">
             Ana Sayfaya Dön
           </Link>
         </div>
+        <p className="muted small" style={{ marginTop: '1rem' }}>Bu bağlantıyı saklayın: sipariş durumunu ve kuryenin konumunu istediğiniz zaman görebilirsiniz.</p>
       </main>
     );
   }
