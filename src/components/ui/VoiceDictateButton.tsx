@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
+import { explainSpeechError } from '@/lib/voiceMic';
 
 interface Props {
   /** Alanın şu anki değeri (kayıt başlarken buna eklenir) */
@@ -54,9 +56,10 @@ export default function VoiceDictateButton({ value, onChange, onFinalize, size =
       onChange(`${baseRef.current}${live}`.replace(/\s+/g, ' ').trim());
     };
     rec.onerror = (e: any) => {
-      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+      if (['not-allowed', 'service-not-allowed', 'audio-capture', 'network'].includes(e.error)) {
         stoppedRef.current = true;
         setActive(false);
+        explainSpeechError(e.error).then((m) => toast.error(m, { id: 'mic-err', duration: 8000 }));
       }
       // 'no-speech' / 'aborted' vb. geçici durumlarda sessizce devam — onend yeniden başlatır
     };

@@ -19,6 +19,7 @@ const IMPORT_PLATFORMS = ['trendyol', 'yemeksepeti', 'migros', 'getir', 'other',
 
 interface PastRow {
   key: string;
+  liveId?: string;          // sitedeki (orders) sipariş kimliği — yalnızca canlı kayıtlarda
   origin: 'live' | 'import';
   platform: string;
   no: string;
@@ -56,7 +57,10 @@ const LIVE_PAYMENT: Record<string, string> = {
 };
 
 export default function PastOrders() {
-  const isOwner = useAuthStore((s) => s.profile?.role) === 'owner';
+  const role = useAuthStore((s) => s.profile?.role);
+  const isOwner = role === 'owner';
+  const canDelete = role === 'owner' || role === 'sub_admin';
+  const [deleting, setDeleting] = useState<string | null>(null);
   const today = new Date();
   const [from, setFrom] = useState(isoDay(addDays(today, -14)));
   const [to, setTo] = useState(isoDay(today));
@@ -100,7 +104,7 @@ export default function PastOrders() {
       const at = new Date(o.created_at);
       const fin = o.delivered_at || o.cancelled_at;
       return {
-        key: 'l-' + o.id, origin: 'live', platform: o.source, no: String(o.order_no), at: fmtDT(at), atDate: at,
+        key: 'l-' + o.id, liveId: o.id, origin: 'live', platform: o.source, no: String(o.order_no), at: fmtDT(at), atDate: at,
         finishedAt: fin ? new Date(fin) : null, state: o.status === 'cancelled' ? 'cancelled' : 'delivered',
         statusText: o.status === 'cancelled' ? 'İptal edildi' : 'Teslim edildi',
         total: Number(o.total) || 0, customer: o.customer_name || 'Misafir', payment: LIVE_PAYMENT[o.payment_method || ''] || o.payment_method || '—',
@@ -161,6 +165,28 @@ export default function PastOrders() {
     });
     return [...m.entries()].sort((a, b) => b[1].sum - a[1].sum);
   }, [rows]);
+
+  // Yanlış deneme / hatalı siparişi veritabanından KALICI siler (web + panel). İşlem denetim kaydına yazılır.
+  const removeRow = async (r: PastRow) => {
+    const label = `#${r.no} · ${r.customer} · ${tl(r.total)}`;
+    if (!window.confirm(`${label}\n\nBu sipariş veritabanından KALICI olarak silinecek (geri alınamaz). Emin misiniz?`)) return;
+    setDeleting(r.key);
+    try {
+      const { error } = r.liveId
+        ? await supabase.rpc('admin_delete_order', { p_order_id: r.liveId } as any)
+        : await supabase.rpc('admin_delete_past_import_order', { p_platform: r.platform, p_order_no: r.no } as any);
+      if (error) throw error;
+      setRows((cur) => cur.filter((x) => x.key !== r.key));
+      if (open === r.key) setOpen(null);
+      toast.success(`Sipariş ${label} silindi`);
+      load();
+    } catch (e: any) {
+      const m = String(e?.message || e);
+      toast.error(/admin_delete|function|does not exist|schema cache/i.test(m) ? 'Silme için yönetici sql/32_delete_orders_courier_payment.sql dosyasını Supabase SQL Editor\'da çalıştırmalı.' : m, { duration: 8000 });
+    } finally {
+      setDeleting(null);
+    }
+  };
 
   const exportCsv = () => {
     const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
@@ -226,7 +252,7 @@ export default function PastOrders() {
           <p className="muted" style={{ padding: '1rem' }}>Bu aralıkta kayıt yok.</p>
         ) : (
           <table className="po-table">
-            <thead><tr><th>Tarih</th><th>Kaynak</th><th>No</th><th>Müşteri / Teslimat</th><th>Ürünler</th><th>Ödeme</th><th>Durum</th><th style={{ textAlign: 'right' }}>Tutar</th></tr></thead>
+            <thead><tr><th>Tarih</th><th>Kaynak</th><th>No</th><th>Müşteri / Teslimat</th><th>Ürünler</th><th>Ödeme</th><th>Durum</th><th style={{ textAlign: 'right' }}>Tutar</th>{canDelete && <th aria-label="Sil" />}</tr></thead>
             <tbody>
               {shown.map((r) => (
                 <Fragment key={r.key}>
@@ -239,14 +265,26 @@ export default function PastOrders() {
                     <td>{r.payment}</td>
                     <td><span className={`po-st ${r.state}`}>{r.statusText}</span></td>
                     <td style={{ textAlign: 'right' }}><b>{tl(r.total)}</b></td>
+                    {canDelete && (
+                      <td style={{ textAlign: 'right' }}>
+                        <button type="button" className="btn ghost sm po-del" disabled={deleting === r.key} onClick={(e) => { e.stopPropagation(); removeRow(r); }} title="Bu siparişi veritabanından kalıcı sil">
+                          {deleting === r.key ? '…' : '🗑 Sil'}
+                        </button>
+                      </td>
+                    )}
                   </tr>
                   {open === r.key && (
-                    <tr className="po-detail"><td colSpan={8}>
+                    <tr className="po-detail"><td colSpan={canDelete ? 9 : 8}>
                       <ul>{r.items.map((i, k) => <li key={k}>{i.qty}× {i.name} <span className="muted">— {tl(i.price)}</span></li>)}</ul>
                       <div className="muted small">
                         Kaynak: {r.origin === 'live' ? 'Site / canlı akış' : 'Excel içe aktarma'}
                         {r.finishedAt && ` · Bitiş: ${fmtDT(r.finishedAt)}`}{r.reason && ` · İptal nedeni: ${r.reason}`}
                       </div>
+                      {canDelete && (
+                        <button type="button" className="btn ghost sm po-del" style={{ marginTop: '0.5rem' }} disabled={deleting === r.key} onClick={() => removeRow(r)}>
+                          {deleting === r.key ? 'Siliniyor…' : '🗑 Bu siparişi sil'}
+                        </button>
+                      )}
                     </td></tr>
                   )}
                 </Fragment>

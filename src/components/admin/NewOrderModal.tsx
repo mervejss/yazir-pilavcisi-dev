@@ -14,6 +14,7 @@ import VoiceDictateButton from '@/components/ui/VoiceDictateButton';
 import PhoneCustomerPanel, { type PickedAddress } from '@/components/admin/PhoneCustomerPanel';
 import LocationPicker from '@/components/maps/LocationPicker';
 import Modal from '@/components/ui/Modal';
+import { explainSpeechError } from '@/lib/voiceMic';
 import Icon from '@/components/ui/Icon';
 import ProductImage from '@/components/ui/ProductImage';
 
@@ -240,10 +241,10 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
       setVoiceInterim(interim);
     };
     rec.onerror = (e: any) => {
-      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-        toast.error('Mikrofon izni verilmedi. Tarayıcı ayarlarından izin verin.');
+      if (['not-allowed', 'service-not-allowed', 'audio-capture', 'network'].includes(e.error)) {
         voiceStoppedManually.current = true;
         setVoiceActive(false);
+        explainSpeechError(e.error).then((m) => toast.error(m, { id: 'mic-err', duration: 8000 }));
       }
       // 'no-speech' / 'aborted' gibi geçici hatalarda sessizce devam — onend zaten yeniden başlatacak
     };

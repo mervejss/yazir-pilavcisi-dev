@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import Logo from '@/components/ui/Logo';
+import { afterLoginPath, isPanelRole } from '@/lib/roleHome';
 import toast from 'react-hot-toast';
 
 export default function StaffLoginPage() {
@@ -9,15 +10,15 @@ export default function StaffLoginPage() {
   const [password, setPassword] = useState('');
   const { signIn, loading } = useAuthStore();
   const navigate = useNavigate();
+  const from = (useLocation().state as { from?: string } | null)?.from;
   const profile0 = useAuthStore((s) => s.profile);
   const initialized = useAuthStore((s) => s.initialized);
 
   // Zaten giriş yapılmışsa tekrar şifre sorma: doğrudan paneline git
   useEffect(() => {
     if (!initialized || !profile0) return;
-    if (profile0.role === 'courier') navigate('/kurye', { replace: true });
-    else if (['owner', 'sub_admin', 'operator'].includes(profile0.role)) navigate('/admin', { replace: true });
-  }, [initialized, profile0, navigate]);
+    if (isPanelRole(profile0.role)) navigate(afterLoginPath(profile0.role, from), { replace: true });
+  }, [initialized, profile0, navigate, from]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,13 +37,14 @@ export default function StaffLoginPage() {
 
       if (profile.role === 'courier') {
         toast.success(`Hoş geldin Kurye ${profile.full_name}!`);
-        navigate('/kurye');
-      } else if (['owner', 'sub_admin', 'operator'].includes(profile.role)) {
+        navigate(afterLoginPath(profile.role, from), { replace: true });
+      } else if (isPanelRole(profile.role)) {
         toast.success(`Yönetim paneline hoş geldiniz, ${profile.full_name}`);
-        navigate('/admin');
+        navigate(afterLoginPath(profile.role, from), { replace: true });
       } else {
-        toast.error('Bu portal yalnızca personele ve kuryelere aittir.');
-        navigate('/profil');
+        // Müşteri hesabı personel portalında kalmasın
+        await useAuthStore.getState().signOut();
+        toast.error('Bu portal yalnızca personele ve kuryelere aittir. Müşteri girişini kullanın.');
       }
     } catch (err: any) {
       toast.error(err.message || 'Personel girişi başarısız');

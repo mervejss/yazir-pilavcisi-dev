@@ -23,7 +23,7 @@ import toast from 'react-hot-toast';
 const COLUMNS = [
   { key: 'new', label: 'Yeni' },
   { key: 'preparing', label: 'Hazırlanıyor' },
-  { key: 'assigned_way', label: 'Kuryede / Yolda' },
+  { key: 'assigned_way', label: 'Kuryede / Yolda / Masada' },
   { key: 'delivered', label: 'Teslim Edildi' },
   { key: 'cancelled', label: 'İptal Edildi' },
 ];

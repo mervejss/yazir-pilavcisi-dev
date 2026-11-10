@@ -5,6 +5,7 @@ import ThemeToggle from '@/components/ui/ThemeToggle';
 import Icon, { type IconName } from '@/components/ui/Icon';
 import { useCartStore } from '@/stores/cartStore';
 import { useAuthStore } from '@/stores/authStore';
+import { homeForRole, isPanelRole } from '@/lib/roleHome';
 import { useBusinessSettings } from '@/hooks/useBusinessSettings';
 import { DAY_NAMES } from '@/lib/constants';
 import { weekSchedule } from '@/lib/helpers';
@@ -33,6 +34,10 @@ export default function PublicLayout() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { settings, hours, overrides, status, loading } = useBusinessSettings();
+  // Personel/kurye: "Profilim" yerine kendi paneline giden bağlantı (müşteri profiline düşmesin)
+  const panel = isPanelRole(profile?.role);
+  const accountPath = panel ? homeForRole(profile?.role) : '/profil';
+  const accountLabel = panel ? (profile?.role === 'courier' ? 'Kurye Paneli' : 'Yönetim Paneli') : 'Profilim';
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -80,9 +85,9 @@ export default function PublicLayout() {
             </NavLink>
           ))}
           {user && (
-            <NavLink to="/profil" style={{ ['--i' as any]: LINKS.length }}>
+            <NavLink to={accountPath} style={{ ['--i' as any]: LINKS.length }}>
               <Icon name="user" size={17} className="nav-ico" />
-              <span>Profilim</span>
+              <span>{accountLabel}</span>
             </NavLink>
           )}
           {/* Mobilde giriş / kayıt / çıkış menünün içinde (üst çubukta yer kalmadığı için) */}
@@ -106,8 +111,8 @@ export default function PublicLayout() {
 
           {user ? (
             <>
-              <Link to="/profil" className="user-menu-pill" title="Profilim">
-                <Icon name="user" size={15} /> {profile?.full_name ? profile.full_name.split(' ')[0] : 'Hesabım'}
+              <Link to={accountPath} className="user-menu-pill" title={accountLabel}>
+                <Icon name="user" size={15} /> {panel ? accountLabel : profile?.full_name ? profile.full_name.split(' ')[0] : 'Hesabım'}
               </Link>
               <button type="button" className="icon-circle top-logout" onClick={handleSignOut} title="Çıkış yap" aria-label="Çıkış yap">
                 <Icon name="logout" size={16} />

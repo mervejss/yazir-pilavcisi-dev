@@ -10,6 +10,7 @@ import { useCourierTracking } from '@/hooks/useCourierTracking';
 import RouteMap, { type RouteSummary } from '@/components/maps/RouteMap';
 import Icon from '@/components/ui/Icon';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
+import Modal from '@/components/ui/Modal';
 import Logo from '@/components/ui/Logo';
 import ThemeToggle from '@/components/ui/ThemeToggle';
 import AlertHost from '@/components/alerts/AlertHost';
@@ -27,6 +28,7 @@ interface COrder {
   created_at: string;
   total: number;
   payment_method: string | null;
+  customer_payment_method?: string | null;
   district: string | null;
   is_mine: boolean;
   taken_by_other: boolean;
@@ -43,6 +45,11 @@ interface COrder {
 }
 
 const dest = (o: COrder): Destination => ({ lat: o.lat, lng: o.lng, address: o.delivery_address ? `${o.delivery_address}${o.district ? ', ' + o.district : ''}` : o.district });
+
+// Kapıda tahsil edilen yöntemler: müşterinin seçtiği varsayılan gelir, kurye teslim anında güncelleyebilir
+const PAY_OPTS: Array<[string, string]> = [['cash_on_delivery', '💵 Nakit'], ['card_on_delivery', '💳 Kart (POS)'], ['iban', '🏦 IBAN']];
+const PAY_LABEL: Record<string, string> = { cash_on_delivery: 'Nakit', card_on_delivery: 'Kart (POS)', iban: 'IBAN' };
+const changeablePay = (m: string | null | undefined) => !m || m in PAY_LABEL;
 
 function cashInfo(o: { payment_method: string | null; total: number }) {
   if (o.payment_method === 'cash_on_delivery') return { icon: 'cash' as const, text: `Kapıda NAKİT tahsil et: ${tl(o.total)}`, due: true };
@@ -72,6 +79,9 @@ export default function CourierApp() {
   const [battery, setBattery] = useState<{ level: number; charging: boolean } | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [payAsk, setPayAsk] = useState<{ o: COrder; deliver: boolean } | null>(null);
+  const [payPick, setPayPick] = useState('cash_on_delivery');
+  const [payBusy, setPayBusy] = useState(false);
   detailRef.current = detailId;
   const [splitRows, setSplitRows] = useState<Array<{ order_id: string; method: string; amount: number }>>([]);
   sheetRef.current = sheet;
@@ -234,8 +244,47 @@ export default function CourierApp() {
     }
   };
 
-  const finishDelivery = async (o: COrder) => {
+  // Teslimde ödeme nasıl alındı? (müşterinin seçtiği hazır gelir; kurye kapıda değiştirebilir)
+  const finishDelivery = (o: COrder) => {
+    if (changeablePay(o.payment_method)) {
+      setPayPick(o.payment_method || 'cash_on_delivery');
+      setPayAsk({ o, deliver: true });
+      return;
+    }
     if (!window.confirm(`#${o.order_no} müşteriye teslim edildi mi?`)) return;
+    doDeliver(o);
+  };
+
+  const askPayChange = (o: COrder) => {
+    setPayPick(o.payment_method || 'cash_on_delivery');
+    setPayAsk({ o, deliver: false });
+  };
+
+  const submitPay = async () => {
+    if (!payAsk) return;
+    const { o, deliver } = payAsk;
+    setPayBusy(true);
+    try {
+      if (payPick !== (o.payment_method || '')) {
+        const { error } = await supabase.rpc('courier_set_payment', { p_order: o.id, p_method: payPick } as any);
+        if (error) {
+          toast.error(/courier_set_payment|function|does not exist|schema cache/i.test(error.message)
+            ? 'Bu özellik için yönetici sql/32_delete_orders_courier_payment.sql dosyasını çalıştırmalı.' : error.message, { duration: 8000 });
+          return;
+        }
+      }
+      if (deliver) await doDeliver(o);
+      else {
+        toast.success(`Ödeme yöntemi: ${PAY_LABEL[payPick] || payPick}`);
+        await load();
+      }
+      setPayAsk(null);
+    } finally {
+      setPayBusy(false);
+    }
+  };
+
+  const doDeliver = async (o: COrder) => {
     setBusy(o.id);
     const { error } = await supabase.rpc('update_order_status', { p_order_id: o.id, p_status: 'delivered' });
     setBusy(null);
@@ -427,6 +476,16 @@ export default function CourierApp() {
         <p className="cr-items">{itemsText(o)}</p>
         {o.note && <div className="note small">Not: {o.note}</div>}
         <div className={`cr-cash${cash.due ? ' due' : ''}`}><Icon name={cash.icon} size={18} /> {cash.text}</div>
+        {['assigned', 'on_the_way'].includes(o.status) && changeablePay(o.payment_method) && (
+          <div className="small" style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', margin: '0.25rem 0 0.5rem' }}>
+            <span className="muted">
+              {o.customer_payment_method && o.customer_payment_method !== o.payment_method
+                ? `Müşteri talebi: ${PAY_LABEL[o.customer_payment_method] || o.customer_payment_method} → şimdi: ${PAY_LABEL[o.payment_method || ''] || '—'}`
+                : 'Müşterinin seçtiği yöntem'}
+            </span>
+            <button type="button" className="linklike small" onClick={() => askPayChange(o)}>Ödeme yöntemini değiştir</button>
+          </div>
+        )}
 
         <div className="cr-actions">
           <button type="button" className="btn gold" onClick={() => setDetailId(o.id)}><Icon name="clipboard" size={17} /> Detay · Hesap</button>
@@ -463,6 +522,30 @@ export default function CourierApp() {
   return (
     <div className="cr-app">
       <AlertHost storageKey="yz_alert_courier" />
+      <Modal open={!!payAsk} onClose={() => !payBusy && setPayAsk(null)} size="sm">
+        {payAsk && (
+          <>
+            <div className="pe-head">
+              <div>
+                <h2>{payAsk.deliver ? `#${payAsk.o.order_no} teslim edildi mi?` : `#${payAsk.o.order_no} · Ödeme yöntemi`}</h2>
+                <p className="muted small">Müşteri başta <b>{PAY_LABEL[payAsk.o.customer_payment_method || payAsk.o.payment_method || ''] || '—'}</b> seçmişti. Kapıda farklı ödediyse yöntemi değiştirin.</p>
+              </div>
+              <button type="button" className="icon-circle" onClick={() => setPayAsk(null)} disabled={payBusy} aria-label="Kapat">✕</button>
+            </div>
+            <div className="osd-method" role="radiogroup" aria-label="Ödeme yöntemi">
+              {PAY_OPTS.map(([m, l]) => (
+                <button key={m} type="button" role="radio" aria-checked={payPick === m} className={payPick === m ? 'on' : ''} onClick={() => setPayPick(m)}>{l}</button>
+              ))}
+            </div>
+            <p style={{ textAlign: 'center', fontWeight: 700, margin: '0.8rem 0' }}>
+              {payPick === 'iban' ? 'IBAN / havale — kapıda tahsilat yok' : `${payPick === 'card_on_delivery' ? 'Kart (POS) ile' : 'Nakit'} tahsil edilecek: ${tl(payAsk.o.total)}`}
+            </p>
+            <button type="button" className="btn gold lg block" disabled={payBusy} onClick={submitPay}>
+              {payBusy ? 'Kaydediliyor…' : payAsk.deliver ? '✓ Teslim ettim' : 'Kaydet'}
+            </button>
+          </>
+        )}
+      </Modal>
       <OrderDetailSheet orderId={detailId} customerName={mine.find((o) => o.id === detailId)?.customer_name} onClose={() => setDetailId(null)} />
       <ConfirmationModal
         open={exitAsk}

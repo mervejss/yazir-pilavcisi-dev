@@ -44,3 +44,5 @@
 @container kb (max-width: 1250px) { .kanban-wrap .kanban.kb5 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @container kb (max-width: 800px) { .kanban-wrap .kanban.kb5 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @container kb (max-width: 560px) { .kanban-wrap .kanban.kb5 { grid-template-columns: minmax(0, 1fr); } }
+.po-del { color: var(--danger, #b3261e); border-color: currentColor; white-space: nowrap; }
+.po-del:hover:not(:disabled) { background: var(--danger, #b3261e); color: #fff; }

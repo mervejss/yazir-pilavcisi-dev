@@ -1,6 +1,7 @@
-import { Suspense, lazy, useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Suspense, lazy, useEffect, useState } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
+import { homeForRole, isPanelRole } from '@/lib/roleHome';
 
 // Public pages
 import PublicLayout from '@/pages/public/PublicLayout';
@@ -58,12 +59,47 @@ const ReviewsAdmin = lazy(() => import('@/pages/admin/ReviewsAdmin'));
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
-    const { profile, initialized } = useAuthStore();
+    const { profile, user, initialized, fetchProfile, signOut } = useAuthStore();
+    const location = useLocation();
+    const [slow, setSlow] = useState(false);
+
+    // Oturum var ama profil henüz okunamadıysa (yavaş/kesik internet) müşteri girişine ATMA: sessizce tekrar dene
+    const waiting = initialized && !!user && !profile;
+    useEffect(() => {
+        if (!waiting) {
+            setSlow(false);
+            return;
+        }
+        let n = 0;
+        const iv = setInterval(() => {
+            n += 1;
+            fetchProfile();
+            if (n >= 3) setSlow(true);
+        }, 2000);
+        return () => clearInterval(iv);
+    }, [waiting, fetchProfile]);
 
     if (!initialized) return <LoadingSpinner />;
-    if (!profile) return <Navigate to="/giris" replace />;
+    if (!profile) {
+        if (user) {
+            if (!slow) return <LoadingSpinner />;
+            return (
+                <div style={{ minHeight: '60vh', display: 'grid', placeItems: 'center', padding: '1.5rem', textAlign: 'center' }}>
+                    <div>
+                        <p><b>Hesap bilgileriniz okunamadı.</b><br />İnternet bağlantınızı kontrol edip tekrar deneyin.</p>
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                            <button type="button" className="btn gold" onClick={() => fetchProfile()}>Tekrar dene</button>
+                            <button type="button" className="btn ghost" onClick={() => signOut()}>Çıkış yap</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+        // Panel sayfaları için giriş PERSONEL girişidir (müşteri girişi değil); geri dönülecek sayfa hatırlanır
+        return <Navigate to="/personel-giris" replace state={{ from: location.pathname + location.search }} />;
+    }
     if (allowedRoles && !allowedRoles.includes(profile.role)) {
-        return <Navigate to="/" replace />;
+        return <Navigate to={isPanelRole(profile.role) ? homeForRole(profile.role) : '/'} replace />;
     }
     return <>{children}</>;
 }

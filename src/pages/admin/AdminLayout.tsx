@@ -191,7 +191,7 @@ export default function AdminLayout() {
 
   const handleSignOut = async () => {
     await signOut();
-    navigate('/giris');
+    navigate('/personel-giris', { replace: true });
   };
 
   const newOrdersCount = orders.length;

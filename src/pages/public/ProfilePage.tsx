@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useCustomerAddresses } from '@/hooks/useCustomerAddresses';
 import { useCustomerOrders } from '@/hooks/useCustomerOrders';
@@ -14,8 +14,9 @@ import { useMyReviews, type ReviewableOrder } from '@/hooks/useMyReviews';
 import ReviewModal from '@/components/reviews/ReviewModal';
 import Stars from '@/components/ui/Stars';
 import toast from 'react-hot-toast';
+import { homeForRole, isPanelRole } from '@/lib/roleHome';
 
-export default function ProfilePage() {
+function CustomerProfile() {
   const { profile, user, signOut, updateProfile } = useAuthStore();
   const { addresses, addAddress, deleteAddress, updateAddress } = useCustomerAddresses();
   const { orders, loading: ordersLoading } = useCustomerOrders();
@@ -615,4 +616,21 @@ export default function ProfilePage() {
       <ReviewModal order={reviewOrder} onClose={() => setReviewOrder(null)} onSaved={myReviews.refetch} />
     </main>
   );
+}
+
+/** Personel / kurye hesapları müşteri profilini kullanamaz: kendi paneline döner.
+ *  (Müşteri olarak sipariş vermek isteyen personel ayrı bir e-posta ile müşteri hesabı açmalıdır.) */
+export default function ProfilePage() {
+  const role = useAuthStore((s) => s.profile?.role);
+  if (isPanelRole(role)) {
+    return <StaffBounce to={homeForRole(role)} />;
+  }
+  return <CustomerProfile />;
+}
+
+function StaffBounce({ to }: { to: string }) {
+  useEffect(() => {
+    toast('Personel hesapları müşteri profilini kullanmaz. Müşteri olarak sipariş vermek için ayrı bir e-posta ile müşteri hesabı açın.', { icon: 'ℹ️', duration: 6000, id: 'staff-bounce' });
+  }, []);
+  return <Navigate to={to} replace />;
 }

@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import Logo from '@/components/ui/Logo';
+import { afterLoginPath, isPanelRole } from '@/lib/roleHome';
 import toast from 'react-hot-toast';
 
 export default function LoginPage() {
@@ -9,11 +10,30 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const { signIn, loading } = useAuthStore();
   const navigate = useNavigate();
+  const from = (useLocation().state as { from?: string } | null)?.from;
+  const profile0 = useAuthStore((s) => s.profile);
+  const initialized = useAuthStore((s) => s.initialized);
+
+  // Personel / kurye hesabı zaten açıksa müşteri girişinde bekletme: kendi paneline git
+  useEffect(() => {
+    if (initialized && profile0 && isPanelRole(profile0.role)) navigate(afterLoginPath(profile0.role, from), { replace: true });
+  }, [initialized, profile0, navigate, from]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await signIn(email, password);
+      let profile = useAuthStore.getState().profile;
+      if (!profile) {
+        await useAuthStore.getState().fetchProfile();
+        profile = useAuthStore.getState().profile;
+      }
+      // Admin / operatör / kurye hesapları müşteri profiline DEĞİL, kendi paneline gider
+      if (profile && isPanelRole(profile.role)) {
+        toast.success('Personel hesabı: panele yönlendiriliyorsunuz.');
+        navigate(afterLoginPath(profile.role, from), { replace: true });
+        return;
+      }
       toast.success('Giriş başarılı! Hoş geldiniz.');
       navigate('/profil');
     } catch (err: any) {
