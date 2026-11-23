@@ -3,11 +3,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
-import { tl, hhmm, timeAgo, beep, businessDayStart } from '@/lib/helpers';
+import { tl, hhmm, timeAgo, beep, businessDayStart, plannedLabel } from '@/lib/helpers';
 import { ORDER_STATUS_LABELS } from '@/lib/constants';
 import { HAS_GMAPS_KEY, mapsDirUrl, distanceM, fmtKm, type Destination } from '@/lib/googleMaps';
 import { useBackTrap } from '@/hooks/useBackTrap';
 import { useCourierTracking } from '@/hooks/useCourierTracking';
+import { flushQueue, runOrQueue, startOfflineQueue, useQueuedOps } from '@/lib/offlineQueue';
 import RouteMap, { type RouteSummary } from '@/components/maps/RouteMap';
 import Icon from '@/components/ui/Icon';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
@@ -27,6 +28,7 @@ interface COrder {
   order_no: number;
   status: string;
   created_at: string;
+  scheduled_for?: string | null;
   total: number;
   payment_method: string | null;
   customer_payment_method?: string | null;
@@ -73,7 +75,7 @@ export default function CourierApp() {
   const { profile, signOut } = useAuthStore();
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('mine');
-  const [all, setAll] = useState<COrder[]>([]);
+  const [allRaw, setAll] = useState<COrder[]>([]);
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [online, setOnline] = useState(false);
@@ -104,6 +106,23 @@ export default function CourierApp() {
   const prevReady = useRef<Set<string> | null>(null);
 
   const track = useCourierTracking(online);
+
+  // Çevrimdışı kuyruk: bekleyen işlemler ekranda HEMEN uygulanmış görünür (teslim edilen sipariş listeden düşer),
+  // bağlantı gelince sırayla sunucuya gider.
+  const queued = useQueuedOps();
+  const all = useMemo(() => {
+    if (queued.length === 0) return allRaw;
+    const st: Record<string, string> = {};
+    const pm: Record<string, string> = {};
+    queued.forEach((q) => {
+      if (q.rpc === 'update_order_status') st[String(q.args.p_order_id)] = String(q.args.p_status);
+      if (q.rpc === 'courier_set_payment') pm[String(q.args.p_order)] = String(q.args.p_method);
+    });
+    // Teslim edildi / iptal bekleyen sipariş aktif listeden hemen düşer
+    return allRaw
+      .filter((o) => st[o.id] !== 'delivered' && st[o.id] !== 'cancelled')
+      .map((o) => (st[o.id] || pm[o.id] ? { ...o, status: st[o.id] || o.status, payment_method: pm[o.id] || o.payment_method } : o));
+  }, [allRaw, queued]);
 
   // "Ana ekrana ekle" ile uygulama gibi kurulabilsin (yalnızca kurye ekranında manifest eklenir)
   useEffect(() => {
@@ -257,9 +276,10 @@ export default function CourierApp() {
     setBusy(o.id);
     try {
       if (!online) await setOnlineState(true, true); // yola çıkarken konum paylaşımı otomatik açılır
-      const { error } = await supabase.rpc('update_order_status', { p_order_id: o.id, p_status: 'on_the_way' });
-      if (error) throw error;
-      toast.success('🛵 Yola çıktınız — konumunuz yöneticiye canlı iletiliyor');
+      const r = await runOrQueue('update_order_status', { p_order_id: o.id, p_status: 'on_the_way' }, { label: `#${o.order_no} yola çıktı`, orderId: o.id });
+      if (!r.ok) throw new Error(r.error);
+      if (r.queued) toast('📵 Bağlantı yok — "yola çıktı" kaydedildi, bağlantı gelince gönderilecek', { duration: 6000 });
+      else toast.success('🛵 Yola çıktınız — konumunuz yöneticiye canlı iletiliyor');
       setSheet(o.id);
       await load();
     } catch (e: any) {
@@ -291,10 +311,10 @@ export default function CourierApp() {
     setPayBusy(true);
     try {
       if (payPick !== (o.payment_method || '')) {
-        const { error } = await supabase.rpc('courier_set_payment', { p_order: o.id, p_method: payPick } as any);
-        if (error) {
-          toast.error(/courier_set_payment|function|does not exist|schema cache/i.test(error.message)
-            ? 'Bu özellik için yönetici sql/32_delete_orders_courier_payment.sql dosyasını çalıştırmalı.' : error.message, { duration: 8000 });
+        const r = await runOrQueue('courier_set_payment', { p_order: o.id, p_method: payPick }, { label: `#${o.order_no} ödeme yöntemi`, orderId: o.id, dedupeKey: `pay:${o.id}` });
+        if (!r.ok) {
+          toast.error(/courier_set_payment|function|does not exist|schema cache/i.test(r.error)
+            ? 'Bu özellik için yönetici sql/32_delete_orders_courier_payment.sql dosyasını çalıştırmalı.' : r.error, { duration: 8000 });
           return;
         }
       }
@@ -311,12 +331,13 @@ export default function CourierApp() {
 
   const doDeliver = async (o: COrder) => {
     setBusy(o.id);
-    const { error } = await supabase.rpc('update_order_status', { p_order_id: o.id, p_status: 'delivered' });
+    const r = await runOrQueue('update_order_status', { p_order_id: o.id, p_status: 'delivered' }, { label: `#${o.order_no} teslim edildi`, orderId: o.id });
     setBusy(null);
-    if (error) return toast.error(error.message);
-    toast.success('✓ Sipariş teslim edildi');
+    if (!r.ok) return toast.error(r.error);
+    if (r.queued) toast('📵 Bağlantı yok — teslim KAYDEDİLDİ, bağlantı gelince otomatik gönderilecek', { duration: 7000 });
+    else toast.success('✓ Sipariş teslim edildi');
     setSheet(null);
-    load();
+    if (!r.queued) load();
   };
 
   const handleSignOut = async () => {
@@ -330,6 +351,13 @@ export default function CourierApp() {
     }
     navigate('/personel-giris', { replace: true });
   };
+
+  // Bekleyen işlemleri düzenli gönder; gönderilince listeyi tazele
+  useEffect(() => startOfflineQueue((r) => {
+    if (r.sent > 0) toast.success(`✓ ${r.sent} bekleyen işlem sunucuya gönderildi`);
+    r.dropped.forEach((d) => toast.error(`Uygulanamadı: ${d}`, { duration: 9000 }));
+    void load();
+  }), [load]);
 
   // İnternet / pil durumu uyarıları
   useEffect(() => {
@@ -402,10 +430,10 @@ export default function CourierApp() {
 
   const saveNote = async (o: COrder, text: string) => {
     const next = notes[o.id] === text ? '' : text; // aynı seçeneğe tekrar basınca notu kaldırır
-    const { error } = await supabase.rpc('courier_set_note', { p_order: o.id, p_note: next } as any);
-    if (error) return toast.error(/function|does not exist/i.test(error.message) ? 'Not için yönetici SQL 30 dosyasını çalıştırmalı' : error.message);
+    const r = await runOrQueue('courier_set_note', { p_order: o.id, p_note: next }, { label: `#${o.order_no} not`, orderId: o.id, dedupeKey: `note:${o.id}` });
+    if (!r.ok) return toast.error(/function|does not exist/i.test(r.error) ? 'Not için yönetici SQL 30 dosyasını çalıştırmalı' : r.error);
     setNotes((n) => ({ ...n, [o.id]: next }));
-    toast.success(next ? 'Not yöneticiye iletildi' : 'Not kaldırıldı');
+    toast.success(r.queued ? 'Not kaydedildi, bağlantı gelince iletilecek' : next ? 'Not yöneticiye iletildi' : 'Not kaldırıldı');
   };
   const free = useMemo(() => all.filter((o) => !o.is_mine), [all]);
   const todayStart = businessDayStart();
@@ -441,7 +469,9 @@ export default function CourierApp() {
       <div className="cr-card-top">
         <b>#{o.order_no}</b>
         <span className={`st ${o.status}`}>{ORDER_STATUS_LABELS[o.status]}</span>
-        <span className="muted small">{timeAgo(o.created_at)}</span>
+        {o.scheduled_for
+          ? <span className="chip plan" title="Müşteri bu saate istedi">⏰ {plannedLabel(o.scheduled_for)}</span>
+          : <span className="muted small">{timeAgo(o.created_at)}</span>}
       </div>
       <div className="cr-loc"><Icon name="mapPin" size={16} /> {o.district || 'Mahalle belirtilmedi'}</div>
       <p className="cr-items">{itemsText(o)}</p>
@@ -600,7 +630,13 @@ export default function CourierApp() {
         <button type="button" className="icon-btn cr-out" onClick={() => setExitAsk(true)} aria-label="Çıkış"><Icon name="logout" size={18} /></button>
       </header>
 
-      {offline && <div className="cr-warn" role="alert">📵 İnternet bağlantısı yok — konum ve sipariş güncellemeleri bağlantı gelince devam eder.</div>}
+      {offline && <div className="cr-warn" role="alert">📵 İnternet bağlantısı yok — yaptığınız işlemler (teslim, ödeme, not) kaydediliyor ve bağlantı gelince otomatik gönderilecek.</div>}
+      {queued.length > 0 && (
+        <div className="cr-warn info" role="status">
+          ⏳ <b>{queued.length}</b> işlem gönderilmeyi bekliyor{queued[0] ? ` (${queued[0].label}${queued.length > 1 ? ' …' : ''})` : ''}. Uygulamayı kapatmayın / bağlantıyı kontrol edin.
+          <button type="button" className="btn ghost sm" style={{ marginLeft: 'auto' }} onClick={() => void flushQueue().then((r) => { if (r.sent) { toast.success(`${r.sent} işlem gönderildi`); load(); } })}>Şimdi gönder</button>
+        </div>
+      )}
       {battery && battery.level <= 15 && !battery.charging && <div className="cr-warn" role="alert">🔋 Pil %{battery.level} — şarja takın, konum paylaşımı kesilebilir.</div>}
       {online && (track.status === 'denied' || track.status === 'unsupported') && <div className="cr-warn" role="alert">📍 Konum izni kapalı — tarayıcı ayarlarından konuma izin verin, yoksa müşteri sizi haritada göremez.</div>}
       {mine.length > 1 && Object.keys(seq).length > 1 && <div className="cr-warn info">🧭 Önerilen sıra rakamlarla gösterildi (en yakın adresten başlar).</div>}

@@ -2,7 +2,7 @@
 
 Dönem: 2026-10-12 → 2026-11-04 | 392 kalem | 195 sipariş | 97,495 TL
 
-Kurulum sırası (PostgreSQL/Supabase; 005 daha önce çalıştıysa önce 005b_fix_id_identity.sql): sql/005_past_orders.sql (şema) → sql/006_past_orders_seed_trendyol.sql (veri).
+SQL kurulumu: sql/README.md (tek sıra: sql/ORDER.txt). Geçmiş siparişler: sql/veri/ (005 → 005b → 006).
 Seed dosyası Trendyol kayıtlarını silip yeniden yazar, tekrar çalıştırmak güvenlidir.
 
 Notlar:

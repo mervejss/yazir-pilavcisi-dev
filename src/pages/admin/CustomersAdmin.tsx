@@ -11,11 +11,12 @@ import NewOrderModal, { type OrderPrefill } from '@/components/admin/NewOrderMod
 import AddressMap from '@/components/maps/AddressMap';
 import LocationPicker from '@/components/maps/LocationPicker';
 import { mapsPlaceUrl, type LatLng } from '@/lib/googleMaps';
-import { fmtPhone, isMissingFn, normalizePhone } from '@/lib/staffCustomers';
+import { checkPhone, fmtNo, fmtPhone, isMissingFn, normalizePhone, phoneKey, type DupMatch } from '@/lib/staffCustomers';
 import VoiceDictateButton from '@/components/ui/VoiceDictateButton';
 
 interface Cust {
   id: string;
+  customer_no?: number;
   user_id: string | null;
   full_name: string;
   phone: string | null;
@@ -31,6 +32,37 @@ interface Cust {
 }
 type SortKey = 'recent' | 'spent' | 'orders' | 'points' | 'name';
 
+/** Tarayıcıda kalıcı (yenilesen de kalır) basit ayar */
+function usePersistedBool(key: string, initial: boolean): [boolean, (v: boolean) => void] {
+  const [v, setV] = useState<boolean>(() => {
+    try { const r = localStorage.getItem(key); return r === null ? initial : r === '1'; } catch { return initial; }
+  });
+  const set = (n: boolean) => { setV(n); try { localStorage.setItem(key, n ? '1' : '0'); } catch { /* yok say */ } };
+  return [v, set];
+}
+/** Adı boş ya da "İsimsiz / İsimsiz müşteri" olan kayıt */
+const isNameless = (c: { full_name: string }) => {
+  const n = (c.full_name || '').trim().toLocaleLowerCase('tr').replace(/\s+/g, ' ');
+  return n === '' || n === 'isimsiz' || n === 'i̇simsiz' || n === 'isimsiz müşteri' || n === 'i̇simsiz müşteri';
+};
+interface RefInfo { customer_id: string; code: string; audience: string; business_name: string; campaign_name: string; is_active: boolean; assigned_by_admin: boolean }
+
+/** Aynı telefon uyarısı: hangi müşteride (numara + ad) kayıtlı olduğunu söyler */
+function DupWarn({ list, onOpen, text }: { list: DupMatch[]; onOpen: (id: string) => void; text: string }) {
+  if (!list.length) return null;
+  return (
+    <div className="dup-warn" role="alert">
+      <b>⚠️ {text}</b>
+      {list.map((m) => (
+        <div key={m.id} className="dup-row">
+          <span><span className="cno">{fmtNo(m.customer_no)}</span> <b>{m.full_name || 'İsimsiz'}</b> · {fmtPhone(m.phone)} · {m.has_account ? 'üye' : 'telefon müşterisi'} · {m.order_count} sipariş</span>
+          <button type="button" className="btn ghost sm" onClick={() => onOpen(m.id)}>Müşteriyi aç</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function CustomersAdmin() {
   const { profile } = useAuthStore();
   const canPoints = !!profile && ['owner', 'sub_admin'].includes(profile.role);
@@ -40,6 +72,14 @@ export default function CustomersAdmin() {
   const [q, setQ] = useState('');
   const [sort, setSort] = useState<SortKey>('recent');
   const [seg, setSeg] = useState<'all' | 'member' | 'vip' | 'new' | 'sleeping'>('all');
+  // v68: kalıcı filtreler (işaret değişene kadar yenilemede de kalır)
+  const [splitNameless, setSplitNameless] = usePersistedBool('yz_cust_split_nameless', false);
+  const [onlyMember, setOnlyMember] = usePersistedBool('yz_cust_f_member', false);
+  const [onlyPhone, setOnlyPhone] = usePersistedBool('yz_cust_f_phone', false);
+  const [refs, setRefs] = useState<Record<string, RefInfo>>({});
+  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [refCode, setRefCode] = useState('');
+  const [refBusy, setRefBusy] = useState(false);
   const [sel, setSel] = useState<Cust | null>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [ledger, setLedger] = useState<any[]>([]);
@@ -59,6 +99,24 @@ export default function CustomersAdmin() {
   const [nf, setNf] = useState(emptyNew);
   const [nfLoc, setNfLoc] = useState<LatLng | null>(null);
   const [nfBusy, setNfBusy] = useState(false);
+  // v70: aynı telefon uyarısı (yeni müşteri formu ve detay düzenleme)
+  const [nfDup, setNfDup] = useState<DupMatch[]>([]);
+  const [editDup, setEditDup] = useState<DupMatch[]>([]);
+
+  // Telefon yazılırken (0,4 sn bekleyip) başka müşteride kayıtlı mı diye bakar
+  useEffect(() => {
+    if (addOpen !== 'customer') { setNfDup([]); return; }
+    let on = true;
+    const t = setTimeout(async () => { const m = await checkPhone(nf.phone); if (on) setNfDup(m); }, 400);
+    return () => { on = false; clearTimeout(t); };
+  }, [nf.phone, addOpen]);
+  useEffect(() => {
+    // numara DEĞİŞMİYORSA uyarı yok (eski çift kayıtlar başka düzenlemeyi engellemez; sunucu da yalnızca değişimde engeller)
+    if (!sel || phoneKey(form.phone) === phoneKey(sel.phone || '')) { setEditDup([]); return; }
+    let on = true;
+    const t = setTimeout(async () => { const m = await checkPhone(form.phone, sel.id); if (on) setEditDup(m); }, 400);
+    return () => { on = false; clearTimeout(t); };
+  }, [form.phone, sel]);
 
   const load = async () => {
     const { data, error } = await supabase.rpc('admin_customers');
@@ -69,10 +127,36 @@ export default function CustomersAdmin() {
   useEffect(() => {
     load();
     supabase.from('coupons').select('id,code,title,audience,customer_ids').eq('audience', 'specific').then(({ data }) => data && setCoupons(data as any[]));
+    loadRefs();
+    if (canPoints) supabase.from('referral_campaigns').select('id,business_name,campaign_name,staff_code,customer_code,staff_enabled,customers_enabled,is_active').order('business_name').then(({ data }) => data && setCampaigns(data as any[]));
   }, []);
+
+  const loadRefs = async () => {
+    const { data, error } = await supabase.rpc('admin_customer_referrals');
+    if (error) return; // sql/44 çalıştırılmamışsa sessizce geç
+    const m: Record<string, RefInfo> = {};
+    for (const r of (data || []) as unknown as RefInfo[]) m[r.customer_id] = r;
+    setRefs(m);
+  };
+
+  const saveRef = async (clear = false) => {
+    if (!sel) return;
+    const code = clear ? '' : refCode.trim();
+    if (!clear && !code) return void toast.error('Referans kodu yazın veya listeden seçin');
+    setRefBusy(true);
+    const { data, error } = await supabase.rpc('admin_set_customer_referral', { p_customer: sel.id, p_code: code } as any);
+    setRefBusy(false);
+    if (error) return void toast.error(isMissingFn(error) ? 'sql/44_admin_referral_assign.sql dosyasını Supabase SQL Editor\'de çalıştırın' : error.message);
+    const r: any = data;
+    if (!r?.ok) return void toast.error(r?.error || 'Kaydedilemedi');
+    toast.success(r.removed ? 'Referans kaldırıldı' : `Referans tanımlandı: ${r.business_name || r.campaign_name || ''}${r.active === false ? ' (kampanya pasif — aktif olunca geçerli olur)' : ''}`);
+    setRefCode('');
+    loadRefs();
+  };
 
   const open = async (c: Cust) => {
     setSel(c);
+    setRefCode('');
     setForm({ name: c.full_name, phone: c.phone || '', notes: c.notes || '' });
     setAdj({ points: '', note: '' });
     setOpenOrder(null);
@@ -96,7 +180,7 @@ export default function CustomersAdmin() {
     setOrderModal(true);
   };
 
-  const saveNew = async () => {
+  const saveNew = async (merge = false) => {
     const np = nf.phone.trim() ? normalizePhone(nf.phone) : null;
     if (addOpen === 'customer' && !nf.name.trim() && !np) return void toast.error('En az ad veya telefon girin');
     if (nf.phone.trim() && !np) return void toast.error('Telefon geçersiz (05xx xxx xx xx)');
@@ -108,11 +192,13 @@ export default function CustomersAdmin() {
       p_phone: addOpen === 'address' ? null : np,
       p_notes: addOpen === 'address' ? null : nf.notes,
       p_address: nf.address.trim() ? { title: nf.title, address: nf.address.trim(), district: nf.district, lat: nfLoc?.lat ?? null, lng: nfLoc?.lng ?? null, make_default: false } : null,
+      p_merge: merge,
     } as any);
     setNfBusy(false);
     if (error) return void toast.error(isMissingFn(error) ? 'sql/25_phone_customers_maps.sql dosyasını Supabase SQL Editor\'de çalıştırın' : error.message);
     const r: any = data;
-    toast.success(addOpen === 'address' ? 'Adres kaydedildi' : r?.created ? 'Müşteri kaydedildi' : 'Bu telefon zaten kayıtlıydı — bilgiler güncellendi');
+    if (r?.duplicate) { setNfDup([r.existing as DupMatch]); return void toast.error(`Bu telefon ${fmtNo(r.existing.customer_no)} ${r.existing.full_name || 'İsimsiz'} müşterisinde kayıtlı`); }
+    toast.success(addOpen === 'address' ? 'Adres kaydedildi' : r?.created ? `Müşteri kaydedildi (${fmtNo(r.customer_no)})` : `Mevcut müşteri ${fmtNo(r.customer_no)} güncellendi`);
     const was = addOpen;
     setAddOpen(null);
     setNf(emptyNew);
@@ -169,7 +255,13 @@ export default function CustomersAdmin() {
     const t = q.trim().toLocaleLowerCase('tr');
     const now = Date.now();
     let r = list.filter((c) => {
-      if (t && !`${c.full_name} ${c.phone || ''} ${c.email || ''}`.toLocaleLowerCase('tr').includes(t)) return false;
+      if (t && !`${c.full_name} ${c.phone || ''} ${c.email || ''} ${c.customer_no || ''} #${c.customer_no || ''}`.toLocaleLowerCase('tr').includes(t)) return false;
+      // Üye / Telefon işaretleri: yalnızca biri işaretliyse o tür; ikisi de işaretli ya da ikisi de boşsa hepsi
+      if (onlyMember !== onlyPhone) {
+        const isPhone = !c.user_id && c.created_via === 'phone';
+        if (onlyMember && !c.user_id) return false;
+        if (onlyPhone && !isPhone) return false;
+      }
       if (seg === 'member') return !!c.user_id;
       if (seg === 'vip') return Number(c.total_spent) >= 1500 || c.order_count >= 10;
       if (seg === 'new') return now - new Date(c.created_at).getTime() < 14 * 864e5;
@@ -184,12 +276,15 @@ export default function CustomersAdmin() {
       return new Date(b.last_order_at || b.created_at).getTime() - new Date(a.last_order_at || a.created_at).getTime();
     });
     return r;
-  }, [list, q, sort, seg]);
+  }, [list, q, sort, seg, onlyMember, onlyPhone]);
+
+  const namedRows = useMemo(() => (splitNameless ? shown.filter((c) => !isNameless(c)) : shown), [shown, splitNameless]);
+  const namelessRows = useMemo(() => (splitNameless ? shown.filter(isNameless) : []), [shown, splitNameless]);
 
   const exportCsv = () => {
     const esc = (s: any) => `"${String(s ?? '').replace(/"/g, '""')}"`;
-    const rows = [['Ad', 'Telefon', 'E-posta', 'Üye', 'Sipariş', 'Toplam harcama', 'Son sipariş', 'Puan']].concat(
-      shown.map((c) => [c.full_name, c.phone || '', c.email || '', c.user_id ? 'Evet' : 'Hayır', String(c.order_count), String(c.total_spent), c.last_order_at ? new Date(c.last_order_at).toLocaleDateString('tr-TR') : '', String(c.loyalty_points)]),
+    const rows = [['No', 'Ad', 'Telefon', 'E-posta', 'Üye', 'Sipariş', 'Toplam harcama', 'Son sipariş', 'Puan']].concat(
+      shown.map((c) => [String(c.customer_no ?? ''), c.full_name, c.phone || '', c.email || '', c.user_id ? 'Evet' : 'Hayır', String(c.order_count), String(c.total_spent), c.last_order_at ? new Date(c.last_order_at).toLocaleDateString('tr-TR') : '', String(c.loyalty_points)]),
     );
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob(['\ufeff' + rows.map((r) => r.map(esc).join(';')).join('\r\n')], { type: 'text/csv;charset=utf-8' }));
@@ -203,6 +298,20 @@ export default function CustomersAdmin() {
     if (c) open(c);
     else toast.error('Müşteri kaydı bulunamadı');
   };
+
+  const renderRow = (c: Cust) => (
+              <tr key={c.id} className="row-click" onClick={() => open(c)}>
+                <td><span className="cno">{fmtNo(c.customer_no)}</span></td>
+                <td><b>{c.full_name || 'İsimsiz'}</b> {c.user_id && <span className="chip">üye</span>}{!c.user_id && c.created_via === 'phone' && <span className="chip">📞 telefon</span>}{refs[c.id] && <span className="chip" title={`Referans: ${refs[c.id].code}`}>🏷️ {refs[c.id].business_name || 'referans'}</span>}{(Number(c.total_spent) >= 1500 || c.order_count >= 10) && ' 👑'}</td>
+                <td>{c.phone ? fmtPhone(c.phone) : '—'}</td>
+                <td>{c.order_count}</td>
+                <td><b>{tl(Number(c.total_spent))}</b></td>
+                <td>{tl(Number(c.avg_basket))}</td>
+                <td>{c.last_order_at ? new Date(c.last_order_at).toLocaleDateString('tr-TR') : '—'}</td>
+                <td>{c.loyalty_points ? `⭐ ${c.loyalty_points}` : '—'}</td>
+                <td><button type="button" className="btn ghost sm">Detay</button></td>
+              </tr>
+            );
 
   if (loading) return <p className="muted center">Müşteriler yükleniyor…</p>;
 
@@ -237,12 +346,19 @@ export default function CustomersAdmin() {
       </div>
 
       <div className="ad-toolbar">
-        <div className="ad-search"><span>🔍</span><input type="search" placeholder="İsim, telefon veya e-posta ara…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+        <div className="ad-search"><span>🔍</span><input type="search" placeholder="İsim, telefon, e-posta veya müşteri no (#1001) ara…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
         <label className="ad-select"><span>Sıralama</span>
           <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
             <option value="recent">Son siparişe göre</option><option value="spent">En çok harcayan</option><option value="orders">En çok sipariş</option><option value="points">En çok puan</option><option value="name">İsme göre</option>
           </select>
         </label>
+      </div>
+      <div className="cx-flags" role="group" aria-label="Müşteri filtreleri">
+        <button type="button" className={`cx-flag ${onlyMember ? 'on' : ''}`} aria-pressed={onlyMember} onClick={() => setOnlyMember(!onlyMember)}><i>{onlyMember ? '✓' : ''}</i> Üye</button>
+        <button type="button" className={`cx-flag ${onlyPhone ? 'on' : ''}`} aria-pressed={onlyPhone} onClick={() => setOnlyPhone(!onlyPhone)}><i>{onlyPhone ? '✓' : ''}</i> Telefon</button>
+        <span className="cx-sep" />
+        <button type="button" className={`cx-flag ${splitNameless ? 'on' : ''}`} aria-pressed={splitNameless} onClick={() => setSplitNameless(!splitNameless)}><i>{splitNameless ? '✓' : ''}</i> İsimsizleri ayır</button>
+        <small className="muted">Seçimleriniz kalıcıdır; siz değiştirene kadar böyle kalır.{onlyMember === onlyPhone && (onlyMember ? ' (İkisi de seçili: hepsi gösterilir.)' : '')}</small>
       </div>
       <div className="ad-tabs">
         {([['all', 'Tümü'], ['member', 'Üyeler'], ['vip', '👑 VIP (1500₺+ / 10+ sipariş)'], ['new', '🆕 Yeni (14 gün)'], ['sleeping', '😴 Uyuyan (45+ gün)']] as const).map(([k, l]) => (
@@ -252,21 +368,16 @@ export default function CustomersAdmin() {
 
       <div style={{ overflowX: 'auto' }}>
         <table className="tbl">
-          <thead><tr><th>Müşteri</th><th>Telefon</th><th>Sipariş</th><th>Toplam harcama</th><th>Ort. sepet</th><th>Son sipariş</th><th>Puan</th><th /></tr></thead>
+          <thead><tr><th>No</th><th>Müşteri</th><th>Telefon</th><th>Sipariş</th><th>Toplam harcama</th><th>Ort. sepet</th><th>Son sipariş</th><th>Puan</th><th /></tr></thead>
           <tbody>
-            {shown.map((c) => (
-              <tr key={c.id} className="row-click" onClick={() => open(c)}>
-                <td><b>{c.full_name || 'İsimsiz'}</b> {c.user_id && <span className="chip">üye</span>}{!c.user_id && c.created_via === 'phone' && <span className="chip">📞 telefon</span>}{(Number(c.total_spent) >= 1500 || c.order_count >= 10) && ' 👑'}</td>
-                <td>{c.phone ? fmtPhone(c.phone) : '—'}</td>
-                <td>{c.order_count}</td>
-                <td><b>{tl(Number(c.total_spent))}</b></td>
-                <td>{tl(Number(c.avg_basket))}</td>
-                <td>{c.last_order_at ? new Date(c.last_order_at).toLocaleDateString('tr-TR') : '—'}</td>
-                <td>{c.loyalty_points ? `⭐ ${c.loyalty_points}` : '—'}</td>
-                <td><button type="button" className="btn ghost sm">Detay</button></td>
-              </tr>
-            ))}
-            {shown.length === 0 && <tr><td colSpan={8} className="center muted" style={{ padding: '2rem' }}>Müşteri bulunamadı.</td></tr>}
+            {namedRows.map(renderRow)}
+            {splitNameless && namelessRows.length > 0 && (
+              <>
+                <tr className="cx-divider"><td colSpan={9}>👤 İsimsiz müşteriler ({namelessRows.length})</td></tr>
+                {namelessRows.map(renderRow)}
+              </>
+            )}
+            {namedRows.length + namelessRows.length === 0 && <tr><td colSpan={9} className="center muted" style={{ padding: '2rem' }}>Müşteri bulunamadı.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -277,7 +388,7 @@ export default function CustomersAdmin() {
         {sel && (
           <>
             <div className="pe-head">
-              <div><h2>👤 {sel.full_name || 'İsimsiz müşteri'}</h2><p className="muted small">Kayıt: {new Date(sel.created_at).toLocaleDateString('tr-TR')} · {sel.user_id ? 'Üye hesabı var' : 'Misafir (telefonla sipariş)'}</p></div>
+              <div><h2>👤 <span className="cno lg">{fmtNo(sel.customer_no)}</span> {sel.full_name || 'İsimsiz müşteri'}</h2><p className="muted small">Kayıt: {new Date(sel.created_at).toLocaleDateString('tr-TR')} · {sel.user_id ? 'Üye hesabı var' : 'Misafir (telefonla sipariş)'}</p></div>
               <button type="button" className="icon-circle" onClick={() => setSel(null)} aria-label="Kapat">✕</button>
             </div>
             <div className="ad-stats" style={{ marginBottom: '1rem' }}>
@@ -304,6 +415,7 @@ export default function CustomersAdmin() {
                     />
                   </span>
                   <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                  <DupWarn list={editDup} onOpen={openById} text="Bu telefon başka bir müşteride kayıtlı — kaydedilemez:" />
                 </label>
                 <label className="fld">
                   <span className="fld-row">Yönetici notu (müşteri görmez)<VoiceDictateButton value={form.notes} onChange={(v) => setForm((f) => ({ ...f, notes: v }))} /></span>
@@ -344,6 +456,40 @@ export default function CustomersAdmin() {
                 )}
               </section>
             </div>
+
+            <section className="pe-sec" style={{ marginTop: '1rem' }}>
+              <h4>🏷️ Referans kodu</h4>
+              {!sel.user_id ? (
+                <p className="muted small">Bu müşterinin web sitesi hesabı yok; referans yalnızca siteye üye olan müşterilere tanımlanır.</p>
+              ) : (
+                <>
+                  {refs[sel.id] ? (
+                    <div className="cu-ref">
+                      <b>{refs[sel.id].business_name || 'İşletme'}</b>
+                      <span className="muted small"> · {refs[sel.id].campaign_name || 'Kampanya'} · {refs[sel.id].audience === 'staff' ? 'çalışan kodu' : 'müşteri kodu'}</span>
+                      <div><code>{refs[sel.id].code}</code>
+                        {refs[sel.id].assigned_by_admin && <span className="chip">🔒 yönetici tanımladı (kalıcı)</span>}
+                        {!refs[sel.id].is_active && <span className="chip">kampanya pasif</span>}
+                      </div>
+                    </div>
+                  ) : <p className="muted small">Bu müşteride referans yok.</p>}
+                  {canPoints ? (
+                    <div className="code-row">
+                      <input list="cx-ref-codes" value={refCode} onChange={(e) => setRefCode(e.target.value.toUpperCase())} placeholder="Kodu yazın veya listeden seçin" autoCapitalize="characters" />
+                      <datalist id="cx-ref-codes">
+                        {campaigns.flatMap((c) => [
+                          c.customers_enabled && c.customer_code ? <option key={c.id + 'c'} value={c.customer_code}>{c.business_name} — müşteri kodu</option> : null,
+                          c.staff_enabled && c.staff_code ? <option key={c.id + 's'} value={c.staff_code}>{c.business_name} — çalışan kodu</option> : null,
+                        ])}
+                      </datalist>
+                      <button type="button" className="btn gold sm" disabled={refBusy} onClick={() => saveRef(false)}>{refs[sel.id] ? 'Değiştir' : 'Tanımla'}</button>
+                      {refs[sel.id] && <button type="button" className="btn ghost sm danger-txt" disabled={refBusy} onClick={() => confirm('Bu müşterinin referansı kaldırılsın mı?') && saveRef(true)}>Kaldır</button>}
+                    </div>
+                  ) : <p className="muted small">Referans tanımlama yetkiniz yok.</p>}
+                  <small className="muted">Tanımlanan referans kalıcıdır: müşteri kendi hesabından değiştiremez/kaldıramaz, siparişte indirim otomatik uygulanır.</small>
+                </>
+              )}
+            </section>
 
             <section className="pe-sec" style={{ marginTop: '1rem' }}>
               <h4>📍 Kayıtlı adresler ({addrs.length})</h4>
@@ -422,6 +568,7 @@ export default function CustomersAdmin() {
                   />
                 </span>
                 <input inputMode="tel" value={nf.phone} onChange={(e) => setNf({ ...nf, phone: e.target.value })} placeholder="05xx xxx xx xx" />
+                <DupWarn list={nfDup} onOpen={(id) => { setAddOpen(null); openById(id); }} text="Bu telefon zaten kayıtlı:" />
               </label>
               <label className="fld">
                 <span className="fld-row">Ad soyad<VoiceDictateButton value={nf.name} onChange={(v) => setNf((f) => ({ ...f, name: v }))} /></span>
@@ -444,7 +591,13 @@ export default function CustomersAdmin() {
         </label>
         <LocationPicker value={nfLoc} onChange={setNfLoc} address={nf.address} district={nf.district} height="240px" onAddress={(a) => setNf((f) => ({ ...f, address: a.address, district: a.district || f.district }))} />
         <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
-          <button type="button" className="btn gold" disabled={nfBusy} onClick={saveNew}>{nfBusy ? 'Kaydediliyor…' : 'Kaydet'}</button>
+          {addOpen === 'customer' && nfDup.length > 0 ? (
+            <button type="button" className="btn dark" disabled={nfBusy} onClick={() => saveNew(true)} title="Yeni kayıt açmaz; yazdığınız ad/not mevcut müşteriye işlenir">
+              {nfBusy ? 'Kaydediliyor…' : `Mevcut müşteriyi (${fmtNo(nfDup[0].customer_no)}) güncelle`}
+            </button>
+          ) : (
+            <button type="button" className="btn gold" disabled={nfBusy} onClick={() => saveNew(false)}>{nfBusy ? 'Kaydediliyor…' : 'Kaydet'}</button>
+          )}
           <button type="button" className="btn ghost" disabled={nfBusy} onClick={() => setAddOpen(null)}>Vazgeç</button>
         </div>
       </Modal>

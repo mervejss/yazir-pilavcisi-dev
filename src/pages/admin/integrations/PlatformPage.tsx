@@ -251,6 +251,7 @@ export default function PlatformPage({ code }: { code: string }) {
           </div>
         </section>
 
+
         {/* 7 · Platforma özel ayarlar */}
         <section className="card int-card">
           <h3>7 · Platforma özel ayarlar</h3>

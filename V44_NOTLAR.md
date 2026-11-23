@@ -1,7 +1,7 @@
 # v44 — Finans (eksik veri + günlük çekim) · Analiz (Restoran İçi / Dışı, Masa Servisi, Kâr & Kanal)
 
 ## Kurulum (sırayla)
-1. **SQL Editor:** `sql/35_finance_daily_cargo.sql` çalıştırın (tekrar çalıştırılabilir). İçeriği:
+1. **SQL Editor:** `sql/35b_finance_daily_cargo.sql` çalıştırın (tekrar çalıştırılabilir). İçeriği:
    kargo faturası tablosu · `opening_hours_overrides` tablosu (konsoldaki 404'ün sebebi) · günlük finans cron'ları.
    Ön koşul: sql/18 (vault `cron_secret`) ve sql/24 daha önce çalıştırılmış olmalı.
    (Çalışma saati fonksiyonları için `sql/09_hours_overrides.sql` henüz çalıştırılmadıysa onu da bir kez çalıştırın.)
@@ -51,7 +51,7 @@ Ek olarak geçici hatalar (429/5xx) tek denemede yutuluyordu.
   edge function ve cron'u canlıda ben çalıştıramadım — deploy sonrası "🔌 Bağlantıyı dene" ve bir "Trendyol'dan çek" ile doğrulayın.
 
 ## Değişen dosyalar
-sql/35_finance_daily_cargo.sql (yeni) · supabase/functions/platform-trendyol/finance.ts · index.ts ·
+sql/35b_finance_daily_cargo.sql (yeni) · supabase/functions/platform-trendyol/finance.ts · index.ts ·
 src/lib/finance.ts · analyticsData.ts · analyticsExport.ts · constants.ts ·
 src/hooks/useFinance.ts · useAnalyticsData.ts · useBusinessSettings.ts ·
 src/components/finance/FinanceTabs.tsx · src/components/analytics/pro/tabs/ProfitTab.tsx (yeni) · tabs/types.ts ·

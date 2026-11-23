@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { tl } from '@/lib/helpers';
 import {
-  fmtPhone, loadCustomerHistory, normalizePhone, phoneKey, searchCustomers, type CustomerHistory, type FoundCustomer, type HistoryOrder,
+  fmtNo, fmtPhone, loadCustomerHistory, normalizePhone, phoneKey, searchCustomers, type CustomerHistory, type FoundCustomer, type HistoryOrder,
 } from '@/lib/staffCustomers';
 import { ORDER_TYPE_LABELS } from '@/lib/constants';
 import Icon from '@/components/ui/Icon';
@@ -176,7 +176,7 @@ export default function PhoneCustomerPanel({ name, phone, onName, onPhone, requi
             <li key={c.id}>
               <button type="button" onClick={() => pick(c)}>
                 <span className="pcp-r-main">
-                  <b>{c.full_name || 'İsimsiz'}</b>
+                  {c.customer_no ? <span className="cno">{fmtNo(c.customer_no)}</span> : null}<b>{c.full_name || 'İsimsiz'}</b>
                   <span className="muted"> · {fmtPhone(c.phone) || 'telefon yok'}</span>
                   {!c.has_account && <span className="chip">telefon müşterisi</span>}
                 </span>

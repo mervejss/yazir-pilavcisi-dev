@@ -52,6 +52,7 @@ const OtherPlatformsPage = lazy(() => PlatformRoutes().then((m) => ({ default: m
 
 const CampaignsPage = lazy(() => import('@/pages/public/CampaignsPage'));
 const CustomersAdmin = lazy(() => import('@/pages/admin/CustomersAdmin'));
+const BulkRequestsAdmin = lazy(() => import('@/pages/admin/BulkRequestsAdmin'));
 const CouponsAdmin = lazy(() => import('@/pages/admin/CouponsAdmin'));
 const AuditAdmin = lazy(() => import('@/pages/admin/AuditAdmin'));
 const BackupsAdmin = lazy(() => import('@/pages/admin/BackupsAdmin'));
@@ -151,6 +152,7 @@ export default function App() {
                 <Route path="menu" element={<MenuAdmin />} />
                 <Route path="galeri" element={<GalleryAdmin />} />
                 <Route path="musteriler" element={<CustomersAdmin />} />
+                <Route path="toplu-siparis" element={<BulkRequestsAdmin />} />
                 <Route path="kuponlar" element={<CouponsAdmin />} />
                 <Route path="gecmis" element={<AuditAdmin />} />
                 <Route path="yedekler" element={<BackupsAdmin />} />

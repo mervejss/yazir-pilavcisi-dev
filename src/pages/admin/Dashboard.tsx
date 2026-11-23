@@ -5,7 +5,7 @@ import { useBusinessSettings } from '@/hooks/useBusinessSettings';
 import SystemHealth from '@/components/dashboard/SystemHealth';
 import OrderHeat from '@/components/dashboard/OrderHeat';
 import { useOrders } from '@/hooks/useOrders';
-import { tl, hhmm, businessDayStart, beep } from '@/lib/helpers';
+import { tl, hhmm, businessDayStart, beep, orderClock } from '@/lib/helpers';
 import { PAYMENT_METHOD_LABELS, SOURCE_LABELS } from '@/lib/constants';
 import Kpi from '@/components/ui/Kpi';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -100,7 +100,7 @@ export default function Dashboard() {
     () =>
       orders.filter((o) => {
         if (['delivered', 'cancelled'].includes(o.status)) return false;
-        const age = (now - new Date(o.created_at).getTime()) / 60000;
+        const age = (now - new Date(orderClock(o)).getTime()) / 60000;
         return o.status === 'on_the_way' ? age > limitMin + 15 : age > limitMin + 5;
       }),
     [orders, now, limitMin],
@@ -129,7 +129,7 @@ export default function Dashboard() {
         <div className="late-banner" role="alert">
           <b>⏰ {late.length} sipariş gecikti</b>
           <span>
-            {late.slice(0, 6).map((o) => `#${o.order_no} (${Math.round((now - new Date(o.created_at).getTime()) / 60000)} dk)`).join(' · ')}
+            {late.slice(0, 6).map((o) => `#${o.order_no} (${Math.round((now - new Date(orderClock(o)).getTime()) / 60000)} dk)`).join(' · ')}
           </span>
           <Link className="btn gold sm" to="/admin/siparisler">Siparişlere git</Link>
         </div>

@@ -9,11 +9,14 @@ import { useCourierRequests } from '@/hooks/useCourierRequests';
 import { useMenu } from '@/hooks/useMenu';
 import { useTables } from '@/hooks/useTables';
 import { supabase } from '@/lib/supabase';
-import { tl, hhmm, businessDayStart } from '@/lib/helpers';
+import { tl, hhmm, businessDayStart, orderClock, plannedLabel, untilLabel } from '@/lib/helpers';
 import { ORDER_STATUS_LABELS, PAYMENT_METHOD_LABELS, ORDER_TYPE_LABELS, SOURCE_LABELS, SOURCE_EMOJI } from '@/lib/constants';
 import { callPlatform, isPlatformSource } from '@/lib/platforms';
 import SourceChip from '@/components/ui/SourceChip';
 import Modal from '@/components/ui/Modal';
+import QtyStepper from '@/components/ui/QtyStepper';
+import { printBill } from '@/lib/printBill';
+import TableBillPanel, { useBillPay, billReady, billLines } from '@/components/admin/TableBillPanel';
 import Icon from '@/components/ui/Icon';
 import NewOrderModal, { type OrderPrefill } from '@/components/admin/NewOrderModal';
 import AddressMap from '@/components/maps/AddressMap';
@@ -50,7 +53,7 @@ export default function OrdersBoard() {
 
   // Masa siparişinden doğrudan hesap kapatma
   const [billOrder, setBillOrder] = useState<OrderWithItems | null>(null);
-  const [billPayment, setBillPayment] = useState<'cash_at_table' | 'card_at_table' | 'iban'>('cash_at_table');
+  const pay = useBillPay();
   const [closingBill, setClosingBill] = useState(false);
 
   const [sourceFilter, setSourceFilter] = useState<string>('all');
@@ -158,7 +161,7 @@ export default function OrdersBoard() {
   const sessionTotal = (o: OrderWithItems) => sessionOrders(o).reduce((sum, x) => sum + Number(x.total || 0), 0);
 
   const openBillModal = (o: OrderWithItems) => {
-    setBillPayment('cash_at_table');
+    pay.reset();
     setBillOrder(o);
   };
 
@@ -166,13 +169,26 @@ export default function OrdersBoard() {
     if (!billOrder) return;
     setClosingBill(true);
     try {
-      const { data, error } = await supabase.rpc('close_table_from_order', {
-        p_order_id: billOrder.id,
-        p_payment: billPayment,
-      });
+      let data: any, error: any;
+      if (pay.split) {
+        const { total } = billLines(sessionOrders(billOrder));
+        if (!billReady(pay, total)) throw new Error('Ödemelerin toplamı hesap tutarına eşit olmalı; kalan tutarı da dağıtın.');
+        // p_serve: hazır siparişler servis edilmiş sayılıp hesap tek işlemde kapanır (close_table_from_order ile aynı kural)
+        ({ data, error } = await supabase.rpc('close_table_bill_split', { p_table_id: billOrder.table_id, p_payments: pay.payments, p_serve: true } as any));
+        if (error && /close_table_bill_split|does not exist|schema cache/i.test(error.message)) {
+          throw new Error('Bölünmüş ödeme için sql/41_split_bill_payments.sql dosyasını Supabase SQL Editor\'de bir kez çalıştırın.');
+        }
+      } else {
+        ({ data, error } = await supabase.rpc('close_table_from_order', { p_order_id: billOrder.id, p_payment: pay.method }));
+      }
       if (error) throw error;
       toast.success(`Hesap kapatıldı: ${tl((data as any)?.total || 0)}`);
+      if (pay.printOnClose) {
+        const bl = billLines(sessionOrders(billOrder));
+        printBill({ tableName: `Masa ${tables.find((t) => t.id === billOrder.table_id)?.number || ''}`, lines: bl.lines, total: bl.total, method: pay.split ? undefined : pay.method, payments: pay.split ? pay.payments : undefined });
+      }
       setBillOrder(null);
+      pay.reset();
       refetch();
     } catch (err: any) {
       toast.error(err.message || 'Hesap kapatılamadı');
@@ -311,9 +327,11 @@ export default function OrdersBoard() {
                         <span className="muted small">
                           {hhmm(o.created_at)}
                           {!['delivered', 'cancelled'].includes(o.status) && (
-                            new Date(o.created_at) < todayStart
-                              ? <em className="ocard-age late" title="Önceki iş gününden kalan açık sipariş">Dünden kalan</em>
-                              : <em className={`ocard-age${ageMin(o.created_at) >= 30 ? ' late' : ageMin(o.created_at) >= 15 ? ' warn' : ''}`}>{ageMin(o.created_at)} dk</em>
+                            o.scheduled_for && new Date(o.scheduled_for).getTime() > Date.now()
+                              ? <em className="ocard-age plan" title="Planlı sipariş: henüz zamanı gelmedi">{untilLabel(o.scheduled_for)}</em>
+                              : new Date(orderClock(o)) < todayStart
+                                ? <em className="ocard-age late" title="Önceki iş gününden kalan açık sipariş">Dünden kalan</em>
+                                : <em className={`ocard-age${ageMin(orderClock(o)) >= 30 ? ' late' : ageMin(orderClock(o)) >= 15 ? ' warn' : ''}`}>{ageMin(orderClock(o))} dk</em>
                           )}
                         </span>
                       </span>
@@ -321,6 +339,7 @@ export default function OrdersBoard() {
                     </div>
                     <div className="orow ocard-sub">
                       <span className="chip typechip">{ORDER_TYPE_LABELS[o.order_type] || o.order_type}</span>
+                      {o.scheduled_for && <span className="chip plan" title="Müşteri bu saate istedi — süre/gecikme bu saatten sayılır">⏰ {plannedLabel(o.scheduled_for)}</span>}
                       {o.external_ref && <span className="muted small" title="Platform sipariş numarası">{o.external_ref}</span>}
                       {o.platform_status && isPlatformSource(o.source) && (
                         <span className="chip po-pstatus" title="Platformdaki güncel durum">{SOURCE_EMOJI[o.source] || '•'} {o.platform_status}</span>
@@ -608,36 +627,17 @@ export default function OrdersBoard() {
             const p = products.find((pr) => pr.variants.some((v) => v.id === item.variant_id));
             const v = p?.variants.find((vr) => vr.id === item.variant_id);
             return (
-              <div key={idx} className="crow">
+              <div key={idx} className="crow crow-step">
                 <span>{p?.name} ({v?.name})</span>
-                <div className="qty">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const updated = [...editItems];
-                      if (updated[idx].quantity > 1) {
-                        updated[idx].quantity -= 1;
-                        setEditItems(updated);
-                      } else {
-                        setEditItems(updated.filter((_, i) => i !== idx));
-                      }
-                    }}
-                  >
-                    −
-                  </button>
-                  <b>{item.quantity}</b>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const updated = [...editItems];
-                      updated[idx].quantity += 1;
-                      setEditItems(updated);
-                    }}
-                  >
-                    +
-                  </button>
-                </div>
                 <span>{tl((v?.price || 0) * item.quantity)}</span>
+                <QtyStepper
+                  value={item.quantity}
+                  ariaLabel={`${p?.name || 'Ürün'} adedi`}
+                  onChange={(n) => {
+                    if (n <= 0) setEditItems(editItems.filter((_, i) => i !== idx));
+                    else setEditItems(editItems.map((x, i) => (i === idx ? { ...x, quantity: n } : x)));
+                  }}
+                />
               </div>
             );
           })}
@@ -705,7 +705,7 @@ export default function OrdersBoard() {
       </Modal>
 
       {/* MASA HESABINI KAPAT (sipariş kartından) */}
-      <Modal open={!!billOrder} onClose={() => !closingBill && setBillOrder(null)}>
+      <Modal open={!!billOrder} size="wide" onClose={() => !closingBill && setBillOrder(null)}>
         <h2>
           {billOrder ? `Masa ${tables.find((t) => t.id === billOrder.table_id)?.number || ''}` : ''} · Hesabı Kapat
         </h2>
@@ -726,24 +726,10 @@ export default function OrdersBoard() {
               )}
             </ul>
 
-            <fieldset style={{ margin: '1rem 0' }}>
-              <legend>Tahsilat Şekli</legend>
-              <label className="radio">
-                <input type="radio" name="boardBillPay" checked={billPayment === 'cash_at_table'} onChange={() => setBillPayment('cash_at_table')} />
-                Nakit
-              </label>
-              <label className="radio">
-                <input type="radio" name="boardBillPay" checked={billPayment === 'card_at_table'} onChange={() => setBillPayment('card_at_table')} />
-                Kredi / Banka Kartı (POS)
-              </label>
-              <label className="radio">
-                <input type="radio" name="boardBillPay" checked={billPayment === 'iban'} onChange={() => setBillPayment('iban')} />
-                IBAN / Havale
-              </label>
-            </fieldset>
+            <TableBillPanel tableName={`Masa ${tables.find((t) => t.id === billOrder.table_id)?.number || ''}`} orders={sessionOrders(billOrder)} pay={pay} busy={closingBill} />
 
             <div className="prow">
-              <button type="button" className="btn gold sm" disabled={closingBill} onClick={handleCloseBill}>
+              <button type="button" className="btn gold sm" disabled={closingBill || !billReady(pay, sessionTotal(billOrder))} onClick={handleCloseBill}>
                 {closingBill ? 'Kapatılıyor...' : 'Tahsilatı Onayla ve Hesabı Kapat'}
               </button>
               <button type="button" className="btn ghost sm" disabled={closingBill} onClick={() => setBillOrder(null)}>

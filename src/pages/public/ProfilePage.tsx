@@ -590,7 +590,9 @@ function CustomerProfile() {
               <h2 style={{color:'var(--gold-ink)'}}>%{myReferral.discount} indirim</h2>
               <p className="small muted">{myReferral.scope === 'product' ? 'Ürün bazında indirim' : 'Sepet toplamında indirim'}</p>
               <code>{myReferral.code}</code>
-              <div style={{marginTop:'1rem'}}><button type="button" className="btn ghost sm danger-txt" onClick={removeReferral}>Referans kodunu kaldır</button></div>
+              {myReferral.locked
+                ? <p className="small muted" style={{marginTop:'1rem'}}>🔒 Bu referans işletme tarafından hesabınıza tanımlanmıştır.</p>
+                : <div style={{marginTop:'1rem'}}><button type="button" className="btn ghost sm danger-txt" onClick={removeReferral}>Referans kodunu kaldır</button></div>}
             </div>
           ) : (
             <form onSubmit={applyReferral} className="form" style={{margin:'1rem 0'}}>

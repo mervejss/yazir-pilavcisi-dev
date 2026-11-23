@@ -8,6 +8,7 @@
 // canlıya almadan önce DOĞRULANMALIDIR. Yollar tek yerde toplandığı için düzeltmek tek satırdır;
 // ayrıca integrations.config.endpoints ile ezilebilir.
 import { authorize, CORS, json, logEvent, msg, resolveAdmin, touchPlatform } from '../_shared/common.ts';
+import { mapPackage, mapStatus } from '../_shared/trendyolOrders.ts';
 import { financePaymentOrders, financeProbe, financeSync, makeFinCtx } from './finance.ts';
 
 const PLATFORM = 'trendyol';
@@ -19,7 +20,9 @@ const BASES: Record<string, string> = {
 // Doğrulanmış uç noktalar: config.endpoints ile EZİLEMEZ (eski/yanlış kayıtlar zarar vermesin)
 const LOCKED_EP = ['packages', 'restaurant_info', 'accept', 'prepared', 'shipped', 'delivered', 'cancel', 'invoiced'];
 
-type Ctx = { supplierId: string; storeId: string; base: string; auth: string; ua: string; ep: Record<string, string>; cfg: any };
+type Ctx = { supplierId: string; storeId: string; base: string; auth: string; ua: string; ep: Record<string, string>; cfg: any; row?: any };
+// Sağlıklı sessiz çekimlerde 'integrations' satırı en çok bu sıklıkla yazılır (egress/Realtime tasarrufu)
+const HEARTBEAT_MS = 10 * 60_000;
 
 // {s}=supplierId  {st}=storeId  {p}=packageId  {id}=ürün/kategori id
 const ENDPOINTS: Record<string, string> = {
@@ -41,15 +44,7 @@ const ENDPOINTS: Record<string, string> = {
   reviews:         'GET  /integrator/review/meal/suppliers/{s}/stores/{st}/reviews',
 };
 
-// Platform durumu → bizim durum
-const STATUS_MAP: Record<string, string> = {
-  Created: 'new', Received: 'new', Awaiting: 'new', Picking: 'preparing', Accepted: 'preparing', Invoiced: 'preparing',
-  Prepared: 'ready', Shipped: 'on_the_way', AtCollectionPoint: 'on_the_way', Delivered: 'delivered',
-  Cancelled: 'cancelled', Canceled: 'cancelled', UnSupplied: 'cancelled', UnDelivered: 'cancelled', Returned: 'cancelled',
-};
-const STATUS_MAP_LC: Record<string, string> = Object.fromEntries(Object.entries(STATUS_MAP).map(([k, v]) => [k.toLowerCase(), v]));
-const mapStatus = (st: string): string | undefined => STATUS_MAP[st] ?? STATUS_MAP_LC[String(st || '').toLowerCase()];
-
+// Platform durumu → bizim durum, paket eşleme: ../_shared/trendyolOrders.ts
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   const az = await authorize(req);
@@ -87,6 +82,7 @@ Deno.serve(async (req) => {
     if (!(row as any)?.is_enabled && az.via === 'cron') return json({ ok: true, skipped: 'Entegrasyon kapalı' });
 
     const ctx = makeCtx(cfg);
+    ctx.row = row;
     const t0 = Date.now();
     let result: any;
 
@@ -97,6 +93,8 @@ Deno.serve(async (req) => {
       case 'test_connection': result = await testConnection(ctx, db); break;
       case 'sync_orders':     result = await syncOrders(ctx, db); break;
       case 'order_status':    result = await pushOrderStatus(ctx, db, body); break;
+      // tek paketi kabul eder
+      case 'accept_package':  result = await call(ctx, 'accept', { p: String(body.package_id) }, { packageId: String(body.package_id), preparationTime: Number(ctx.cfg.default_prep_minutes ?? 30) }); break;
       case 'push_invoice':    result = await pushInvoice(ctx, body); break;
       case 'restaurant_info': result = await call(ctx, 'restaurant_info'); break;
       case 'set_working_status': result = await call(ctx, 'working_status', {}, { status: body.open ? 'OPEN' : 'CLOSED' }); break;
@@ -117,9 +115,12 @@ Deno.serve(async (req) => {
     }
 
     // Değişiklik yoksa (yeni sipariş / durum güncellemesi / hata yok) olay kaydı YAZILMAZ — panelden (user) tetiklenen çekimler de dahil
-    const quiet = action === 'sync_orders' && !result?.created && !result?.status_updated && !result?.failed;
+    const quiet = action === 'sync_orders' && !result?.created && !result?.status_updated && !result?.failed && !result?.amended && !result?.truncated;
     const w1 = quiet ? null : await logEvent(db, PLATFORM, action === 'sync_orders' ? 'in' : 'out', action, { ms: Date.now() - t0, payload: summarize(result) });
-    const w2 = action !== 'reviews' && action !== 'diagnose' && action !== 'probe_actions' && !action.startsWith('finance_') ? await touchPlatform(db, PLATFORM, true) : null;
+    // Sağlıklı (connected, hatasız) ve son başarı kaydı 10 dk'dan yeniyse arka plan çekiminde durum satırı yeniden yazılmaz
+    const healthyRecently = az.via === 'cron' && (row as any)?.status === 'connected' && !(row as any)?.error_count
+      && (row as any)?.last_ok_at && Date.now() - Date.parse((row as any).last_ok_at) < HEARTBEAT_MS;
+    const w2 = action !== 'reviews' && action !== 'diagnose' && action !== 'probe_actions' && !action.startsWith('finance_') && !healthyRecently ? await touchPlatform(db, PLATFORM, true) : null;
     return json({ ok: true, result, db_warning: w1 || w2 || undefined });
   } catch (e) {
     // Hata YALNIZCA bu platformun kaydına yazılır. Kayıt yazılamazsa nedeni de yanıtla döner.
@@ -206,57 +207,6 @@ async function testConnection(ctx: Ctx, _db: any) {
 // ---------------------------------------------------------------------
 // Siparişler (Uber Eats geçişi alanları dahil)
 // ---------------------------------------------------------------------
-function mapPackage(pkg: any) {
-  const a = pkg.address || {};
-  const c = pkg.customer || {};
-  const lines: any[] = pkg.lines || pkg.items || [];
-  // Maskeli alanlar ("TGO Yemek") ve açık adres: address1 serbest metindir — AYRIŞTIRMAYIZ, olduğu gibi saklarız.
-  const address = [a.address1, a.address2].filter(Boolean).join(' ').trim();
-  const phone = a.phone || c.phone || pkg.callCenterPhone || null;
-  // GERÇEK YAPI (doğrulandı): her "line" birden fazla "items" (adet) içerir; fiyat = unitSellingPrice (seçenekler dahil, birim).
-  const qtyOf = (l: any) => Array.isArray(l.items) && l.items.length ? l.items.filter((i: any) => !i.isCancelled).length : Number(l.quantity ?? 1);
-  const unitOf = (l: any) => Number(l.unitSellingPrice ?? l.price ?? l.unitPrice ?? 0);
-  const gross = lines.reduce((t, l) => t + unitOf(l) * qtyOf(l), 0);
-  const gTotal = Number(pkg.totalPrice ?? 0);
-  // İndirim: satıcının karşıladığı promosyonlar. DOĞRULAYIN: totalPrice indirimden ÖNCE brüt tutar gibi görünüyor.
-  const discount = Number(pkg.totalDiscount ?? 0) || (pkg.promotions || []).reduce((t: number, x: any) => t + Number(x.totalSellerAmount || 0), 0);
-  const fee = Number(pkg.totalDeliveryPrice ?? pkg.deliveryFee ?? pkg.packagingFee ?? 0);
-  const totalPrice = Math.max(gTotal - discount, 0);
-  const ref = String(pkg.id ?? pkg.packageId ?? pkg.orderNumber ?? '');
-  const nm = (x: any) => (typeof x === 'string' ? x : x?.name);
-  return {
-    source: PLATFORM,
-    external_ref: ref,
-    status: mapStatus(pkg.packageStatus || pkg.status) || 'new',
-    customer_name: [c.firstName, c.lastName].filter(Boolean).join(' ') || c.name || 'Trendyol Go Müşterisi',
-    customer_phone: phone,
-    delivery_address: address || null,
-    // Trendyol "addressDescription" (adres tarifi, ör. "Kadıköy - ISA2") — ayrı alanda saklanır
-    address_description: a.addressDescription ? String(a.addressDescription).trim() || null : null,
-    district: a.district || a.neighborhood || null,
-    lat: a.latitude ?? null, lng: a.longitude ?? null,
-    note: pkg.customerNote || pkg.note || null,
-    subtotal: gross || gTotal, delivery_fee: fee, discount, total: totalPrice,
-    // IVR / çağrı merkezi: PIN (Uber 8 hane, TGO 11 hane sipariş no), dinamik hat, 5 karakterli sipariş kodu
-    pin_code: a.pinCode ? String(a.pinCode) : (pkg.orderNumber ? String(pkg.orderNumber) : null),
-    order_code: pkg.orderCode ? String(pkg.orderCode) : null,
-    call_center_phone: pkg.callCenterPhone || a.phone || null,
-    platform_app: pkg.userInformation?.appName || null,
-    platform_status: pkg.packageStatus || pkg.status || null,
-    // kupon alanı boş gelir (promotions kullanılır) — ham veri saklanır
-    payload: pkg,
-    items: lines.map((l) => ({
-      name: l.name || l.productName,
-      variant: [
-        ...(l.modifierProducts || l.options || []).map(nm),
-        ...(l.extraIngredients || []).map((x: any) => '+' + nm(x)),
-        ...(l.removedIngredients || []).map((x: any) => '-' + nm(x)),
-      ].filter(Boolean).join(', ') || null,
-      unit_price: unitOf(l), quantity: Math.max(qtyOf(l), 1), note: l.note || null,
-    })),
-  };
-}
-
 // Durum yalnızca İLERİ taşınır; bu kural veritabanındaki platform_apply_status() içinde uygulanır
 // (kurye şartı ve "atlayan geçiş" engeli platform senkronu için kaldırıldı → sql/22_trendyol_status_sync.sql).
 const ACTIVE = new Set(['Created', 'Received', 'Picking', 'Accepted', 'Invoiced', 'Prepared', 'Shipped']);
@@ -270,6 +220,20 @@ const FINAL_LOCAL = ['delivered', 'cancelled'];
 const PAGE_SIZE = 50;
 const MAX_PAGES = 10;
 const listOf = (d: any): any[] => d?.content || d?.packages || (Array.isArray(d) ? d : []);
+
+// Kabul denemesi başarısızlık sayacı (çalışan örnek ömrü boyunca; sonsuz deneme / log şişmesi olmasın)
+const acceptFails = new Map<string, number>();
+
+/** Paket son 36 saat içinde mi oluşmuş? Tarih alanı bulunamazsa false (güvenli taraf: eski paketleri içeri alma). */
+function recentPackage(p: any): boolean {
+  for (const k of ['packageCreationDate', 'creationDate', 'createdDate', 'orderDate', 'packageCreatedDate', 'createdAt', 'lastModifiedDate', 'packageLastModifiedDate']) {
+    const v = p?.[k];
+    if (v === undefined || v === null || v === '') continue;
+    const t = typeof v === 'number' ? (v < 1e12 ? v * 1000 : v) : Date.parse(String(v));
+    if (Number.isFinite(t)) return Date.now() - t < 36 * 3600_000 && t - Date.now() < 3600_000;
+  }
+  return false;
+}
 
 async function fetchPackages(ctx: Ctx): Promise<any[]> {
   const { packages } = await fetchPackagesMeta(ctx);
@@ -286,9 +250,14 @@ async function fetchPackagesMeta(ctx: Ctx): Promise<{ packages: any[]; complete:
     for (let p = 1; p < 3; p++) want.push(p);                                           // baştan 3 sayfa
     for (let p = totalPages - (MAX_PAGES - 3); p < totalPages; p++) want.push(p);       // sondan kalanlar
   }
-  for (const p of want) {
-    try { out.push(...listOf(await call(ctx, 'packages', {}, undefined, `?size=${PAGE_SIZE}&page=${p}`))); }
-    catch (e) { if (p === want[0]) throw e; /* sonraki sayfalar kısmi hata: eldekiyle devam */ }
+  // Sayfalar 4'erli paralel çekilir (eskiden sırayla: 10 sayfa ≈ 10× gecikme). İlk ek sayfa hatası fırlatılır, sonrakiler kısmi hata sayılır.
+  for (let i = 0; i < want.length; i += 4) {
+    const batch = want.slice(i, i + 4);
+    const res = await Promise.allSettled(batch.map((p) => call(ctx, 'packages', {}, undefined, `?size=${PAGE_SIZE}&page=${p}`)));
+    res.forEach((r, k) => {
+      if (r.status === 'fulfilled') out.push(...listOf(r.value));
+      else if (batch[k] === want[0]) throw r.reason;
+    });
   }
   const seen = new Set<string>();
   const packages = out.filter((p) => { const id = String(p.id ?? p.packageId ?? ''); if (!id || seen.has(id)) return false; seen.add(id); return true; });
@@ -307,20 +276,33 @@ async function syncOrders(ctx: Ctx, db: any) {
   const refs = mine.map(refOf);
   const known = new Map<string, any>();
   for (let i = 0; i < refs.length; i += 100) {
-    const { data: existing, error } = await db.from('orders').select('id,order_no,external_ref,status,platform_status')
+    const { data: existing, error } = await db.from('orders').select('id,order_no,external_ref,status,platform_status,total')
       .eq('source', PLATFORM).in('external_ref', refs.slice(i, i + 100));
     if (error) throw error;
     for (const o of existing || []) known.set(String(o.external_ref), o);
   }
 
-  let created = 0, status_updated = 0, failed = 0, unchanged = 0;
+  let created = 0, status_updated = 0, failed = 0, unchanged = 0, late = 0, amended = 0, accepted_retry = 0;
   const changes: string[] = [];
+  // Edge Function süre sınırına (~150 sn) asla takılmayalım: 90 sn sonra kalan işi sonraki çekime bırak (hiçbir şey kaybolmaz, bilinmeyen paket zaten tekrar denenir)
+  const deadline = Date.now() + 90_000;
+  let truncated = false;
   for (const pkg of mine) {
+    if (Date.now() > deadline) { truncated = true; break; }
     const ref = refOf(pkg), st = stOf(pkg), mapped = mapStatus(st);
     try {
       const cur = known.get(ref);
       if (!cur) {
-        if (!ACTIVE.has(st)) continue; // bitmiş ve sitede olmayan eski paket: içeri alma
+        if (!ACTIVE.has(st)) {
+          // v63: bitmiş ama sitede HİÇ olmayan paket — çekimler arasında (kesinti, kapalı sunucu) teslim olup kaçmış olabilir.
+          // Yalnızca TESLİM EDİLMİŞ ve son 36 saatte oluşmuş (tarih alanı okunabilirse) paket gelir olarak kaydedilir; tarih okunamazsa eskisi gibi atlanır.
+          if (ctx.cfg.catch_delivered === true && mapped === 'delivered' && recentPackage(pkg) && late < 20) { // v64: varsayılan KAPALI (eski teslimler gelmesin); config.catch_delivered=true ile açılır
+            const { data: r, error } = await db.rpc('platform_ingest_order', { p: { ...mapPackage(pkg) } });
+            if (error) throw error;
+            if (r?.created) { late++; created++; changes.push(`geç yakalanan teslim: ${ref}`); }
+          }
+          continue;
+        }
         const { data: r, error } = await db.rpc('platform_ingest_order', { p: { ...mapPackage(pkg), cancel_reason: mapped === 'cancelled' ? cancelReasonOf(pkg) : undefined } });
         if (error) throw error;
         if (r?.created) {
@@ -334,13 +316,36 @@ async function syncOrders(ctx: Ctx, db: any) {
 
       // Var olan sipariş: Trendyol'daki son durumu siteye yansıt (yalnızca ileri, kurye şartı OLMADAN)
       const platformChanged = cur.platform_status !== st;
-      const mp = platformChanged ? mapPackage(pkg) : null;
+      // v63: otomatik kabul önceki çekimde başarısız olduysa (ağ/API hatası) sipariş 'Created'da takılı kalır ve Trendyol süre dolunca iptal eder.
+      // Durum hâlâ Created ise kabul tekrar denenir (aynı paket için en çok 5 deneme / çalışan örnek).
+      if (ctx.cfg.auto_accept && st === 'Created' && (acceptFails.get(ref) || 0) < 5) {
+        try {
+          await call(ctx, 'accept', { p: ref }, { packageId: ref, preparationTime: Number(pkg.preparationTime ?? ctx.cfg.default_prep_minutes ?? 30) });
+          accepted_retry++;
+        } catch (e) {
+          acceptFails.set(ref, (acceptFails.get(ref) || 0) + 1);
+          if (acceptFails.get(ref) === 1) await logEvent(db, PLATFORM, 'out', 'auto_accept_retry', { ref, error: msg(e) });
+        }
+      }
+      // v63: aynı durumdayken paket içeriği/tutarı değiştiyse (kısmi iptal, ürün çıkarma) siparişi eşitle
+      if (!platformChanged && !FINAL_LOCAL.includes(cur.status)) {
+        const mp0 = mapPackage(pkg);
+        if (Math.abs(Number(cur.total) - Number(mp0.total)) > 0.01 && mp0.total > 0) {
+          const { error: ae } = await db.rpc('platform_update_items', { p_order_id: cur.id, p: mp0 });
+          if (!ae) { amended++; changes.push(`#${cur.order_no}: tutar ${cur.total} → ${mp0.total}`); }
+          else if (acceptFails.get('amend_err') === undefined) { acceptFails.set('amend_err', 1); await logEvent(db, PLATFORM, 'in', 'amend', { ref, error: msg(ae) }); }
+        }
+      }
+      // v59: Trendyol'daki durum son çekimden beri DEĞİŞMEDİYSE veritabanına HİÇ dokunma.
+      // Eskiden her çekimde her paket için UPDATE atılıyor → her seferinde Realtime olayı → tüm panellerde sipariş listesi yeniden iniyordu (egress/log patlaması).
+      if (!platformChanged) { unchanged++; continue; }
+      const mp = mapPackage(pkg);
       const { data: r, error } = await db.rpc('platform_apply_status', {
         p_order_id: cur.id,
         p_status: mapped || cur.status,
         p_platform_status: st,
         p_cancel_reason: mapped === 'cancelled' ? cancelReasonOf(pkg) : null,
-        p_payload: platformChanged ? pkg : null,
+        p_payload: pkg,
         p_call_center_phone: mp?.call_center_phone ?? null,
         p_pin_code: mp?.pin_code ?? null,
       });
@@ -360,8 +365,13 @@ async function syncOrders(ctx: Ctx, db: any) {
     missing = (open || []).filter((o: any) => !seenRefs.has(String(o.external_ref))).map((o: any) => ({ order_no: o.order_no, status: o.status }));
   }
 
-  await db.from('integrations').update({ last_sync_at: new Date().toISOString(), last_order_sync_at: new Date().toISOString() }).eq('platform', PLATFORM);
-  return { fetched: all.length, considered: mine.length, created, status_updated, unchanged, failed, complete, missing_count: missing.length, missing: missing.slice(0, 20), changes: changes.slice(0, 20) };
+  // v59: "son senkron" zamanı her çekimde yazılmaz (her yazım Realtime olayı üretir). Değişiklik varsa ya da kayıt 10 dk'dan eskiyse yazılır.
+  const lastSyncMs = ctx.row?.last_order_sync_at ? Date.parse(ctx.row.last_order_sync_at) : 0;
+  if (created || status_updated || failed || amended || Date.now() - lastSyncMs > HEARTBEAT_MS) {
+    const nowIso = new Date().toISOString();
+    await db.from('integrations').update({ last_sync_at: nowIso, last_order_sync_at: nowIso }).eq('platform', PLATFORM);
+  }
+  return { fetched: all.length, considered: mine.length, created, status_updated, unchanged, failed, late_caught: late, amended, accept_retried: accepted_retry, truncated, complete, missing_count: missing.length, missing: missing.slice(0, 20), changes: changes.slice(0, 20) };
 }
 
 // Bizim durum değişikliğimiz → TGO'ya bildirim. Başarısızlık siparişi bozmaz, yalnızca loglanır.
@@ -372,14 +382,19 @@ const TGO_RANK: Record<string, number> = { Created: 0, Received: 0, Picking: 1, 
 const TARGET_RANK: Record<string, number> = { preparing: 1, ready: 2, assigned: 2, on_the_way: 3, delivered: 4 };
 
 async function pushOrderStatus(ctx: Ctx, db: any, body: any) {
-  const { data: o } = await db.from('orders').select('id,external_ref,platform_status,source,cancel_reason').eq('id', body.order_id).single();
+  const { data: o } = await db.from('orders').select('id,external_ref,platform_status,source,cancel_reason,external_payload').eq('id', body.order_id).single();
   if (!o || o.source !== PLATFORM || !o.external_ref) throw new Error('Bu sipariş Trendyol Go siparişi değil');
   const p = String(o.external_ref);
 
   // Platformdaki GÜNCEL paketi al (statü, hazırlık süresi, teslimat tipi, kalem kimlikleri)
+  // v63: eskiden her durum tıklamasında TÜM paket sayfaları çekiliyordu (yavaş + gereksiz API yükü). Artık sipariş alınırken saklanan paket kullanılır;
+  // güncel durum bilgisi yalnızca saklı paket yoksa API'den alınır. Adım zaten yapılmışsa Trendyol 400/409/422 döner ve aşağıda güvenle ele alınır.
+  // v63: ham paket 'order_payloads' tablosunda (sql/42); yoksa eski 'orders.external_payload' (taşınmamış kayıt), o da yoksa API
   let pkg: any = null;
-  try { pkg = (await fetchPackages(ctx)).find((x) => String(x.id) === p) || null; } catch { /* yedek: DB statüsü */ }
-  const cur = String(pkg?.packageStatus || o.platform_status || 'Created');
+  try { const { data: pl } = await db.from('order_payloads').select('payload').eq('order_id', o.id).maybeSingle(); if (pl?.payload?.lines) pkg = pl.payload; } catch { /* tablo yoksa sessizce geç */ }
+  if (!pkg && o.external_payload && typeof o.external_payload === 'object' && (o.external_payload as any).lines) pkg = o.external_payload;
+  if (!pkg) { try { pkg = (await fetchPackages(ctx)).find((x) => String(x.id) === p) || null; } catch { /* yedek: DB statüsü */ } }
+  const cur = String(o.platform_status || pkg?.packageStatus || 'Created'); // sitedeki son bilinen durum (saklı paket eski olabilir)
 
   if (body.status === 'cancelled') {
     const items = (pkg?.lines || []).flatMap((l: any) => (l.items || []).map((i: any) => ({ packageItemId: i.packageItemId, lineItemId: i.lineItemId })));

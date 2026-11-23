@@ -43,7 +43,12 @@ function serviceKeyCandidates(): { name: string; key: string }[] {
  * Hiçbiri çalışmazsa gerçek nedeni (permission denied, Invalid API key...) `error` içinde döndürür —
  * böylece hata "kimlikler 000" gibi yanıltıcı bir mesaja dönüşmez.
  */
+let adminCache: { db: SupabaseClient; via: string; at: number } | null = null;
+const ADMIN_CACHE_MS = 10 * 60_000;
+
 export async function resolveAdmin(): Promise<{ db: SupabaseClient; via: string; error?: string }> {
+  // v59: çalışan istemci sıcak (warm) çağrılar arasında 10 dk önbelleğe alınır → her çağrıda ekstra "integrations" sorgusu yok
+  if (adminCache && Date.now() - adminCache.at < ADMIN_CACHE_MS) return { db: adminCache.db, via: adminCache.via };
   const url = Deno.env.get('SUPABASE_URL')!;
   const errors: string[] = [];
   let first: SupabaseClient | null = null;
@@ -51,7 +56,7 @@ export async function resolveAdmin(): Promise<{ db: SupabaseClient; via: string;
     const db = createClient(url, c.key, { auth: { persistSession: false }, global: { fetch: dropNonJwtBearer } });
     first ??= db;
     const { error } = await db.from('integrations').select('platform').limit(1);
-    if (!error) return { db, via: c.name };
+    if (!error) { adminCache = { db, via: c.name, at: Date.now() }; return { db, via: c.name }; }
     errors.push(`${c.name}: ${error.message}`);
   }
   return {

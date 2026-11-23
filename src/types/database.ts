@@ -223,6 +223,8 @@ export interface Order {
   platform_status?: string | null;
   created_by: string | null;
   cancel_reason: string | null;
+  /** İleri tarihli (planlı) sipariş: teslim/hazır olması istenen saat (sql/46) */
+  scheduled_for?: string | null;
   created_at: string;
   accepted_at: string | null;
   ready_at: string | null;
@@ -419,4 +421,25 @@ export interface ProductOptionGroup {
   sort_order: number;
   is_active: boolean;
   options?: ProductOption[];
+}
+
+export type BulkStatus = 'new' | 'contacted' | 'confirmed' | 'done' | 'cancelled';
+export interface BulkRequest {
+  id: string;
+  full_name: string;
+  phone: string;
+  event_type: string | null;
+  people_count: number;
+  delivery_at: string;
+  delivery_address: string | null;
+  note: string | null;
+  status: BulkStatus;
+  handled_by: string | null;
+  source: 'web' | 'admin';
+  created_by: string | null;
+  admin_note: string | null;
+  contacted_at: string | null;
+  order_id: string | null;
+  created_at: string;
+  updated_at: string;
 }

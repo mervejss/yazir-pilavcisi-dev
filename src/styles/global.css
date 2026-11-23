@@ -1577,7 +1577,7 @@ h1 { font-weight: 800; }
   position: absolute; top: -8px; right: -6px; min-width: 1.35rem; height: 1.35rem; display: grid; place-items: center; border-radius: 999px;
   background: var(--gold-grad); color: #14110c; font-style: normal; font-weight: 800; font-size: 0.75rem;
 }
-.qcart { display: grid; gap: 0.2rem; max-height: 34vh; overflow-y: auto; }
+.qcart { display: grid; gap: 0.2rem; max-height: 40vh; overflow-y: auto; }
 .qline { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 0.6rem; padding: 0.45rem 0; border-bottom: 1px dashed var(--line-strong); font-size: 0.9rem; }
 .qline .qty button { width: 1.7rem; height: 1.7rem; }
 .qsum { min-width: 4rem; text-align: right; }
@@ -3881,3 +3881,100 @@ a, button, summary, [role='button'], label, select { touch-action: manipulation;
 @media (max-width:390px) {
   .cr-mobile-actions { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
+
+/* v59 — Adet seçici (yazılabilir sayı + hızlı artırma düğmeleri) */
+.qstep { display: grid; gap: 0.3rem; justify-items: end; }
+.qstep .qty { gap: 0.3rem; }
+.qstep-input {
+  width: 3.4rem; text-align: center; padding: 0.25em 0.1em; font: 800 1rem 'DM Sans', sans-serif;
+  border: 1.5px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--text);
+  -moz-appearance: textfield;
+}
+.qstep-input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-bg); }
+.qstep-chips { display: flex; flex-wrap: wrap; gap: 0.25rem; justify-content: flex-end; }
+.qstep-chips button {
+  border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); cursor: pointer;
+  border-radius: 999px; padding: 0.12rem 0.5rem; font: 700 0.74rem 'DM Sans', sans-serif; line-height: 1.5;
+}
+.qstep-chips button:hover { background: var(--gold-bg); border-color: var(--gold); }
+.qstep-chips button:active { transform: scale(0.95); }
+.qstep-chips button.neg { color: var(--danger, #b3261e); }
+.qstep-chips button.neg:hover { background: rgba(179,38,30,.1); border-color: var(--danger, #b3261e); }
+.qstep-chips button:disabled { opacity: .35; pointer-events: none; }
+.qstep-sm .qstep-input { width: 3rem; font-size: 0.9rem; }
+.qline.qline-step { grid-template-columns: 1fr auto; row-gap: 0.25rem; }
+.qline.qline-step .qstep { grid-column: 1 / -1; grid-row: 2; justify-items: stretch; grid-template-columns: auto 1fr; align-items: center; }
+.qline.qline-step .qstep .qty { justify-self: start; }
+.qline.qline-step .qstep-chips { justify-content: flex-start; }
+.qline.qline-step .qsum { grid-column: 2; grid-row: 1; }
+.crow.crow-step { grid-template-columns: 1fr auto; gap: 0.35rem 0.75rem; }
+.crow.crow-step > .qstep { grid-column: 1 / -1; grid-template-columns: auto 1fr; align-items: center; justify-items: stretch; }
+.crow.crow-step > .qstep .qty { justify-self: start; }
+.crow.crow-step > .qstep .qstep-chips { justify-content: flex-start; }
+
+/* v60 — Hesap bölme (BillSplitter) */
+.osd-line.bs-line { grid-template-columns: 38px 1fr auto auto; cursor: default; padding: 0.35rem 0.6rem; }
+.bs-chk { width: 38px; height: 44px; border: 0; background: transparent; color: inherit; font-size: 1.5rem; cursor: pointer; line-height: 1; }
+.bs-chk:disabled { cursor: default; }
+.bs-name { text-align: left; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; padding: 0.3rem 0; min-height: 44px; }
+.bs-name:disabled { cursor: default; }
+.bs-equal { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
+.bs-parts { width: 3.2rem; text-align: center; padding: 0.35em 0.2em; font-weight: 800; border: 1.5px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--text); }
+.bs-parts:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-bg); }
+.btn.block { width: 100%; display: block; }
+.bill-mode { display: flex; gap: 0.4rem; margin: 0.6rem 0; }
+.bill-mode button { flex: 1; padding: 0.7rem 0.4rem; min-height: 48px; border-radius: 12px; border: 2px solid var(--line-strong); background: var(--surface); color: inherit; font: inherit; font-weight: 700; cursor: pointer; }
+.bill-mode button.on { background: var(--gold-grad); color: #14110c; border-color: transparent; }
+.bill-print { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: space-between; margin: 0.6rem 0; }
+
+/* v68 müşteri filtreleri */
+.cx-flags { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0.4rem 0 0.6rem; }
+.cx-flag { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.4rem 0.8rem; border: 1px solid var(--border); border-radius: 999px; background: var(--surface, #fff); font: inherit; font-weight: 600; cursor: pointer; }
+.cx-flag i { width: 1.1rem; height: 1.1rem; border: 2px solid var(--border); border-radius: 0.3rem; display: inline-grid; place-items: center; font-style: normal; font-size: 0.75rem; line-height: 1; }
+.cx-flag.on { border-color: var(--gold); background: var(--gold-bg); }
+.cx-flag.on i { background: var(--gold); border-color: var(--gold); color: #fff; }
+.cx-sep { width: 1px; height: 1.4rem; background: var(--border); margin: 0 0.2rem; }
+.tbl tr.cx-divider td { background: var(--gold-bg); font-weight: 700; padding: 0.55rem 0.8rem; border-top: 2px solid var(--gold); }
+.cu-ref code { margin-right: 0.5rem; }
+
+/* ---------- v69: Yeni sipariş penceresi geniş + ferah, kategori ikonları ---------- */
+.catnav button .ico, .catbar button .ico { flex: none; opacity: 0.85; }
+.catbar button.on .ico { opacity: 1; }
+.sheet.xl.neworder { max-width: min(1720px, 97vw); padding: 1.4rem 1.7rem; }
+.neworder .no-grid { grid-template-columns: minmax(0, 1fr) 390px; gap: 1.6rem; }
+.neworder .no-left { gap: 1.2rem; }
+.neworder .no-info, .neworder .no-menu { min-width: 0; display: grid; gap: 1.1rem; align-content: start; }
+.neworder .no-block { padding: 1.15rem 1.25rem; }
+.neworder .typetiles button { padding: 1.25rem 0.9rem; }
+.neworder .catbar { flex-wrap: wrap; overflow: visible; gap: 0.55rem; padding-bottom: 0.2rem; }
+.neworder .catbar button { padding: 0.6em 1.15em; font-size: 0.92rem; }
+.neworder .picker-search { margin-bottom: 0.9rem; }
+.neworder .picker-search input { padding-top: 0.75rem; padding-bottom: 0.75rem; font-size: 1rem; }
+.neworder .picker-grid { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem; max-height: calc(92vh - 260px); padding: 0.3rem 0.5rem 0.6rem 0.1rem; }
+.neworder .ptile { padding: 0.95rem; gap: 0.7rem; border-radius: 16px; }
+.neworder .ptile-top b { font-size: 1rem; }
+.neworder .ptile-vars { gap: 0.5rem; }
+.neworder .ptile-vars button { padding: 0.7em 0.95em; font-size: 0.92rem; }
+.neworder .qcart { max-height: 46vh; }
+@media (min-width: 1380px) {
+  /* Geniş ekran: solda sipariş bilgisi, ortada menü, sağda sepet (üç sütun) */
+  .neworder .no-left { grid-template-columns: 380px minmax(0, 1fr); align-items: start; }
+}
+@media (max-width: 1379px) {
+  .neworder .picker-grid { max-height: 56vh; }
+}
+@media (max-width: 900px) {
+  .neworder .no-grid { grid-template-columns: 1fr; }
+  .neworder .picker-grid { max-height: none; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+}
+
+/* v70 müşteri numarası + aynı telefon uyarısı */
+.cno { display: inline-block; font: 700 0.78rem 'DM Sans', sans-serif; color: var(--gold-ink); background: var(--gold-bg); border: 1px solid var(--gold); border-radius: 999px; padding: 0.05rem 0.55rem; margin-right: 0.35rem; white-space: nowrap; letter-spacing: 0.02em; }
+.cno.lg { font-size: 0.95rem; padding: 0.1rem 0.7rem; vertical-align: middle; }
+.dup-warn { margin-top: 0.4rem; padding: 0.6rem 0.75rem; border: 1.5px solid var(--danger, #b3261e); background: rgba(179, 38, 30, 0.07); border-radius: 12px; display: grid; gap: 0.4rem; font-weight: 400; }
+.dup-warn .dup-row { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; }
+
+/* v71 planlı (ileri tarihli) sipariş */
+.chip.plan { background: #e7f0ff; color: #164a9a; border-color: #b9d1fb; font-weight: 700; }
+.ocard-age.plan { background: #e7f0ff; color: #164a9a; }
+@media (prefers-color-scheme: dark) { .chip.plan, .ocard-age.plan { background: rgba(80, 140, 255, 0.18); color: #a9c7ff; border-color: rgba(80, 140, 255, 0.35); } }

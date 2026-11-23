@@ -86,7 +86,7 @@ export default function PublicLayout() {
     const channel = supabase.channel(`header-referral-${user.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'referral_campaigns' }, refreshReferral)
       .subscribe();
-    const timer = window.setInterval(refreshReferral, 30000);
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') refreshReferral(); }, 180000);
     return () => { alive = false; window.clearInterval(timer); supabase.removeChannel(channel); };
   }, [user?.id, panel]);
 

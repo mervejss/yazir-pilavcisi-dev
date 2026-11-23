@@ -6,14 +6,15 @@ import { isHidden } from '@/lib/polling';
 /**
  * Yedek (fallback) senkron: yönetim paneli AÇIKKEN ve sekme GÖRÜNÜRKEN, AÇIK platformlardan siparişleri çeker.
  * Asıl 7/24 çekim sunucudaki zamanlayıcıdır (sql/18 + sql/34). Bu yüzden:
- *  - en az 60 sn, varsayılan 120 sn (eskiden 15/30 sn)
+ *  - en az 120 sn, varsayılan 300 sn (eskiden 15/30 → 60/120 sn)
  *  - açılışta ANINDA çağrı yok (sunucu zaten çekiyor)
  *  - birden çok sekme/cihaz açıksa yalnızca BİRİ çeker (localStorage kilidi)
  *  - sekme gizliyken hiç çağrı yok
  */
 const LOCK_KEY = 'yz_poll_lock';
-const MIN_SECONDS = 60;
-const DEFAULT_SECONDS = 120;
+// v59: sunucu zamanlayıcısı (sql/40) zaten çekiyor; tarayıcı yalnızca yedek → seyrek (egress/log tasarrufu)
+const MIN_SECONDS = 120;
+const DEFAULT_SECONDS = 300;
 
 export function usePlatformPolling(enabled: boolean) {
   const busy = useRef<Record<string, boolean>>({});

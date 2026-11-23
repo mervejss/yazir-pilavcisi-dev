@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { supabase } from '@/lib/supabase';
-import { tl } from '@/lib/helpers';
+import { tl, plannedLabel, untilLabel } from '@/lib/helpers';
 import { TABLE_STATUS_LABELS } from '@/lib/constants';
 import { useMenu, type MenuProduct } from '@/hooks/useMenu';
 import { useTables } from '@/hooks/useTables';
@@ -14,8 +14,11 @@ import VoiceDictateButton from '@/components/ui/VoiceDictateButton';
 import PhoneCustomerPanel, { type PickedAddress } from '@/components/admin/PhoneCustomerPanel';
 import LocationPicker from '@/components/maps/LocationPicker';
 import Modal from '@/components/ui/Modal';
+import { categoryIcon } from '@/lib/categoryIcon';
 import { explainSpeechError } from '@/lib/voiceMic';
 import Icon from '@/components/ui/Icon';
+import BulkRequestForm, { toLocalInput } from '@/components/admin/BulkRequestForm';
+import QtyStepper from '@/components/ui/QtyStepper';
 import ProductImage from '@/components/ui/ProductImage';
 
 type Mode = 'quick' | 'full';
@@ -43,12 +46,14 @@ export interface OrderPrefill {
     note?: string | null;
     payment?: string | null;
   };
+  /** "Toplu talebi siparişe çevir": adres / saat / not hazır gelir */
+  draft?: { address?: string | null; scheduledAt?: string | null; note?: string | null };
 }
 
 interface Props {
   open: boolean;
   onClose: () => void;
-  onCreated?: () => void;
+  onCreated?: (r?: { order_id?: string; order_no?: number }) => void;
   /** Masalar sayfasından açılırsa masa hazır seçili gelir */
   presetTableId?: string | null;
   prefill?: OrderPrefill | null;
@@ -57,7 +62,7 @@ interface Props {
 /* ------------------------------------------------------------------ */
 /* Ürün seçici: kategori sekmeleri + arama + dokunmatik dostu kartlar   */
 /* ------------------------------------------------------------------ */
-function ProductPicker({ onAdd, counts }: { onAdd: (p: MenuProduct, variantIdx: number) => void; counts: Record<string, number> }) {
+export function ProductPicker({ onAdd, counts }: { onAdd: (p: MenuProduct, variantIdx: number) => void; counts: Record<string, number> }) {
   const { categories, products, loading } = useMenu();
   const [cat, setCat] = useState<string>('all');
   const [q, setQ] = useState('');
@@ -79,10 +84,10 @@ function ProductPicker({ onAdd, counts }: { onAdd: (p: MenuProduct, variantIdx: 
         <input placeholder="Ürün ara…" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       <div className="catbar" role="tablist">
-        <button type="button" className={cat === 'all' ? 'on' : ''} onClick={() => setCat('all')}>Tümü</button>
+        <button type="button" className={cat === 'all' ? 'on' : ''} onClick={() => setCat('all')}><Icon name="grid" size={16} />Tümü</button>
         {categories.map((c) => (
           <button key={c.id} type="button" className={cat === c.id ? 'on' : ''} onClick={() => setCat(c.id)}>
-            {c.name}
+            <Icon name={categoryIcon(c.name)} size={16} />{c.name}
           </button>
         ))}
       </div>
@@ -121,20 +126,17 @@ function ProductPicker({ onAdd, counts }: { onAdd: (p: MenuProduct, variantIdx: 
 /* ------------------------------------------------------------------ */
 function CartLines({ lines, setLines, fee = 0 }: { lines: Line[]; setLines: (l: Line[]) => void; fee?: number }) {
   const total = lines.reduce((s, l) => s + l.price * l.qty, 0) + fee;
-  const change = (id: string, d: number) =>
-    setLines(lines.map((l) => (l.variant_id === id ? { ...l, qty: l.qty + d } : l)).filter((l) => l.qty > 0));
+  // Adet doğrudan belirlenir (yazılan sayı / hızlı düğmeler); 0 → satır kalkar
+  const setQty = (id: string, qty: number) =>
+    setLines(lines.map((l) => (l.variant_id === id ? { ...l, qty } : l)).filter((l) => l.qty > 0));
   return (
     <div className="qcart">
       {lines.length === 0 && <p className="muted center" style={{ margin: '1.5rem 0' }}>Henüz ürün seçilmedi.<br />Soldan dokunarak ekleyin.</p>}
       {lines.map((l) => (
-        <div key={l.variant_id} className="qline">
+        <div key={l.variant_id} className="qline qline-step">
           <span className="qname">{l.name}</span>
-          <span className="qty">
-            <button type="button" onClick={() => change(l.variant_id, -1)} aria-label="Azalt"><Icon name="minus" size={14} /></button>
-            <b>{l.qty}</b>
-            <button type="button" onClick={() => change(l.variant_id, 1)} aria-label="Artır"><Icon name="plus" size={14} /></button>
-          </span>
           <b className="qsum">{tl(l.price * l.qty)}</b>
+          <QtyStepper value={l.qty} onChange={(n) => setQty(l.variant_id, n)} ariaLabel={`${l.name} adedi`} />
         </div>
       ))}
       {fee > 0 && (
@@ -169,6 +171,9 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
   const [pay, setPay] = useState<Pay>('cash_on_delivery');
   const [source, setSource] = useState('counter');
   const [busy, setBusy] = useState(false);
+  const [kind, setKind] = useState<'order' | 'bulk'>('order');
+  const [planOn, setPlanOn] = useState(false);
+  const [planAt, setPlanAt] = useState('');
 
   // --- Sesle Sipariş Gir (telefon siparişleri için canlı konuşma-metin + akıllı ayrıştırma) ---
   const [voiceActive, setVoiceActive] = useState(false);
@@ -205,6 +210,8 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
     setFeeOverride('');
     setTableId('');
     setPay('cash_on_delivery');
+    setPlanOn(false);
+    setPlanAt('');
     voiceStoppedManually.current = true;
     recognitionRef.current?.stop();
     setVoiceActive(false);
@@ -378,7 +385,13 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
       setPhone(c.phone || '');
       setCustomerId(c.id || null);
     }
-    chooseType(prefill.repeat?.type === 'delivery' || (!prefill.repeat && !!c) ? 'delivery' : 'pickup');
+    setKind('order');
+    if (prefill.draft) {
+      if (prefill.draft.address) setAddress(prefill.draft.address);
+      if (prefill.draft.note) setNote(prefill.draft.note);
+      if (prefill.draft.scheduledAt) { setPlanOn(true); setPlanAt(toLocalInput(new Date(prefill.draft.scheduledAt))); }
+    }
+    chooseType(prefill.repeat?.type === 'delivery' || prefill.draft || (!prefill.repeat && !!c) ? 'delivery' : 'pickup');
     const r = prefill.repeat;
     if (r) {
       supabase.rpc('reorder_items', { p_order_id: r.orderId } as any).then(({ data, error }) => {
@@ -404,6 +417,12 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
       if (!address.trim()) return toast.error('Teslimat adresini yazın veya haritadan seçin');
     }
     if (type === 'pickup' && phone.trim() && !np) return toast.error('Telefon geçersiz (05xx xxx xx xx)');
+
+    const planned = planOn && type !== 'dine_in' && planAt ? new Date(planAt) : null;
+    if (planOn && type !== 'dine_in') {
+      if (!planned) return toast.error('Planlı sipariş için tarih ve saat seçin');
+      if (planned.getTime() < Date.now() - 5 * 60000) return toast.error('Planlanan saat geçmişte olamaz');
+    }
 
     setBusy(true);
     try {
@@ -445,7 +464,11 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
         ...common,
         p_courier_id: type === 'delivery' && courierId ? courierId : null,
         p_save_address: type === 'delivery' && saveAddress,
+        ...(planned ? { p_scheduled_for: planned.toISOString() } : {}),
       } as any);
+      if (error && isMissingFn(error) && planned) {
+        throw new Error('Planlı sipariş için sql/46_scheduled_orders_bulk_requests.sql çalıştırılmalı.');
+      }
       if (error && isMissingFn(error)) {
         // SQL 25 henüz çalıştırılmadı: eski akışa düş (kurye ön ataması ve müşteri eşleme yok)
         if (courierId) toast('Kurye ataması için sql/25_phone_customers_maps.sql çalıştırılmalı. Sipariş kuryesiz kaydedilecek.', { icon: '⚠️', duration: 8000 });
@@ -464,9 +487,9 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
       }
 
       const cName = courierId ? sortedCouriers.find((c) => c.courier_id === courierId)?.full_name : '';
-      toast.success(`Sipariş #${res.order_no ?? ''} kaydedildi · ${tl(total)}${cName ? ` · Kurye: ${cName}` : ''}${res.customer_created ? ' · yeni müşteri eklendi' : ''}`);
+      toast.success(`Sipariş #${res.order_no ?? ''} kaydedildi · ${tl(total)}${cName ? ` · Kurye: ${cName}` : ''}${res.customer_created ? ' · yeni müşteri eklendi' : ''}${planned ? ` · ⏰ ${plannedLabel(planned.toISOString())}` : ''}`);
       reset();
-      onCreated?.();
+      onCreated?.({ order_id: res.order_id, order_no: res.order_no });
       onClose();
     } catch (e: any) {
       toast.error(e?.message || 'Sipariş oluşturulamadı');
@@ -595,8 +618,12 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
   return (
     <Modal open={open} onClose={() => !busy && onClose()} size="xl" className="neworder">
       <div className="no-head">
-        <h2><Icon name="zap" size={22} /> Yeni Sipariş</h2>
+        <h2><Icon name="zap" size={22} /> {kind === 'bulk' ? 'Toplu Sipariş Talebi' : 'Yeni Sipariş'}</h2>
         <div className="seg modeseg">
+          <button type="button" className={kind === 'order' ? 'on' : ''} onClick={() => setKind('order')}>🍽️ Sipariş</button>
+          <button type="button" className={kind === 'bulk' ? 'on' : ''} onClick={() => setKind('bulk')}>🎉 Toplu sipariş</button>
+        </div>
+        <div className="seg modeseg" style={kind === 'bulk' ? { display: 'none' } : undefined}>
           <button type="button" className={mode === 'quick' ? 'on' : ''} onClick={() => setMode('quick')}>
             ⚡ Hızlı
           </button>
@@ -607,9 +634,15 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
         <button type="button" className="icon-circle" onClick={onClose} aria-label="Kapat"><Icon name="x" size={16} /></button>
       </div>
 
+      {kind === 'bulk' ? (
+        <div style={{ padding: '1rem 1.25rem', maxWidth: 720 }}>
+          <BulkRequestForm onDone={() => { onCreated?.(); onClose(); setKind('order'); }} onCancel={onClose} />
+        </div>
+      ) : (
       <div className="no-grid">
         {/* SOL: sipariş bilgisi + ürün seçici */}
         <div className="no-left">
+          <div className="no-info">
           <div className="typetiles t3">
             <button type="button" className={type === 'delivery' ? 'on' : ''} onClick={() => chooseType('delivery')}>
               <Icon name="truck" size={26} />
@@ -641,7 +674,8 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
             </>
           )}
 
-          <ProductPicker onAdd={add} counts={counts} />
+          </div>
+          <div className="no-menu"><ProductPicker onAdd={add} counts={counts} /></div>
         </div>
 
         {/* SAĞ: sepet + ödeme + gönder */}
@@ -683,8 +717,35 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
             </div>
           )}
 
+          {type !== 'dine_in' ? (
+            <div className="fld planbox">
+              <label className="row" style={{ gap: '0.5rem', alignItems: 'center', cursor: 'pointer' }}>
+                <input type="checkbox" checked={planOn} onChange={(e) => {
+                  setPlanOn(e.target.checked);
+                  if (e.target.checked && !planAt) { const d = new Date(Date.now() + 3600000); d.setMinutes(Math.ceil(d.getMinutes() / 5) * 5, 0, 0); setPlanAt(toLocalInput(d)); }
+                }} />
+                <span><Icon name="clock" size={14} /> İleri tarihli / saatli sipariş <span className="muted">(isteğe bağlı)</span></span>
+              </label>
+              {planOn && (
+                <>
+                  <input type="datetime-local" value={planAt} min={toLocalInput(new Date())} onChange={(e) => setPlanAt(e.target.value)} style={{ marginTop: '0.4rem' }} />
+                  <div className="row" style={{ gap: '0.35rem', flexWrap: 'wrap', marginTop: '0.4rem' }}>
+                    {[['+1 sa', () => new Date(Date.now() + 3600000)], ['Bugün 19:00', () => { const d = new Date(); d.setHours(19, 0, 0, 0); return d; }], ['Bugün 20:00', () => { const d = new Date(); d.setHours(20, 0, 0, 0); return d; }], ['Yarın 12:00', () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(12, 0, 0, 0); return d; }]].map(([l, fn]) => (
+                      <button key={l as string} type="button" className="chip" onClick={() => setPlanAt(toLocalInput((fn as () => Date)()))}>{l as string}</button>
+                    ))}
+                  </div>
+                  {planAt && !isNaN(new Date(planAt).getTime()) && (
+                    <p className="small muted" style={{ margin: '0.4rem 0 0' }}>
+                      ⏰ {plannedLabel(new Date(planAt).toISOString())} · {untilLabel(new Date(planAt).toISOString())}. Sipariş şimdi kaydedilir; süre/gecikme bu saatten sayılır.
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          ) : null}
+
           <p className="small muted" style={{ margin: '0.4rem 0' }}>
-            <Icon name="clock" size={14} /> Tarih ve saat otomatik kaydedilir.
+            <Icon name="clock" size={14} /> {planOn && type !== 'dine_in' ? 'Kayıt anı da saklanır; teslim saati planlanan saattir.' : 'Tarih ve saat otomatik kaydedilir.'}
           </p>
 
           <div className="no-actions">
@@ -700,6 +761,7 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
           </div>
         </aside>
       </div>
+      )}
     </Modal>
   );
 }

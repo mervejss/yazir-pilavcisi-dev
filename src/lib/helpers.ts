@@ -238,3 +238,27 @@ export function beep(): void {
     /* ses desteklenmiyor */
   }
 }
+
+/* ---------- Planlı (ileri tarihli) siparişler ---------- */
+/** Siparişin "saati": planlıysa planlanan saat, değilse oluşturulma anı. Gecikme/süre hesapları BUNA göre yapılır. */
+export const orderClock = (o: { created_at: string; scheduled_for?: string | null }): string => o.scheduled_for || o.created_at;
+
+/** "Bugün 19:30" / "Yarın 12:00" / "18 Kas 12:00" */
+export function plannedLabel(iso: string): string {
+  const d = new Date(iso);
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round((day(d) - day(new Date())) / 86400000);
+  const time = hhmm(iso);
+  if (diffDays === 0) return `Bugün ${time}`;
+  if (diffDays === 1) return `Yarın ${time}`;
+  if (diffDays === -1) return `Dün ${time}`;
+  return `${d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })} ${time}`;
+}
+
+/** Planlanan saate kalan / geçen süre: "3 sa 20 dk sonra" · "12 dk geçti" */
+export function untilLabel(iso: string): string {
+  const mins = Math.round((new Date(iso).getTime() - Date.now()) / 60000);
+  const abs = Math.abs(mins);
+  const txt = abs >= 1440 ? `${Math.floor(abs / 1440)} gün ${Math.floor((abs % 1440) / 60)} sa` : abs >= 60 ? `${Math.floor(abs / 60)} sa ${abs % 60} dk` : `${abs} dk`;
+  return mins >= 0 ? `${txt} sonra` : `${txt} geçti`;
+}

@@ -40,6 +40,7 @@ const GROUPS: NavGroup[] = [
     items: [
       { to: '/admin/siparisler', label: 'Canlı Siparişler', icon: 'clipboard', roles: ALL },
       { to: '/admin/gecmis-siparisler', label: 'Geçmiş Siparişler', icon: 'clipboard', roles: ALL },
+      { to: '/admin/toplu-siparis', label: 'Toplu Sipariş Talepleri', icon: 'users', roles: ALL },
     ],
   },
   {

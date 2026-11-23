@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --import ./tests/register.mjs --test tests/*.test.mjs",
+    "test:sql": "bash sql/tools/verify.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

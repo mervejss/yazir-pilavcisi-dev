@@ -6,6 +6,10 @@ import { TABLE_STATUS_LABELS, ORDER_STATUS_LABELS } from '@/lib/constants';
 import { tl, timeAgo } from '@/lib/helpers';
 import Modal from '@/components/ui/Modal';
 import Icon from '@/components/ui/Icon';
+import QtyStepper from '@/components/ui/QtyStepper';
+import { ProductPicker } from '@/components/admin/NewOrderModal';
+import { printBill } from '@/lib/printBill';
+import TableBillPanel, { useBillPay, billReady, billLines } from '@/components/admin/TableBillPanel';
 import NewOrderModal from '@/components/admin/NewOrderModal';
 import QRCode from 'qrcode';
 import toast from 'react-hot-toast';
@@ -65,7 +69,7 @@ export default function TablesAdmin() {
 
   // Bill & Add & Edit Table Modals
   const [billModalOpen, setBillModalOpen] = useState(false);
-  const [billPayment, setBillPayment] = useState<'cash_at_table' | 'card_at_table' | 'iban'>('cash_at_table');
+  const pay = useBillPay();
   const [autoDeliverOnClose, setAutoDeliverOnClose] = useState(true);
   const [closingBill, setClosingBill] = useState(false);
 
@@ -204,15 +208,28 @@ export default function TablesAdmin() {
       }
 
       // Hızlı sipariş ve Masa Düzeni aynı atomik veritabanı kapatma fonksiyonunu kullanır.
-      const { data, error } = await supabase.rpc('close_table_bill', {
-        p_table_id: selectedTable.id,
-        p_payment: billPayment,
-      });
+      // Bölünmüş ödeme: ödemeler (kim ne kadar, hangi yöntemle) hesapla birlikte tek işlemde kaydedilir.
+      let data: any, error: any;
+      if (pay.split) {
+        const { total } = billLines(activeOrders);
+        if (!billReady(pay, total)) throw new Error('Ödemelerin toplamı hesap tutarına eşit olmalı; kalan tutarı da dağıtın.');
+        ({ data, error } = await supabase.rpc('close_table_bill_split', { p_table_id: selectedTable.id, p_payments: pay.payments, p_serve: false } as any));
+        if (error && /close_table_bill_split|does not exist|schema cache/i.test(error.message)) {
+          throw new Error('Bölünmüş ödeme için sql/41_split_bill_payments.sql dosyasını Supabase SQL Editor\'de bir kez çalıştırın.');
+        }
+      } else {
+        ({ data, error } = await supabase.rpc('close_table_bill', { p_table_id: selectedTable.id, p_payment: pay.method }));
+      }
 
       if (error) throw error;
       const res = data as any;
       toast.success(`Hesap başarıyla kapatıldı: ${tl(res.total || 0)}`);
+      if (pay.printOnClose) {
+        const bl = billLines(activeOrders);
+        printBill({ tableName: selectedTable.name || `Masa ${selectedTable.number}`, lines: bl.lines, total: bl.total, method: pay.split ? undefined : pay.method, payments: pay.split ? pay.payments : undefined });
+      }
       setBillModalOpen(false);
+      pay.reset();
       refetch();
       setSelectedTable((prev) => (prev ? { ...prev, status: 'bill_closed', activeSession: null } : null));
     } catch (err: any) {
@@ -653,6 +670,7 @@ export default function TablesAdmin() {
                     style={{ width: '100%', marginTop: '0.8rem' }}
                     onClick={() => {
                       setAutoDeliverOnClose(true);
+                      pay.reset();
                       setBillModalOpen(true);
                     }}
                   >
@@ -777,7 +795,7 @@ export default function TablesAdmin() {
       </div>
 
       {/* SANDALYE BAZLI SİPARİŞ MODALI */}
-      <Modal open={chairOrderModal} onClose={() => setChairOrderModal(false)}>
+      <Modal open={chairOrderModal} size="wide" onClose={() => setChairOrderModal(false)}>
         <h2>{selectedTable?.name || `Masa ${selectedTable?.number}`} - Sandalyeye Sipariş Girişi</h2>
         <p className="muted small">
           Masanın etrafındaki sandalyelerden birine dokunun ve o kişinin istediği pilav/içecekleri ekleyin.
@@ -813,77 +831,44 @@ export default function TablesAdmin() {
         {/* Seçili Sandalye İçin Ürün Ekleme */}
         <div style={{ background: 'var(--surface)', padding: '1rem', borderRadius: '12px', marginBottom: '1rem' }}>
           <b>Sandalye {selectedChair} İçin Ürün Seçin:</b>
-          <select
-            style={{ marginTop: '0.5rem', width: '100%' }}
-            onChange={(e) => {
-              if (!e.target.value) return;
-              const vId = e.target.value;
-              const prod = products.find((p) => p.variants.some((v) => v.id === vId));
-              const variant = prod?.variants.find((v) => v.id === vId);
-
-              if (prod && variant) {
-                setChairItems([
-                  ...chairItems,
-                  {
-                    chair: selectedChair,
-                    variant_id: variant.id,
-                    product_name: prod.name,
-                    variant_name: variant.name,
-                    price: variant.price,
-                    quantity: 1,
-                  },
-                ]);
-              }
-              e.target.value = '';
-            }}
-          >
-            <option value="">+ Sandalye {selectedChair} için ürün seçin...</option>
-            {products.flatMap((p) =>
-              p.variants.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {p.name} - {v.name} ({tl(v.price)})
-                </option>
-              )),
-            )}
-          </select>
+          <div style={{ marginTop: '0.5rem', maxHeight: '340px', overflowY: 'auto' }}>
+            <ProductPicker
+              counts={Object.fromEntries(chairItems.filter((ci) => ci.chair === selectedChair).map((ci) => [ci.variant_id, ci.quantity]))}
+              onAdd={(prod, vi) => {
+                const variant = prod.variants[vi];
+                if (!variant) return;
+                // Aynı sandalye + aynı ürün varsa yeni satır açmak yerine adedi artır
+                const same = chairItems.findIndex((ci) => ci.chair === selectedChair && ci.variant_id === variant.id);
+                if (same >= 0) {
+                  setChairItems(chairItems.map((x, i) => (i === same ? { ...x, quantity: x.quantity + 1 } : x)));
+                } else {
+                  setChairItems([
+                    ...chairItems,
+                    { chair: selectedChair, variant_id: variant.id, product_name: prod.name, variant_name: variant.name, price: variant.price, quantity: 1 },
+                  ]);
+                }
+              }}
+            />
+          </div>
         </div>
 
         {/* Eklenen Kalemler Listesi */}
-        <div style={{ maxHeight: '200px', overflowY: 'auto', marginBottom: '1rem' }}>
+        <div style={{ maxHeight: '280px', overflowY: 'auto', marginBottom: '1rem' }}>
           <h4>Masaya Eklenecek Kalemler:</h4>
           {chairItems.map((ci, idx) => (
-            <div key={idx} className="crow">
+            <div key={idx} className="crow crow-step">
               <div>
                 <b>[Sandalye {ci.chair}]</b> {ci.product_name} ({ci.variant_name})
               </div>
-              <div className="qty">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const updated = [...chairItems];
-                    if (updated[idx].quantity > 1) {
-                      updated[idx].quantity -= 1;
-                      setChairItems(updated);
-                    } else {
-                      setChairItems(updated.filter((_, i) => i !== idx));
-                    }
-                  }}
-                >
-                  −
-                </button>
-                <b>{ci.quantity}</b>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const updated = [...chairItems];
-                    updated[idx].quantity += 1;
-                    setChairItems(updated);
-                  }}
-                >
-                  +
-                </button>
-              </div>
               <b>{tl(ci.price * ci.quantity)}</b>
+              <QtyStepper
+                value={ci.quantity}
+                ariaLabel={`${ci.product_name} adedi`}
+                onChange={(n) => {
+                  if (n <= 0) setChairItems(chairItems.filter((_, i) => i !== idx));
+                  else setChairItems(chairItems.map((x, i) => (i === idx ? { ...x, quantity: n } : x)));
+                }}
+              />
             </div>
           ))}
           {chairItems.length === 0 && (
@@ -907,7 +892,7 @@ export default function TablesAdmin() {
       </Modal>
 
       {/* HESAP KAPAT MODAL (Hatasız & Güvenli) */}
-      <Modal open={billModalOpen} onClose={() => !closingBill && setBillModalOpen(false)}>
+      <Modal open={billModalOpen} size="wide" onClose={() => !closingBill && setBillModalOpen(false)}>
         <h2>{selectedTable?.name || `Masa ${selectedTable?.number}`} Hesabını Kapat</h2>
         <p className="muted">
           Tahsil Edilecek Tutar: <b className="price">{tl(tableTotal)}</b>
@@ -936,42 +921,13 @@ export default function TablesAdmin() {
           </div>
         )}
 
-        <fieldset style={{ margin: '1rem 0' }}>
-          <legend>Tahsilat Şekli</legend>
-          <label className="radio">
-            <input
-              type="radio"
-              name="billPay"
-              checked={billPayment === 'cash_at_table'}
-              onChange={() => setBillPayment('cash_at_table')}
-            />
-            Nakit (Masada)
-          </label>
-          <label className="radio">
-            <input
-              type="radio"
-              name="billPay"
-              checked={billPayment === 'card_at_table'}
-              onChange={() => setBillPayment('card_at_table')}
-            />
-            Kredi/Banka Kartı (Masada POS)
-          </label>
-          <label className="radio">
-            <input
-              type="radio"
-              name="billPay"
-              checked={billPayment === 'iban'}
-              onChange={() => setBillPayment('iban')}
-            />
-            IBAN / Havale
-          </label>
-        </fieldset>
+        <TableBillPanel tableName={selectedTable?.name || `Masa ${selectedTable?.number}`} orders={activeOrders} pay={pay} busy={closingBill} />
 
         <div className="prow">
           <button
             type="button"
             className="btn gold sm"
-            disabled={closingBill}
+            disabled={closingBill || !billReady(pay, tableTotal)}
             onClick={handleCloseBill}
           >
             {closingBill ? 'Kapatılıyor...' : 'Tahsilatı Onayla ve Hesabı Kapat'}

@@ -31,7 +31,7 @@ export default function StaffLoginPage() {
         profile = useAuthStore.getState().profile;
       }
       if (!profile) {
-        toast.error('Kullanıcı profili okunamadı. Lütfen 00_quick_fix.sql scriptini Supabase SQL Editor\'da çalıştırdığınızdan emin olun.');
+        toast.error('Kullanıcı profili okunamadı. Lütfen sql/bakim/00_quick_fix.sql scriptini Supabase SQL Editor\'da çalıştırdığınızdan emin olun.');
         return;
       }
 

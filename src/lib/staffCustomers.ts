@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 
 export interface FoundCustomer {
   id: string;
+  customer_no?: number;
   full_name: string;
   phone: string | null;
   notes: string | null;
@@ -84,3 +85,17 @@ export const fmtPhone = (p?: string | null) => {
   const n = p ? normalizePhone(p) : null;
   return n ? `${n.slice(0, 4)} ${n.slice(4, 7)} ${n.slice(7, 9)} ${n.slice(9)}` : p || '';
 };
+
+/** Müşteri numarası gösterimi: #1001 */
+export const fmtNo = (n?: number | string | null) => (n ? `#${n}` : '');
+
+/** Aynı telefonla kayıtlı başka müşteri (staff_check_phone / staff_save_customer 'duplicate' yanıtı) */
+export interface DupMatch { id: string; customer_no: number; full_name: string; phone: string | null; has_account: boolean; order_count: number }
+
+/** Telefon başka bir müşteride kayıtlı mı? (kendisi hariç tutulabilir). Geçersiz/kısa numara veya SQL 45 yoksa boş döner. */
+export async function checkPhone(phone: string, excludeId?: string | null): Promise<DupMatch[]> {
+  if (!normalizePhone(phone)) return [];
+  const { data, error } = await supabase.rpc('staff_check_phone', { p_phone: phone, p_exclude: excludeId ?? null } as any);
+  if (error || !data) return [];
+  return (((data as any).matches || []) as DupMatch[]).map((m) => ({ ...m, order_count: Number(m.order_count) }));
+}

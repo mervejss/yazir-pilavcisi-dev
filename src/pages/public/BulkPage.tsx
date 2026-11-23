@@ -10,7 +10,7 @@ export default function BulkPage() {
   const [form, setForm] = useState({
     full_name: '',
     phone: '',
-    event_type: 'Cenaze',
+    event_type: '',
     people_count: '',
     delivery_at: '',
     delivery_address: '',
@@ -27,7 +27,7 @@ export default function BulkPage() {
       const { error } = await supabase.from('bulk_order_requests').insert({
         full_name: form.full_name,
         phone: form.phone,
-        event_type: form.event_type,
+        event_type: form.event_type || null,
         people_count: parseInt(form.people_count, 10),
         delivery_at: new Date(form.delivery_at).toISOString(),
         delivery_address: form.delivery_address,
@@ -54,15 +54,16 @@ export default function BulkPage() {
           <label>Ad soyad<input required value={form.full_name} onChange={set('full_name')} /></label>
           <label>Telefon<input required type="tel" value={form.phone} onChange={set('phone')} /></label>
           <label>
-            Organizasyon türü
+            Organizasyon türü <span className="muted small">(isteğe bağlı)</span>
             <select value={form.event_type} onChange={set('event_type')}>
+              <option value="">Belirtmek istemiyorum</option>
               <option>Cenaze</option><option>Mevlit</option><option>Nişan / Düğün</option>
               <option>İş yeri</option><option>Diğer</option>
             </select>
           </label>
           <div className="two-col">
             <label>
-              Kişi sayısı
+              Kişi / ürün sayısı
               <input
                 type="number"
                 min={settings?.bulk_order_min_people || 10}

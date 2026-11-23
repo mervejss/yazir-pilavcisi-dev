@@ -7,6 +7,7 @@ import { useBusinessSettings } from '@/hooks/useBusinessSettings';
 import { supabase } from '@/lib/supabase';
 import { discountedPrice, slugify, tl } from '@/lib/helpers';
 import { PAYMENT_METHOD_LABELS } from '@/lib/constants';
+import QtyStepper from '@/components/ui/QtyStepper';
 import ProductImage from '@/components/ui/ProductImage';
 import Icon from '@/components/ui/Icon';
 import LocationPicker from '@/components/maps/LocationPicker';
@@ -78,7 +79,7 @@ export default function OrderPage() {
     const refreshReferral = () => supabase.rpc('my_referral').then(({ data, error }) => { if (!error) setReferral(data || null); });
     refreshReferral();
     const referralChannel = supabase.channel(`referral-order-${user.id}`).on('postgres_changes', { event: '*', schema: 'public', table: 'referral_campaigns' }, refreshReferral).subscribe();
-    const referralTimer = window.setInterval(refreshReferral, 30000);
+    const referralTimer = window.setInterval(() => { if (document.visibilityState === 'visible') refreshReferral(); }, 180000);
     supabase.rpc('my_loyalty').then(({ data, error }) => {
       if (!error && data) setLoyalty(data);
     });
@@ -532,20 +533,12 @@ export default function OrderPage() {
                   <small className="cart-detail-hint">Ürün detayını gör</small>
                 </span>
               </Link>
-              <div className="qty">
-                <button type="button" onClick={() => changeQty(i.key, -1)} aria-label="Adedi azalt">−</button>
-                <input
-                  type="number"
-                  min={1}
-                  className="qty-input"
-                  value={i.quantity}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value, 10);
-                    if (!isNaN(val) && val >= 1) changeQty(i.key, val - i.quantity);
-                  }}
-                />
-                <button type="button" onClick={() => changeQty(i.key, 1)} aria-label="Adedi artır">+</button>
-              </div>
+              <QtyStepper
+                value={i.quantity}
+                chips={[-10, -5, 5, 10]}
+                ariaLabel={`${i.productName} adedi`}
+                onChange={(n) => changeQty(i.key, n - i.quantity)}
+              />
               <div className="cart-line-price" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px', minWidth: '78px' }}>
                 {productReferral ? (
                   <>

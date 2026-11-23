@@ -3,7 +3,7 @@
 ## 1) Kurulum (sırayla)
 
 1. **SQL:** Supabase → SQL Editor → `sql/25_phone_customers_maps.sql` dosyasını bir kez çalıştırın (tekrar çalıştırmak güvenli).
-   Önkoşul: 08_quick_order_support.sql, 10, 15 ve 20 numaralı dosyalar daha önce çalışmış olmalı.
+   Önkoşul: 08_quick_orders.sql, 10, 15 ve 20 numaralı dosyalar daha önce çalışmış olmalı.
 2. **Google Maps anahtarı:** `.env` dosyasına ekleyin (Vercel'de de Environment Variables'a):
    ```
    VITE_GOOGLE_MAPS_API_KEY=AIza...

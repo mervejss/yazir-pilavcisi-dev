@@ -29,7 +29,7 @@ export default function Home() {
     const refresh = () => supabase.rpc('my_referral').then(({ data, error }) => { if (!error) setReferral(data || null); });
     refresh();
     const channel = supabase.channel(`referral-home-${user.id}`).on('postgres_changes', { event: '*', schema: 'public', table: 'referral_campaigns' }, refresh).subscribe();
-    const timer = window.setInterval(refresh, 30000);
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 180000);
     return () => { window.clearInterval(timer); supabase.removeChannel(channel); };
   }, [user]);
   const [selected, setSelected] = useState<MenuProduct | null>(null);

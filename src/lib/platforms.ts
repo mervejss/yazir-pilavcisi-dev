@@ -46,7 +46,7 @@ export const PLATFORMS: PlatformMeta[] = [
     ],
     settingFields: [
       { key: 'auto_accept', label: 'Yeni siparişi otomatik kabul et', type: 'bool' },
-      { key: 'poll_seconds', label: 'Sipariş çekme aralığı (sn)', type: 'number', help: 'Panel açıkken tarayıcı bu aralıkla yeniler; 7/24 için sunucu zamanlayıcısı kurun (README).' },
+      { key: 'poll_seconds', label: 'Sipariş çekme aralığı (sn)', type: 'number', help: 'Yalnızca yedek: panel açıkken tarayıcı bu aralıkla (en az 120 sn, varsayılan 300 sn) yeniler. Asıl 7/24 çekim sunucu zamanlayıcısıdır (sql/40, varsayılan 2 dk).' },
       { key: 'default_prep_minutes', label: 'Varsayılan hazırlık süresi (dk)', type: 'number', help: 'Siparişi kabul ederken Trendyol\'a bildirilir (paket kendi süresini getirmezse).' },
       { key: 'executor_email', label: 'İşlemi yapan kullanıcı e-postası', help: 'Trendyol durum değiştirme çağrılarında istenebilir (x-executor-user).' },
       { key: 'sync_menu', label: 'Menü senkronizasyonu açık', type: 'bool' },
