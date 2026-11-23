@@ -48,7 +48,7 @@ export const isNetworkError = (e: { message?: string; code?: string } | null | u
 const online = () => typeof navigator === 'undefined' || navigator.onLine !== false;
 const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
-export type RunResult = { ok: true; queued: false; data: any } | { ok: true; queued: true } | { ok: false; error: string };
+export type RunResult = { ok: true; queued: false; data: any; error?: undefined } | { ok: true; queued: true; error?: undefined } | { ok: false; error: string };
 
 /** RPC'yi çalıştırır; bağlantı yoksa kuyruğa alır. ok:true+queued:true → "kaydedildi, bağlantı gelince gönderilecek" */
 export async function runOrQueue(

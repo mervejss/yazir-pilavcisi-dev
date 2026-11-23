@@ -423,7 +423,6 @@ export interface ProductOptionGroup {
   options?: ProductOption[];
 }
 
-export type BulkStatus = 'new' | 'contacted' | 'confirmed' | 'done' | 'cancelled';
 export interface BulkRequest {
   id: string;
   full_name: string;
