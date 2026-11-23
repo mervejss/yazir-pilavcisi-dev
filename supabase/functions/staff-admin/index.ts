@@ -6,7 +6,7 @@
 // Burada service_role ile hesap doğrudan açılır, e-posta onaylı gelir, rol ve profil aynı adımda yazılır.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
-import { CORS, json, msg, resolveAdmin } from '../_shared/common.ts';
+import { CORS, json, maintenanceBlock, msg, resolveAdmin } from '../_shared/common.ts';
 
 const ROLES = ['owner', 'sub_admin', 'operator', 'courier'];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -51,6 +51,10 @@ Deno.serve(async (req) => {
     const adm = await resolveAdmin();
     if (adm.error) return json({ ok: false, error: 'Sunucu servis anahtarı okunamadı: ' + adm.error }, 500);
     const db = adm.db;
+
+    // BAKIM MODU: personel hesabı oluşturma/güncelleme bakımda kapalı (işletme sahibi dahil)
+    const mt = await maintenanceBlock(db);
+    if (mt) return mt;
 
     const { data: me } = await db.from('profiles').select('role,is_active').eq('id', u.user.id).maybeSingle();
     if (!me || me.role !== 'owner' || !me.is_active) {

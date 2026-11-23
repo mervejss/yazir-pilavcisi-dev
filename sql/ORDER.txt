@@ -45,3 +45,4 @@
 44_admin_referral_assign.sql
 45_customer_numbers_phone_check.sql
 46_scheduled_orders_bulk_requests.sql
+47_maintenance_mode.sql

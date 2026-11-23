@@ -7,7 +7,7 @@
 // ÖNEMLİ: Aşağıdaki ENDPOINTS haritası, TGO geliştirici dokümanındaki uç nokta yollarına göre
 // canlıya almadan önce DOĞRULANMALIDIR. Yollar tek yerde toplandığı için düzeltmek tek satırdır;
 // ayrıca integrations.config.endpoints ile ezilebilir.
-import { authorize, CORS, json, logEvent, msg, resolveAdmin, touchPlatform } from '../_shared/common.ts';
+import { authorize, CORS, json, logEvent, maintenanceBlock, msg, resolveAdmin, touchPlatform } from '../_shared/common.ts';
 import { mapPackage, mapStatus } from '../_shared/trendyolOrders.ts';
 import { financePaymentOrders, financeProbe, financeSync, makeFinCtx } from './finance.ts';
 
@@ -53,6 +53,9 @@ Deno.serve(async (req) => {
   // Çalışan service_role istemcisini bul (eski JWT anahtar → yeni secret anahtar sırasıyla dener).
   const adm = await resolveAdmin();
   const db = adm.db;
+  // BAKIM MODU: panelden (kullanıcı oturumuyla) gelen çağrılar kapalı. Zamanlanmış (cron) senkron
+  // devam eder — böylece platformdan gelen siparişler/finans verisi kaybolmaz.
+  if (az.via === 'user') { const mt = await maintenanceBlock(db); if (mt) return mt; }
   let body: any = {};
   try { body = await req.json(); } catch { /* boş gövde */ }
   const action: string = body.action || 'status';

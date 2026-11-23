@@ -12,6 +12,20 @@ export function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
 }
 
+/**
+ * BAKIM MODU kilidi (sql/47_maintenance_mode.sql). Bakım açıksa 503 Response döner, değilse null.
+ * Tablo yoksa / okunamazsa kapalı sayılır (bakım hiç kurulmamış sistem eskisi gibi çalışır).
+ */
+export async function maintenanceBlock(db: SupabaseClient): Promise<Response | null> {
+  try {
+    const { data, error } = await db.from('maintenance_mode').select('enabled').eq('id', true).maybeSingle();
+    if (!error && data?.enabled === true) {
+      return json({ ok: false, maintenance: true, error: 'Sistem geçici olarak bakımdadır. Lütfen daha sonra tekrar deneyiniz.' }, 503);
+    }
+  } catch { /* yoksay */ }
+  return null;
+}
+
 /** service_role istemcisi (yalnızca sunucuda). */
 export function adminClient(): SupabaseClient {
   return createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {

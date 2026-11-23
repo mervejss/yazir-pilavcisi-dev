@@ -2,7 +2,7 @@
 // Dağıtım: supabase functions deploy platform-migros --no-verify-jwt
 // Gizliler: supabase secrets set MIGROS_API_KEY=... MIGROS_SECRET_KEY=... MIGROS_BASE_URL=... CRON_SECRET=...
 
-import { authorize, CORS, json, logEvent, msg, resolveAdmin, touchPlatform } from '../_shared/common.ts';
+import { authorize, CORS, json, logEvent, maintenanceBlock, msg, resolveAdmin, touchPlatform } from '../_shared/common.ts';
 
 const PLATFORM = 'migros';
 
@@ -15,6 +15,8 @@ Deno.serve(async (req) => {
 
     const adm = await resolveAdmin();
     const db = adm.db;
+    // BAKIM MODU: panelden gelen çağrılar kapalı; zamanlanmış (cron) senkron devam eder (veri kaybı olmaz)
+    if (az.via === 'user') { const mt = await maintenanceBlock(db); if (mt) return mt; }
     let body: any = {};
     try { body = await req.json(); } catch { /* boş gövde */ }
     const action: string = body.action || 'status';

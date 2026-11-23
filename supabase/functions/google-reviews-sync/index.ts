@@ -69,6 +69,17 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // BAKIM MODU: servis anahtarıyla gelen zamanlanmış çağrı dışındakiler (panel) bakımda kapalı
+    if (authHeader.replace(/^Bearer\s+/i, '') !== supabaseServiceKey) {
+      const { data: mt } = await supabase.from('maintenance_mode').select('enabled').eq('id', true).maybeSingle();
+      if (mt?.enabled === true) {
+        return new Response(
+          JSON.stringify({ error: 'Sistem geçici olarak bakımdadır.', maintenance: true }),
+          { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     // Get place_id from request body or business_settings
     const body = await req.json().catch(() => ({}));
     let placeId = body.place_id;
