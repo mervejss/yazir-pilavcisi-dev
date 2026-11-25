@@ -10,7 +10,7 @@
  *  Veritabanı/Edge Function kilidi için ayrıca: sql/bakim/maintenance_on.sql / maintenance_off.sql
  *  Rehber: BAKIM_MODU_REHBERI.md
  */
-export const MAINTENANCE_MODE: boolean = true;
+export const MAINTENANCE_MODE: boolean = false;
 
 /** Ekranda görünen metinler — buradan değiştirilebilir. */
 export const MAINTENANCE_COPY = {
