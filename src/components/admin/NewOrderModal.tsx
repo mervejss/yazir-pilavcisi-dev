@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { supabase } from '@/lib/supabase';
 import { tl, plannedLabel, untilLabel } from '@/lib/helpers';
@@ -20,6 +20,8 @@ import Icon from '@/components/ui/Icon';
 import BulkRequestForm, { toLocalInput } from '@/components/admin/BulkRequestForm';
 import QtyStepper from '@/components/ui/QtyStepper';
 import ProductImage from '@/components/ui/ProductImage';
+import { computeDiscount, discountPayload, type DiscountMode, type DiscountResult, type DiscountSpec } from '@/lib/orderDiscount';
+import { DiscountPanel, CartDiscountRows, LineDiscountNote, type Preset } from '@/components/admin/OrderDiscount';
 
 type Mode = 'quick' | 'full';
 type OType = 'delivery' | 'pickup' | 'dine_in';
@@ -124,27 +126,46 @@ export function ProductPicker({ onAdd, counts }: { onAdd: (p: MenuProduct, varia
 /* ------------------------------------------------------------------ */
 /* Sepet özeti                                                          */
 /* ------------------------------------------------------------------ */
-function CartLines({ lines, setLines, fee = 0 }: { lines: Line[]; setLines: (l: Line[]) => void; fee?: number }) {
-  const total = lines.reduce((s, l) => s + l.price * l.qty, 0) + fee;
+function CartLines({ lines, setLines, fee = 0, disc, onToggleLine }: {
+  lines: Line[]; setLines: (l: Line[]) => void; fee?: number; disc: DiscountResult; onToggleLine: (variantId: string) => void;
+}) {
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const total = r2(disc.subtotalAfter + fee);
+  const totalBefore = r2(disc.subtotal + fee);
+  const byId = new Map(disc.lines.map((d) => [d.variant_id, d]));
   // Adet doğrudan belirlenir (yazılan sayı / hızlı düğmeler); 0 → satır kalkar
   const setQty = (id: string, qty: number) =>
     setLines(lines.map((l) => (l.variant_id === id ? { ...l, qty } : l)).filter((l) => l.qty > 0));
   return (
     <div className="qcart">
       {lines.length === 0 && <p className="muted center" style={{ margin: '1.5rem 0' }}>Henüz ürün seçilmedi.<br />Soldan dokunarak ekleyin.</p>}
-      {lines.map((l) => (
-        <div key={l.variant_id} className="qline qline-step">
-          <span className="qname">{l.name}</span>
-          <b className="qsum">{tl(l.price * l.qty)}</b>
-          <QtyStepper value={l.qty} onChange={(n) => setQty(l.variant_id, n)} ariaLabel={`${l.name} adedi`} />
-        </div>
-      ))}
+      <div className="qcart-lines">
+      {lines.map((l) => {
+        const d = byId.get(l.variant_id);
+        const perItem = disc.mode === 'items' && !!d;
+        return (
+          <Fragment key={l.variant_id}>
+            <div className="qline qline-step">
+              <span className="qname">{l.name}</span>
+              <b className="qsum">
+                {perItem && d!.saved > 0
+                  ? <><s className="disc-old">{tl(d!.lineBefore)}</s><span className="disc-new">{tl(d!.lineAfter)}</span></>
+                  : tl(l.price * l.qty)}
+              </b>
+              <QtyStepper value={l.qty} onChange={(n) => setQty(l.variant_id, n)} ariaLabel={`${l.name} adedi`} />
+            </div>
+            {perItem && <LineDiscountNote line={d!} onToggle={() => onToggleLine(l.variant_id)} />}
+          </Fragment>
+        );
+      })}
+      </div>
+      <CartDiscountRows result={disc} />
       {fee > 0 && (
         <div className="qline"><span className="qname">Teslimat ücreti</span><b className="qsum">{tl(fee)}</b></div>
       )}
       <div className="qtotal">
         <span>Toplam</span>
-        <b>{tl(total)}</b>
+        <b>{disc.active && <s className="disc-old">{tl(totalBefore)}</s>}{tl(total)}</b>
       </div>
     </div>
   );
@@ -175,6 +196,12 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
   const [planOn, setPlanOn] = useState(false);
   const [planAt, setPlanAt] = useState('');
 
+  // --- İndirim (admin): seçim (mode/oran) + "Uygula"ya basılınca geçerli olan indirim ---
+  const [dMode, setDMode] = useState<DiscountMode>('cart');
+  const [dPreset, setDPreset] = useState<Preset>(10);
+  const [dCustom, setDCustom] = useState('');
+  const [applied, setApplied] = useState<DiscountSpec | null>(null);
+
   // --- Sesle Sipariş Gir (telefon siparişleri için canlı konuşma-metin + akıllı ayrıştırma) ---
   const [voiceActive, setVoiceActive] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState('');
@@ -190,7 +217,8 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
   const subtotal = lines.reduce((s, l) => s + l.price * l.qty, 0);
   const defaultFee = settings ? (settings.free_delivery_threshold && subtotal >= settings.free_delivery_threshold ? 0 : Number(settings.delivery_fee || 0)) : 0;
   const fee = type === 'delivery' ? (feeOverride.trim() !== '' ? Math.max(Number(feeOverride) || 0, 0) : defaultFee) : 0;
-  const total = subtotal + fee;
+  const dres = useMemo(() => computeDiscount(lines, applied), [lines, applied]);
+  const total = Math.round((dres.subtotalAfter + fee) * 100) / 100;
 
   const sortedCouriers = useMemo(
     () => [...couriers].filter((c) => c.is_active !== false).sort((a, b) => Number(b.is_online) - Number(a.is_online) || a.active_order_count - b.active_order_count),
@@ -212,6 +240,10 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
     setPay('cash_on_delivery');
     setPlanOn(false);
     setPlanAt('');
+    setApplied(null);
+    setDMode('cart');
+    setDPreset(10);
+    setDCustom('');
     voiceStoppedManually.current = true;
     recognitionRef.current?.stop();
     setVoiceActive(false);
@@ -460,19 +492,30 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
         p_note: note.trim() || null,
       };
 
-      let { data, error } = await supabase.rpc('staff_create_order_ex', {
+      const exArgs = {
         ...common,
         p_courier_id: type === 'delivery' && courierId ? courierId : null,
         p_save_address: type === 'delivery' && saveAddress,
         ...(planned ? { p_scheduled_for: planned.toISOString() } : {}),
-      } as any);
-      if (error && isMissingFn(error) && planned) {
-        throw new Error('Planlı sipariş için sql/46_scheduled_orders_bulk_requests.sql çalıştırılmalı.');
-      }
-      if (error && isMissingFn(error)) {
-        // SQL 25 henüz çalıştırılmadı: eski akışa düş (kurye ön ataması ve müşteri eşleme yok)
-        if (courierId) toast('Kurye ataması için sql/25_phone_customers_maps.sql çalıştırılmalı. Sipariş kuryesiz kaydedilecek.', { icon: '⚠️', duration: 8000 });
-        ({ data, error } = await supabase.rpc('staff_create_order', { ...common, p_save_address: type === 'delivery' && saveAddress } as any));
+      };
+      let data: any;
+      let error: any;
+      if (applied && dres.active) {
+        // İndirimli sipariş: sipariş + indirim sunucuda TEK işlemde kaydedilir
+        ({ data, error } = await supabase.rpc('staff_create_order_discounted', { ...exArgs, ...discountPayload(lines, applied) } as any));
+        if (error && isMissingFn(error)) {
+          throw new Error('İndirimli sipariş için sql/48_admin_order_discount.sql çalıştırılmalı. Sipariş kaydedilmedi.');
+        }
+      } else {
+        ({ data, error } = await supabase.rpc('staff_create_order_ex', exArgs as any));
+        if (error && isMissingFn(error) && planned) {
+          throw new Error('Planlı sipariş için sql/46_scheduled_orders_bulk_requests.sql çalıştırılmalı.');
+        }
+        if (error && isMissingFn(error)) {
+          // SQL 25 henüz çalıştırılmadı: eski akışa düş (kurye ön ataması ve müşteri eşleme yok)
+          if (courierId) toast('Kurye ataması için sql/25_phone_customers_maps.sql çalıştırılmalı. Sipariş kuryesiz kaydedilecek.', { icon: '⚠️', duration: 8000 });
+          ({ data, error } = await supabase.rpc('staff_create_order', { ...common, p_save_address: type === 'delivery' && saveAddress } as any));
+        }
       }
       if (error) throw error;
 
@@ -681,7 +724,13 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
         {/* SAĞ: sepet + ödeme + gönder */}
         <aside className="no-right">
           <h4><Icon name="receipt" size={18} /> Sipariş özeti</h4>
-          <CartLines lines={lines} setLines={setLines} fee={type === 'delivery' ? fee : 0} />
+          <CartLines
+            lines={lines}
+            setLines={setLines}
+            fee={type === 'delivery' ? fee : 0}
+            disc={dres}
+            onToggleLine={(id) => setApplied((a) => (a ? { ...a, excluded: a.excluded.includes(id) ? a.excluded.filter((x) => x !== id) : [...a.excluded, id] } : a))}
+          />
 
           {type === 'delivery' && address.trim() && (
             <p className="small muted" style={{ margin: '0.5rem 0 0' }}>
@@ -697,6 +746,24 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
             </span>
             <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Örn. acısız, bol soslu, zili çalmayın… — veya 🎙️ ile sesle söyleyin" />
           </label>
+
+          <DiscountPanel
+            lines={lines}
+            mode={dMode}
+            setMode={setDMode}
+            preset={dPreset}
+            setPreset={setDPreset}
+            custom={dCustom}
+            setCustom={setDCustom}
+            applied={applied}
+            result={dres}
+            onApply={(spec) => {
+              setApplied(spec);
+              const r = computeDiscount(lines, spec);
+              toast.success(r.active ? `İndirim uygulandı · −${tl(r.discount)} · yeni ara toplam ${tl(r.subtotalAfter)}` : 'İndirim uygulandı ama düşecek tutar yok');
+            }}
+            onClear={() => { setApplied(null); toast('İndirim kaldırıldı', { icon: '↩️' }); }}
+          />
 
           {type !== 'dine_in' && (
             <div className="fld">
