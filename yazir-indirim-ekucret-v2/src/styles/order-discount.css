@@ -1,0 +1,52 @@
+/* Admin Yeni Sipariş — indirim kutusu ve sepet gösterimi (mevcut tema değişkenleri) */
+.disc-box { margin: 0.2rem 0 0.8rem; padding: 0.75rem; border: 1px dashed var(--line-strong); border-radius: var(--r, 14px); background: var(--card-bg); display: grid; gap: 0.55rem; }
+.disc-box.on { border-style: solid; border-color: var(--gold); background: var(--gold-bg); }
+.disc-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+.disc-badge { font-size: 0.72rem; font-weight: 800; padding: 0.15em 0.65em; border-radius: 999px; background: var(--success-bg); color: var(--success-text); }
+
+.disc-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+.disc-modes button { text-align: left; display: grid; gap: 0.1rem; padding: 0.55rem 0.65rem; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--text); cursor: pointer; }
+.disc-modes button b { font-size: 0.85rem; }
+.disc-modes button small { font-size: 0.72rem; color: var(--text-muted); line-height: 1.3; }
+.disc-modes button.on { border-color: var(--gold); background: var(--gold-bg); box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.35); }
+.disc-modes button:hover:not(.on) { border-color: var(--gold); }
+
+.disc-pcts { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.disc-pcts > button { min-width: 3.4rem; padding: 0.4rem 0.8rem; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); color: var(--text); font-weight: 800; cursor: pointer; }
+.disc-pcts > button.on { background: var(--gold-grad); border-color: var(--gold); color: #14110c; }
+.disc-units { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.disc-units > button { padding: 0.4rem 0.8rem; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--text); font-weight: 800; cursor: pointer; }
+.disc-units > button.on { background: var(--gold-grad); border-color: var(--gold); color: #14110c; }
+.disc-units > button:hover:not(.on) { border-color: var(--gold); }
+.disc-other { display: inline-flex; align-items: center; gap: 0.25rem; font-weight: 800; }
+.disc-other input { width: 5rem; padding: 0.4rem 0.5rem; text-align: right; }
+.disc-err { color: var(--danger); margin: 0; }
+.disc-hint { color: var(--gold-ink); margin: 0; font-weight: 700; }
+.disc-note { margin: 0; }
+.disc-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+.disc-result { display: grid; gap: 0.15rem; padding: 0.5rem 0.6rem; border-radius: 10px; background: var(--card-bg); border: 1px solid var(--gold); font-size: 0.88rem; }
+.disc-result > div { display: flex; justify-content: space-between; gap: 0.5rem; }
+.disc-result s, .disc-row s, .disc-old { color: var(--text-muted); }
+.disc-result .neg b, .disc-row.neg b, .disc-row.neg .qname { color: var(--success-text, #166534); }
+.disc-result .fin { border-top: 1px dashed var(--line-strong); padding-top: 0.2rem; font-size: 0.95rem; }
+
+/* Sepet: yalnızca ürün satırları kayar; indirim satırları ve TOPLAM her zaman görünür */
+.qcart.qcart { max-height: none; overflow: visible; }
+.qcart .qcart-lines { display: grid; gap: 0.2rem; max-height: 38vh; overflow-y: auto; }
+
+/* Sepet satırları */
+.qline.disc-row { grid-template-columns: 1fr auto; }
+.qsum .disc-old { margin-right: 0.35rem; font-weight: 500; font-size: 0.82rem; }
+.qsum .disc-new { color: var(--success-text, #166534); }
+.disc-sub { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: -0.15rem 0 0.2rem; padding: 0.2rem 0.5rem; border-radius: 8px; background: var(--gold-bg); font-size: 0.78rem; }
+.disc-sub s { color: var(--text-muted); }
+.disc-sub em { font-style: normal; font-weight: 800; color: var(--success-text, #166534); }
+.disc-sub.off { background: var(--surface); color: var(--text-muted); }
+.disc-sub button { border: 0; background: none; color: var(--gold-ink); font-weight: 700; font-size: 0.75rem; text-decoration: underline; cursor: pointer; padding: 0.1rem 0.2rem; }
+.qtotal .disc-old { font: 600 0.95rem 'DM Sans', sans-serif; margin-right: 0.4rem; }
+.qtotal .disc-new-total { color: var(--gold-ink); }
+
+@media (max-width: 520px) {
+  .disc-modes { grid-template-columns: 1fr; }
+}

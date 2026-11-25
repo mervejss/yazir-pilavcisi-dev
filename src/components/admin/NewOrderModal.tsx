@@ -7,7 +7,8 @@ import { useMenu, type MenuProduct } from '@/hooks/useMenu';
 import { useTables } from '@/hooks/useTables';
 import { useCouriers } from '@/hooks/useCouriers';
 import { useBusinessSettings } from '@/hooks/useBusinessSettings';
-import { HAS_GMAPS_KEY, geocodeFull, mapsPlaceUrl, type LatLng } from '@/lib/googleMaps';
+import { HAS_GMAPS_KEY, RESTAURANT_FALLBACK, geocodeFull, mapsPlaceUrl, type LatLng } from '@/lib/googleMaps';
+import { locateAddress } from '@/lib/addressLocate';
 import { isMissingFn, normalizePhone, type HistoryItem, type HistoryOrder } from '@/lib/staffCustomers';
 import { parseVoiceOrder } from '@/lib/voiceOrderParser';
 import VoiceDictateButton from '@/components/ui/VoiceDictateButton';
@@ -20,8 +21,10 @@ import Icon from '@/components/ui/Icon';
 import BulkRequestForm, { toLocalInput } from '@/components/admin/BulkRequestForm';
 import QtyStepper from '@/components/ui/QtyStepper';
 import ProductImage from '@/components/ui/ProductImage';
-import { computeDiscount, discountPayload, type DiscountMode, type DiscountResult, type DiscountSpec } from '@/lib/orderDiscount';
+import { computeDiscount, discountPayload, type DiscountMode, type DiscountResult, type DiscountSpec, type DiscountUnit } from '@/lib/orderDiscount';
 import { DiscountPanel, CartDiscountRows, LineDiscountNote, type Preset } from '@/components/admin/OrderDiscount';
+import { buildSuggestions, computeSurcharge, type SurchargeResult, type SurchargeSpec } from '@/lib/orderSurcharge';
+import { SurchargePanel, CartSurchargeRow, type SurKind, type LocState } from '@/components/admin/OrderSurcharge';
 
 type Mode = 'quick' | 'full';
 type OType = 'delivery' | 'pickup' | 'dine_in';
@@ -126,12 +129,12 @@ export function ProductPicker({ onAdd, counts }: { onAdd: (p: MenuProduct, varia
 /* ------------------------------------------------------------------ */
 /* Sepet özeti                                                          */
 /* ------------------------------------------------------------------ */
-function CartLines({ lines, setLines, fee = 0, disc, onToggleLine }: {
-  lines: Line[]; setLines: (l: Line[]) => void; fee?: number; disc: DiscountResult; onToggleLine: (variantId: string) => void;
+function CartLines({ lines, setLines, fee = 0, disc, sur, onToggleLine }: {
+  lines: Line[]; setLines: (l: Line[]) => void; fee?: number; disc: DiscountResult; sur: SurchargeResult; onToggleLine: (variantId: string) => void;
 }) {
   const r2 = (n: number) => Math.round(n * 100) / 100;
-  const total = r2(disc.subtotalAfter + fee);
-  const totalBefore = r2(disc.subtotal + fee);
+  const total = r2(disc.subtotalAfter + fee + sur.total);
+  const totalBefore = r2(disc.subtotal + fee + sur.total);
   const byId = new Map(disc.lines.map((d) => [d.variant_id, d]));
   // Adet doğrudan belirlenir (yazılan sayı / hızlı düğmeler); 0 → satır kalkar
   const setQty = (id: string, qty: number) =>
@@ -154,7 +157,7 @@ function CartLines({ lines, setLines, fee = 0, disc, onToggleLine }: {
               </b>
               <QtyStepper value={l.qty} onChange={(n) => setQty(l.variant_id, n)} ariaLabel={`${l.name} adedi`} />
             </div>
-            {perItem && <LineDiscountNote line={d!} onToggle={() => onToggleLine(l.variant_id)} />}
+            {perItem && <LineDiscountNote line={d!} unit={disc.unit} onToggle={() => onToggleLine(l.variant_id)} />}
           </Fragment>
         );
       })}
@@ -163,6 +166,7 @@ function CartLines({ lines, setLines, fee = 0, disc, onToggleLine }: {
       {fee > 0 && (
         <div className="qline"><span className="qname">Teslimat ücreti</span><b className="qsum">{tl(fee)}</b></div>
       )}
+      <CartSurchargeRow result={sur} />
       <div className="qtotal">
         <span>Toplam</span>
         <b>{disc.active && <s className="disc-old">{tl(totalBefore)}</s>}{tl(total)}</b>
@@ -198,9 +202,36 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
 
   // --- İndirim (admin): seçim (mode/oran) + "Uygula"ya basılınca geçerli olan indirim ---
   const [dMode, setDMode] = useState<DiscountMode>('cart');
+  const [dUnit, setDUnit] = useState<DiscountUnit>('percent');
   const [dPreset, setDPreset] = useState<Preset>(10);
   const [dCustom, setDCustom] = useState('');
   const [applied, setApplied] = useState<DiscountSpec | null>(null);
+
+  // --- Ek ücret (admin): uzak mesafe / gece vb. — TL ve/veya % ; "Uygula"ya basılınca geçerli ---
+  const [sKind, setSKind] = useState<SurKind>('tl');
+  const [sValue, setSValue] = useState('');
+  const [sReason, setSReason] = useState('');
+  const [sApplied, setSApplied] = useState<SurchargeSpec | null>(null);
+  // Yazılan adresten otomatik konum (pin yoksa): yazmayı bırakınca ~0,7 sn sonra aranır
+  const [autoLoc, setAutoLoc] = useState<LatLng | null>(null);
+  const [autoState, setAutoState] = useState<'idle' | 'searching' | 'found' | 'notfound'>('idle');
+  useEffect(() => {
+    if (type !== 'delivery' || loc) { setAutoState('idle'); return; }
+    if (address.trim().length < 4) { setAutoLoc(null); setAutoState('idle'); return; }
+    setAutoState('searching');
+    let dead = false;
+    const t = setTimeout(async () => {
+      const g = await locateAddress(address, district).catch(() => null);
+      if (dead) return;
+      if (g) { setAutoLoc(g); setAutoState('found'); }
+      else { setAutoLoc(null); setAutoState('notfound'); }
+    }, 700);
+    return () => { dead = true; clearTimeout(t); };
+  }, [address, district, loc, type]);
+  const effLoc = loc ?? autoLoc;
+  const locState: LocState = loc ? 'pin' : autoState === 'found' && autoLoc ? 'auto' : autoState === 'searching' ? 'searching' : autoState === 'notfound' ? 'notfound' : 'none';
+  const [, setTick] = useState(0);
+  useEffect(() => { const t = setInterval(() => setTick((x) => x + 1), 30000); return () => clearInterval(t); }, []);
 
   // --- Sesle Sipariş Gir (telefon siparişleri için canlı konuşma-metin + akıllı ayrıştırma) ---
   const [voiceActive, setVoiceActive] = useState(false);
@@ -218,7 +249,11 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
   const defaultFee = settings ? (settings.free_delivery_threshold && subtotal >= settings.free_delivery_threshold ? 0 : Number(settings.delivery_fee || 0)) : 0;
   const fee = type === 'delivery' ? (feeOverride.trim() !== '' ? Math.max(Number(feeOverride) || 0, 0) : defaultFee) : 0;
   const dres = useMemo(() => computeDiscount(lines, applied), [lines, applied]);
-  const total = Math.round((dres.subtotalAfter + fee) * 100) / 100;
+  const sres = useMemo(() => computeSurcharge(dres.subtotalAfter, type === 'delivery' ? sApplied : null), [dres.subtotalAfter, sApplied, type]);
+  const total = Math.round((dres.subtotalAfter + fee + sres.total) * 100) / 100;
+  // Öneri: restorana uzaklık (kuş uçuşu) + saat (planlıysa planlanan saat, değilse şimdi)
+  const plannedWhen = planOn && planAt && !Number.isNaN(new Date(planAt).getTime()) ? new Date(planAt) : null;
+  const suggestions = buildSuggestions(RESTAURANT_FALLBACK, effLoc, plannedWhen ?? new Date());
 
   const sortedCouriers = useMemo(
     () => [...couriers].filter((c) => c.is_active !== false).sort((a, b) => Number(b.is_online) - Number(a.is_online) || a.active_order_count - b.active_order_count),
@@ -240,8 +275,14 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
     setPay('cash_on_delivery');
     setPlanOn(false);
     setPlanAt('');
+    setSApplied(null);
+    setSValue('');
+    setSKind('tl');
+    setAutoLoc(null);
+    setSReason('');
     setApplied(null);
     setDMode('cart');
+    setDUnit('percent');
     setDPreset(10);
     setDCustom('');
     voiceStoppedManually.current = true;
@@ -476,7 +517,9 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
           customer.lat = pin.lat;
           customer.lng = pin.lng;
         }
-        if (feeOverride.trim() !== '') customer.delivery_fee = Math.max(Number(feeOverride) || 0, 0);
+        // Ek ücret (uzak mesafe / gece) teslimat ücretine eklenerek kaydedilir → toplam formülü her yerde aynı kalır
+        if (sres.active) customer.delivery_fee = Math.round((fee + sres.total) * 100) / 100;
+        else if (feeOverride.trim() !== '') customer.delivery_fee = Math.max(Number(feeOverride) || 0, 0);
         customer.address_title = 'Adres';
       }
 
@@ -505,6 +548,9 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
         ({ data, error } = await supabase.rpc('staff_create_order_discounted', { ...exArgs, ...discountPayload(lines, applied) } as any));
         if (error && isMissingFn(error)) {
           throw new Error('İndirimli sipariş için sql/48_admin_order_discount.sql çalıştırılmalı. Sipariş kaydedilmedi.');
+        }
+        if (error && /Geçersiz indirim türü/i.test(String(error.message || ''))) {
+          throw new Error('Tutar (₺) ile indirim için sql/49_admin_order_discount_amount.sql çalıştırılmalı. Sipariş kaydedilmedi.');
         }
       } else {
         ({ data, error } = await supabase.rpc('staff_create_order_ex', exArgs as any));
@@ -729,6 +775,7 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
             setLines={setLines}
             fee={type === 'delivery' ? fee : 0}
             disc={dres}
+            sur={sres}
             onToggleLine={(id) => setApplied((a) => (a ? { ...a, excluded: a.excluded.includes(id) ? a.excluded.filter((x) => x !== id) : [...a.excluded, id] } : a))}
           />
 
@@ -751,6 +798,8 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
             lines={lines}
             mode={dMode}
             setMode={setDMode}
+            unit={dUnit}
+            setUnit={setDUnit}
             preset={dPreset}
             setPreset={setDPreset}
             custom={dCustom}
@@ -763,6 +812,27 @@ export default function NewOrderModal({ open, onClose, onCreated, presetTableId,
               toast.success(r.active ? `İndirim uygulandı · −${tl(r.discount)} · yeni ara toplam ${tl(r.subtotalAfter)}` : 'İndirim uygulandı ama düşecek tutar yok');
             }}
             onClear={() => { setApplied(null); toast('İndirim kaldırıldı', { icon: '↩️' }); }}
+          />
+
+          <SurchargePanel
+            enabled={type === 'delivery'}
+            suggestions={suggestions}
+            whenLabel={plannedWhen ? 'planlı saat' : 'şu an'}
+            locState={locState}
+            kind={sKind}
+            setKind={setSKind}
+            valueStr={sValue}
+            setValueStr={setSValue}
+            reason={sReason}
+            setReason={setSReason}
+            applied={sApplied}
+            result={sres}
+            onApply={(spec) => {
+              setSApplied(spec);
+              const r = computeSurcharge(dres.subtotalAfter, spec);
+              toast.success(r.active ? `Ek ücret uygulandı · +${tl(r.total)}` : 'Ek ücret tutarı 0');
+            }}
+            onClear={() => { setSApplied(null); toast('Ek ücret kaldırıldı', { icon: '↩️' }); }}
           />
 
           {type !== 'dine_in' && (

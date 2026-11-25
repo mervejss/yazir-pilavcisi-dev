@@ -14,6 +14,10 @@
 .disc-pcts { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
 .disc-pcts > button { min-width: 3.4rem; padding: 0.4rem 0.8rem; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); color: var(--text); font-weight: 800; cursor: pointer; }
 .disc-pcts > button.on { background: var(--gold-grad); border-color: var(--gold); color: #14110c; }
+.disc-units { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.disc-units > button { padding: 0.4rem 0.8rem; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--text); font-weight: 800; cursor: pointer; }
+.disc-units > button.on { background: var(--gold-grad); border-color: var(--gold); color: #14110c; }
+.disc-units > button:hover:not(.on) { border-color: var(--gold); }
 .disc-other { display: inline-flex; align-items: center; gap: 0.25rem; font-weight: 800; }
 .disc-other input { width: 5rem; padding: 0.4rem 0.5rem; text-align: right; }
 .disc-err { color: var(--danger); margin: 0; }

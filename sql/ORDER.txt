@@ -47,3 +47,4 @@
 46_scheduled_orders_bulk_requests.sql
 47_maintenance_mode.sql
 48_admin_order_discount.sql
+49_admin_order_discount_amount.sql
