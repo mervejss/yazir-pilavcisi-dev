@@ -1,0 +1,4494 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Yemeksepeti Partner API",
+    "x-logo": {
+      "url": "https://partner-api-docs-tmp.s3.us-east-2.amazonaws.com/media/Yemekspeti.png",
+      "altText": "Yemeksepeti"
+    },
+    "description": "Welcome to the Partner API, your gateway to seamless integration with our platform.\nThis API empowers your applications to connect directly with our system, allowing you to:\n\n* **Manage your Product Catalog:**  Easily add and update products ensuring your offerings are always up to date.\n* **Process Orders efficiently:** Receive real-time order updates, confirm orders, and manage order statuses for a smooth fulfillment process.\n* **Grow your business:** Create and manage promotions to attract customers and boost sales.\n* **Gain valuable Insights:** Access order history and other data to optimize your operations and enhance customer satisfaction.\n\nThis API is designed for partners, looking to reach more customers and streamline their operations through our platform.\n\n**Getting Started**\n\n1. **Get your API keys:** Contact your account manager or visit our Partner Portal to request your API keys.\n2. **Explore the API Documentation:** Familiarize yourself with the available endpoints and data structures in this document.\n3. **Start Integrating:** Use your preferred programming language and tools to integrate the Partner API into your applications.\n\n**Glossary**\n\n* **Vendor:** The store, outlet or merchant listed on our platform responsible for fulfilling orders and managing their product catalog.\n* **Chain:** A group of stores operating under a common brand, franchise, or region. Our API allows you to manage all outlets in the chain with a single API key.\n* **Job:** A background process that handles time-consuming tasks, such as product assignment or catalog export.\n* **Webhook:** A mechanism for receiving real-time notifications about events on our platform, such as order updates or job completions.\n* **SKU (Stock Keeping Unit):** A unique code used to identify a specific product in your inventory.\n* **GTIN (Global Trade Item Number):** A globally unique identifier for a product, such as a barcode (e.g., EAN, UPC).\n* **POS (Point of Sale):** The system used to process transactions and manage orders at your physical store location.\n\n## Sandbox Environment\n\nThe **Sandbox Environment** is a safe workspace that exactly mirrors the Partner API Live Environment. It allows you to fully test your integration before going live — without affecting real products, orders, or production data.\n\nDirect your test requests to:\n\n```text\nhttps://sandbox.partner.deliveryhero.io\n```\n\n**What you need to know:**\n\n* **Seamless transition:** Paths, payloads, and error responses are identical to production. Only the host URL changes.\n* **Separate credentials:** Your production credentials will not work in the Sandbox, and vice versa.\n* **Supported endpoints:** The Sandbox currently supports the [Authentication](#tag/Authentication), [Catalog Updates](#tag/Catalog), [Category](#tag/Category) and [Order](#tag/Order) endpoints. Every endpoint it serves lists **Sandbox environment** in the server dropdown next to its request samples.\n\nTo set up your Sandbox, create your credentials via Partner Portal self-service — see the [Sandbox developer documentation](https://developer.yemeksepeti.com/en/documentation/sandbox-sandbox-testing) — or contact your account manager.",
+    "version": "v2.0.2"
+  },
+  "servers": [
+    {
+      "url": "https://yemeksepeti.partner.deliveryhero.io",
+      "description": "Production environment"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Authentication",
+      "description": "Our platform uses OAuth 2.0 Client Credentials Flow for authentication. You can generate `access_token` by calling [Generate Access Token](#tag/Authentication/operation/generateAccessToken) endpoint using your client credentials.\n\n**How to authenticate**:\n1. Generate your `client_id` and `client_secret` in the Partner Portal, under the **Shop Integrations Plugin** section in **All Settings**.\n2. Make a request to [Generate Access Token](#tag/Authentication/operation/generateAccessToken) endpoint to retrieve your `access_token` \n3. Include your `access_token` in the `Authorization` header of every request you make to the Partner API. Prefix your `access_token` with the string `Bearer` followed by a space. For example: \n  ```\n  Authorization: Bearer <access_token>\n  ```\n4. If authentication is missing or invalid, any API call will respond with a `401 Unauthorized` error. \n\n⚠️ The access token is a short-lived JSON Web Token (JWT). **It is highly recommended to cache and reuse this token for all API calls until it expires!** Use the value of the `expires_in` field from the `/oauth/token` response as the Time-To-Live (TTL) for the cached token."
+    },
+    {
+      "name": "Catalog",
+      "description": "Manage and optimize your product catalog with precision and efficiency. This section provides a comprehensive set of endpoints to streamline your product management workflows. \n\n **Key Features:**\n\n * **Effortless Product Management:** Add new products, update existing ones, and deactivate outdated listings.  \n * **Bulk Operations:**  Perform bulk updates to efficiently manage large product catalogs.\n * **Asynchronous Processing:**   Initiate time-consuming tasks, such as product assignments and exports, in the background to free up your resources.\n * **Detailed Product Information:**  Access and manage a wide range of product attributes, including titles, descriptions, images, pricing, inventory, and categories.\n * **Flexible Filtering and Search:**  Retrieve specific products or subsets of your catalog using powerful filtering and search capabilities.\n * **Export Functionality:** Download complete or filtered product data for analysis, reporting, or archival purposes."
+    },
+    {
+      "name": "Category",
+      "description": "Organize your products effectively with a robust category structure. This section offers endpoint to retrieve the hierarchical relationships between your product categories, enabling efficient navigation and filtering for you.\n\n**Key Features:**\n\n* **Hierarchical Structure:**  Established parent-child relationships between categories to create a logical and intuitive structure.\n* **Leaf Category Filtering:**  Retrieve only the most specific categories (those without subcategories) for streamlined data retrieval."
+    },
+    {
+      "name": "Order",
+      "description": "Streamline your order processing and fulfillment workflows for a seamless customer experience. This section provides endpoints to access, manage, and update order information in real-time, ensuring efficient and accurate order fulfillment.\n\n**Key Features:**\n\n* **Real-time Order Updates:**  Receive and process order updates as they happen, enabling immediate action and reducing delays.\n* **Order Status Management:** Update order statuses to reflect the progress of each order, keeping customers informed and improving transparency.\n* **Item Modification and Cancellation:**  Make changes to order items, handle replacements, and manage cancellations efficiently.\n* **POS Integration:**  Seamlessly integrate your point-of-sale systems with our platform for automated order updates and streamlined operations.\n* **Order History and Reconciliation:**  Retrieve detailed order history for reconciliation, analysis, and reporting purposes."
+    },
+    {
+      "name": "Promotion",
+      "description": "**Drive sales and boost customer engagement with targeted promotions.** This section provides endpoints for creating and managing a variety of promotional campaigns to incentivize purchases and enhance customer loyalty.\n\n**Key Features:**\n\n* **Flexible Promotion Types:**  Implement various promotion types, including discounts, bundles, and special offers.\n* **Promotion Scheduling:**  Schedule promotions to run for specific durations.\n* **Easy Updates and Deactivation:**  Modify existing promotions, add or remove products, or deactivate campaigns as needed.\n* **Asynchronous Processing:**  Create or update promotions in the background for efficient processing and resource management.\n* **Status Tracking:**  Monitor the status and outcome of your promotion updates to ensure they are applied correctly."
+    },
+    {
+      "name": "Outlet Management",
+      "description": "**Control your outlet's operational status and schedule with ease, ensuring accurate availability information for customers.** This section offers endpoints to manage opening hours, closures, and check-ins, providing real-time updates and flexible control over your outlet's operations.\n\n**Key Features:**\n\n* **Real-time Status Updates:** Instantly update and retrieve your outlet's status (open/closed) and schedule changes, reflecting current availability.\n* **Flexible Control:** Manage opening hours, temporary closures (busy mode), and required check-ins before opening the outlet for customers, adapting to operational needs."
+    }
+  ],
+  "paths": {
+    "/v2/oauth/token": {
+      "post": {
+        "operationId": "generateAccessToken",
+        "tags": [
+          "Authentication"
+        ],
+        "servers": [
+          {
+            "url": "https://yemeksepeti.partner.deliveryhero.io",
+            "description": "Production environment"
+          },
+          {
+            "url": "https://sandbox.partner.deliveryhero.io",
+            "description": "Sandbox environment"
+          }
+        ],
+        "summary": "Generate Access Token",
+        "description": "Generate an OAuth 2.0 access token to include in the Authorization header of Partner API requests.\n\n**Rate Limiting:** This endpoint is rate-limited to 50 requests per minute per client ID. If you exceed this limit, you will receive a `429 Too Many Requests` response.\n\nExample:\n\n```\nAuthorization: Bearer eyJhbGciOiJQUzI1NiIsInR5cCI6IkpXVCJ9eyJ1dWlkIjoiVEVTVCJ9\n```",
+        "security": [],
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/authentication.GenerateAccessToken"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved OAuth Token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/authentication.OAuthTokenSuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - The request parameters were invalid, missing, or malformed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/oAuth.ErrorResponse"
+                },
+                "examples": {
+                  "Invalid request": {
+                    "value": {
+                      "error": "invalid_request",
+                      "error_description": "Invalid client credentials"
+                    }
+                  },
+                  "Missing field from request": {
+                    "value": {
+                      "error": "invalid_request",
+                      "error_description": "client_id is required"
+                    }
+                  },
+                  "Missing body": {
+                    "value": {
+                      "error": "invalid_request",
+                      "error_description": "Request body is missing"
+                    }
+                  },
+                  "Invalid URL encoding in body": {
+                    "value": {
+                      "error": "invalid_request",
+                      "error_description": "Invalid URL-encoded body"
+                    }
+                  },
+                  "Unsupported grant type": {
+                    "value": {
+                      "error": "unsupported_grant_type",
+                      "error_description": "Only 'client_credentials' grant type is supported"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/promotion.429ErrorResponse"
+                },
+                "examples": {
+                  "Rate limit exceeded": {
+                    "value": {
+                      "code": "TOO_MANY_REQUESTS",
+                      "message": "Rate limit exceeded for client <client-id>"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v2/chains/{chain_id}/catalog": {
+      "post": {
+        "x-badges": [
+          {
+            "name": "Beta",
+            "position": "after"
+          }
+        ],
+        "description": "🔹 **BETA FEATURE** — This endpoint is in early-access mode and may be unstable or change without notice.  \n❗ **Do NOT use in production.**  \nPlease contact your **account manager** to join as a pilot partner to get this enabled for you.\n\n---\n\n**Add Products to your Catalog.** This asynchronous endpoint enables multi-vendor product addition. \nSubmit product details and initiate the process.\nYou'll receive a `job_id` to track the status of your request.\n\nThis endpoint is ideal for the following use cases:\n* **Onboarding new vendors**: Quickly add a large number of products to a vendor's catalog. \n* **Expanding product offerings**: Easily introduce new products to your existing vendors.\n* **Automating catalog updates**: Integrate this endpoint into your systems to automatically add products from your inventory management system.",
+        "parameters": [
+          {
+            "name": "chain_id",
+            "in": "path",
+            "description": "Unique chain identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            }
+          }
+        ],
+        "operationId": "createProducts",
+        "tags": [
+          "Catalog"
+        ],
+        "summary": "Add Products",
+        "security": [
+          {
+            "oAuth2ClientCredentials": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/catalog.ProductAssignment"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The job was created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/catalog.ProductAssignmentSuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/catalog.400PostErrorResponse"
+                },
+                "examples": {
+                  "Wrong request parameters": {
+                    "summary": "Wrong request parameters",
+                    "description": "Some of the parameters from the request are wrong",
+                    "value": {
+                      "code": "BAD_REQUEST",
+                      "message": "Required value 'sku' missing at $.products[1]"
+                    }
+                  },
+                  "Duplicated products": {
+                    "summary": "Duplicated products",
+                    "description": "All requested products are duplicates of prior requests",
+                    "value": {
+                      "code": "BAD_REQUEST",
+                      "message": "All requested products are duplicates of prior requests"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/catalog.403ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/catalog.404ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "501": {
+            "$ref": "#/components/responses/NotImplemented"
+          }
+        },
+        "callbacks": {
+          "addProductsFeedback": {
+            "catalogWebhook": {
+              "post": {
+                "description": "This callback sends job status updates to your configured webhook endpoint.",
+                "security": [
+                  {
+                    "WebhookKeyAuth": []
+                  }
+                ],
+                "summary": "Add products results webhook",
+                "requestBody": {
+                  "required": true,
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/catalog.GetJobResultSuccessResponse"
+                      }
+                    }
+                  }
+                },
+                "responses": {
+                  "200": {
+                    "description": "Optimal http response status"
+                  },
+                  "4XX": {
+                    "description": "Webhook call will be retried up to 3 times"
+                  },
+                  "5XX": {
+                    "description": "Webhook call will be retried up to 3 times"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/chains/{chain_id}/catalog/jobs/{job_id}": {
+      "get": {
+        "summary": "Product Addition Status",
+        "x-badges": [
+          {
+            "name": "Beta",
+            "position": "after"
+          }
+        ],
+        "description": "🔹 **BETA FEATURE** — This endpoint is in early-access mode and may be unstable or change without notice.  \n❗ **Do NOT use in production.**  \nPlease contact your **account manager** to join as a pilot partner to get this enabled for you.\n\n---\n\n**Track the progress of your product listings**. This endpoint allows you to monitor the status of your product addition jobs. Check if your job is `QUEUED`, `IN_PROGRESS`, `COMPLETED` or `FAILED`\n- `QUEUED` the job has not yet been processed\n- `IN_PROGRESS` the products/items are being added to your outlet.\n- `COMPLETED` the job is finished\n- `FAILED` the job processing failed",
+        "operationId": "getJobStatus",
+        "tags": [
+          "Catalog"
+        ],
+        "security": [
+          {
+            "oAuth2ClientCredentials": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "chain_id",
+            "in": "path",
+            "description": "Unique chain identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            }
+          },
+          {
+            "name": "job_id",
+            "in": "path",
+            "description": "Job ID from the response of the POST `/catalog` endpoint",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "a946a2c7-f4e7-46ac-ae63-8a5497cb0ad9"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved the job status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/catalog.GetJobResultSuccessResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/promotion.403ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/promotion.404ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v2/chains/{chain_id}/vendors/{vendor_id}/catalog": {
+      "get": {
+        "operationId": "getProducts",
+        "tags": [
+          "Catalog"
+        ],
+        "servers": [
+          {
+            "url": "https://yemeksepeti.partner.deliveryhero.io",
+            "description": "Production environment"
+          },
+          {
+            "url": "https://sandbox.partner.deliveryhero.io",
+            "description": "Sandbox environment"
+          }
+        ],
+        "description": "Access a comprehensive, paginated list of products assigned to a vendor. \nThis endpoint allows you to efficiently retrieve and filter your product data. \nUse query parameters to: Search for products by **name**, **SKU** or **barcode** (`query_term`). \n* Filter by specific categories (`category_global_ids`). \n* Refine results by locale (`locale`) and active status (`is_active`).\n* Control the number of results per page (`page_size`) and navigate through pages (`page`). ",
+        "summary": "Retrieve Products",
+        "security": [
+          {
+            "oAuth2ClientCredentials": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "chain_id",
+            "in": "path",
+            "description": "Unique chain identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            }
+          },
+          {
+            "description": "Unique vendor identifier generated by our platform",
+            "in": "path",
+            "name": "vendor_id",
+            "required": true,
+            "example": "naez",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The value of text search. The vendor products retrieved are assured to be their titles containing the query or match the barcode or sku. The search is based on the provided locale",
+            "in": "query",
+            "name": "query_term",
+            "example": "Milk",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The value locale of the field to be filtered",
+            "in": "query",
+            "name": "locale",
+            "example": "en_GB",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page number",
+            "in": "query",
+            "name": "page",
+            "example": 1,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "page_size",
+            "example": 10,
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "minimum": 1,
+              "maximum": 500
+            }
+          },
+          {
+            "description": "Comma-separated list of category global ids. The vendor products retrieved are assured to have at least one of the categories supplied. If empty, all the vendor products are considered.",
+            "in": "query",
+            "name": "category_global_ids",
+            "example": "9d283d0d-af05-4640-bf41-4cac901bfca,9d283d0d-af05-4640-bf41-4cac901bfcb",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by active products. If this parameter is not provided all products are retrieved. Options:\n- `true` for only active products\n- `false` for only inactive products",
+            "in": "query",
+            "name": "is_active",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully extracted list of products",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/catalog.ProductGetListSuccessSyncResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/catalog.400ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/catalog.403ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/catalog.404ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateProducts",
+        "tags": [
+          "Catalog"
+        ],
+        "servers": [
+          {
+            "url": "https://yemeksepeti.partner.deliveryhero.io",
+            "description": "Production environment"
+          },
+          {
+            "url": "https://sandbox.partner.deliveryhero.io",
+            "description": "Sandbox environment"
+          }
+        ],
+        "description": "Update product information efficiently, whether it's a single item or a whole batch. We'll process your request in the background and provide a `202 Accepted` status with a `job_id` for tracking. \nStay updated via **webhook notifications** defined under **Callbacks → Update products results webhook** at the bottom of this operation. \n\n☝️**Pro tip**: It's always more efficient to send a single request with 10,000 items than to make 10,000 individual updates. Given the asynchronous nature of the API, this approach not only reduces redundant computations but also improves overall processing time and simplifies feedback handling.",
+        "summary": "Update Products",
+        "security": [
+          {
+            "oAuth2ClientCredentials": []
+          }
+        ],
+        "requestBody": {
+          "description": "Edit parameters. `sku` is a mandatory field and at least one of the fields `price`, `active` or `quantity` must be present for every product in the payload\n\nProduct activation status is determined based on the `active` flag, available `quantity`, and the sales buffer configured in Partner Portal:\n\n| active           | quantity vs. sales buffer     | Resulting Product Status |\n|------------------|-------------------------------|---------------------------|\n| false            | Any                           | Inactive                  |\n| true             | quantity > sales buffer       | Active                    |\n| true             | quantity <= sales buffer      | Inactive                  |\n| *Not provided*   | quantity > sales buffer       | Active                    |\n| *Not provided*   | quantity <= sales buffer      | Inactive                  |",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/catalog.EditProductsRequest"
+              },
+              "examples": {
+                "Update price and active": {
+                  "summary": "Update price and active",
+                  "description": "Update price and active",
+                  "value": {
+                    "products": [
+                      {
+                        "sku": "TEST_SKU",
+                        "price": 10,
+                        "active": true
+                      }
+                    ]
+                  }
+                },
+                "Update price": {
+                  "summary": "Update price and active, based on quantity",
+                  "description": "Update price and active, based on quantity",
+                  "value": {
+                    "products": [
+                      {
+                        "sku": "TEST_SKU",
+                        "price": 10,
+                        "quantity": 2
+                      }
+                    ]
+                  }
+                },
+                "Update only price, not active": {
+                  "summary": "Updates only price, not active",
+                  "description": "Update only price , not active",
+                  "value": {
+                    "products": [
+                      {
+                        "sku": "TEST_SKU",
+                        "price": 10
+                      }
+                    ]
+                  }
+                },
+                "Update only active": {
+                  "summary": "May update only active by calculating the available quantity, not price",
+                  "description": "Update only active",
+                  "value": {
+                    "products": [
+                      {
+                        "sku": "TEST_SKU",
+                        "active": true
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "chain_id",
+            "in": "path",
+            "description": "Unique chain identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            }
+          },
+          {
+            "description": "Unique vendor identifier generated by our platform",
+            "in": "path",
+            "name": "vendor_id",
+            "required": true,
+            "example": "naez",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successfully edited batch of products",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/catalog.ProductEditSuccessAsyncResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation errors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/catalog.400ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/catalog.403ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/catalog.404ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "callbacks": {
+          "updateProductsFeedback": {
+            "catalogWebhook": {
+              "post": {
+                "description": "This callback sends job status updates to your configured webhook endpoint.",
+                "security": [
+                  {
+                    "WebhookKeyAuth": []
+                  }
+                ],
+                "summary": "Update products results webhook",
+                "requestBody": {
+                  "required": true,
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "job_id": {
+                            "description": "Job identifier. Can be used as a query parameter to get the job status",
+                            "type": "string",
+                            "example": "a946a2c7-f4e7-46ac-ae63-8a5497cb0ad9"
+                          },
+                          "status": {
+                            "type": "string",
+                            "example": "COMPLETED",
+                            "description": "Job status. Always equal to COMPLETED in case of feedback via webhook"
+                          },
+                          "platform_vendor_id": {
+                            "description": "Unique vendor identifier generated by our platform",
+                            "type": "string",
+                            "example": "naez"
+                          },
+                          "download_url": {
+                            "description": "Temporary URL to download a CSV report with item-level feedback, such as validation errors, detected duplicates, or formatting issues.\n\nAn example CSV that is downloaded from this URL contains the following information:\n\n\n```\nvendorId,sku,barcode,images,categories,price,isSoldByWeight,baseWeight,averageWeightPerPiece,title::en_GB,feedback,details\nvendor1,11111,13451245,,,10.9,TRUE,10,10,Product Title 1,Product Creation Failed,\"{\"\"images\"\": \"\"poor image quality”}\"\nvendor2,22222,62356123,,,32.0,FALSE,,,Product Title 2,Product Assignment Failed,\"{\"\"category\"\": \"\"product category is not legal in vendor's country\"\"}\"\nvendor2,33333,98765887,https://images.deliveryhero.io/image.jpg,,17.3,,,,Product Title 3,Product Assignment Successful,\nvendor2,44444,89878678,,,44.1,,,,Product Title 4,Pending for Product Creation,\n```",
+                            "type": "string",
+                            "format": "uri",
+                            "example": "https://example.com/feedback/a946a2c7/job.csv"
+                          }
+                        },
+                        "required": [
+                          "job_id",
+                          "status",
+                          "platform_vendor_id",
+                          "download_url"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "responses": {
+                  "200": {
+                    "description": "Optimal http response status"
+                  },
+                  "4XX": {
+                    "description": "Webhook call will be retried up to 3 times"
+                  },
+                  "5XX": {
+                    "description": "Webhook call will be retried up to 3 times"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/chains/{chain_id}/vendors/{vendor_id}/catalog/export": {
+      "post": {
+        "operationId": "exportProducts",
+        "tags": [
+          "Catalog"
+        ],
+        "servers": [
+          {
+            "url": "https://yemeksepeti.partner.deliveryhero.io",
+            "description": "Production environment"
+          },
+          {
+            "url": "https://sandbox.partner.deliveryhero.io",
+            "description": "Sandbox environment"
+          }
+        ],
+        "summary": "Export Product Catalog",
+        "description": "\nDownload a complete snapshot of your product catalog for a specific vendor. \nThis endpoint initiates an asynchronous export job to retrieve detailed product information. \nOnce the export is complete, the data will be sent to the webhook configured in your partner portal.",
+        "security": [
+          {
+            "oAuth2ClientCredentials": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "chain_id",
+            "in": "path",
+            "description": "Unique chain identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            }
+          },
+          {
+            "description": "Unique vendor identifier generated by our platform",
+            "in": "path",
+            "name": "vendor_id",
+            "required": true,
+            "example": "naez",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Export job was successfully created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/catalog.ProductsExportSuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation errors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/catalog.400ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/catalog.403ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/catalog.404ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "callbacks": {
+          "exportProducts": {
+            "catalogWebhook": {
+              "post": {
+                "security": [
+                  {
+                    "oAuth2ClientCredentials": []
+                  }
+                ],
+                "summary": "Export products results webhook",
+                "requestBody": {
+                  "required": true,
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "job_id": {
+                            "description": "Job identifier. Can be used as a query parameter to get the job status",
+                            "type": "string",
+                            "example": "a946a2c7-f4e7-46ac-ae63-8a5497cb0ad9"
+                          },
+                          "job_status": {
+                            "type": "string",
+                            "example": "COMPLETED",
+                            "description": "Job status. Always equal to COMPLETED in case of feedback via webhook"
+                          },
+                          "vendor_id": {
+                            "description": "Unique vendor identifier generated by our platform",
+                            "type": "string",
+                            "example": "naez"
+                          },
+                          "download_url": {
+                            "description": "Link to the CSV file that includes the complete snapshot of your product catalog for the specific vendor.\n\nAn example CSV that is downloaded from this URL contains the following information:\n\n```\nsku,barcode,price,active,maxSalesQuantity\n\"1234\",\"2112044341341\",\"32.0\",\"1\",\"2\"\n\"1111\",\"3415541830181\",\"32.0\",\"1\",\"2\"\n\"2222\",\"4894191143542\",\"1.0\",\"1\",\"100\"\n```",
+                            "type": "string",
+                            "format": "uri",
+                            "example": "https://example.com/feedback/a946a2c7/job.csv"
+                          }
+                        },
+                        "required": [
+                          "job_id",
+                          "job_status",
+                          "vendor_id",
+                          "download_url"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "responses": {
+                  "200": {
+                    "description": "Optimal http response status"
+                  },
+                  "4XX": {
+                    "description": "Webhook call will be retried up to 3 times"
+                  },
+                  "5XX": {
+                    "description": "Webhook call will be retried up to 3 times"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/chains/{chain_id}/vendors/{vendor_id}/categories": {
+      "get": {
+        "operationId": "getCategories",
+        "tags": [
+          "Category"
+        ],
+        "servers": [
+          {
+            "url": "https://yemeksepeti.partner.deliveryhero.io",
+            "description": "Production environment"
+          },
+          {
+            "url": "https://sandbox.partner.deliveryhero.io",
+            "description": "Sandbox environment"
+          }
+        ],
+        "description": "Retrieve a list of all categories assigned to a vendor. This endpoint allows you to quickly access the category structure associated with a specific vendor.\nYou can do this in two different ways, by retrieving the category structure with only Leaf categories, or with Parent and Leaf categories. Examples of the response for both can be seen to the right by changing Example type section.\n\nParent Categories: Top level categories on the customer app when the customer first starts navigating (eg. Drinks)\n\nChild Categories: Second or Third level categories under the Parent Category (eg. Cola, Lemonade, etc.)",
+        "summary": "Vendor Categories",
+        "security": [
+          {
+            "oAuth2ClientCredentials": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "chain_id",
+            "in": "path",
+            "description": "Unique chain identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            }
+          },
+          {
+            "description": "Unique vendor identifier generated by our platform",
+            "in": "path",
+            "name": "vendor_id",
+            "required": true,
+            "example": "naez",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Boolean value indicating whether or not to include only leaf categories",
+            "in": "query",
+            "name": "only_leaves",
+            "example": true,
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved category list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/catalog.CategorySuccessSyncResponse"
+                },
+                "examples": {
+                  "onlyLeavesTrue": {
+                    "summary": "Example response with only leaf categories",
+                    "value": {
+                      "categories": [
+                        {
+                          "global_id": "18cad219-add0-459e-8bcf-6d6a48f57bea",
+                          "details": {
+                            "name": {
+                              "en_SG": "Chips & Dips"
+                            },
+                            "description": {
+                              "en_SG": "Great text and structure"
+                            }
+                          },
+                          "parent_global_id": "afbf342a-add0-459e-8bcf-6d6a48f57bea",
+                          "active": true,
+                          "image_url": "https://images.deliveryhero.io/image.jpg"
+                        }
+                      ]
+                    }
+                  },
+                  "onlyLeavesFalse": {
+                    "summary": "Example response with parent and leaf categories",
+                    "value": {
+                      "categories": [
+                        {
+                          "global_id": "afbf342a-add0-459e-8bcf-6d6a48f57bea",
+                          "details": {
+                            "name": {
+                              "en_SG": "Snacks"
+                            },
+                            "description": {
+                              "en_SG": "All types of snacks"
+                            }
+                          },
+                          "parent_global_id": null,
+                          "active": true,
+                          "image_url": "https://images.deliveryhero.io/snacks.jpg"
+                        },
+                        {
+                          "global_id": "18cad219-add0-459e-8bcf-6d6a48f57bea",
+                          "details": {
+                            "name": {
+                              "en_SG": "Chips & Dips"
+                            },
+                            "description": {
+                              "en_SG": "Great text and structure"
+                            }
+                          },
+                          "parent_global_id": "afbf342a-add0-459e-8bcf-6d6a48f57bea",
+                          "active": true,
+                          "image_url": "https://images.deliveryhero.io/image.jpg"
+                        },
+                        {
+                          "global_id": "7fdc1234-add0-459e-8bcf-6d6a48f57bea",
+                          "details": {
+                            "name": {
+                              "en_SG": "Nuts"
+                            },
+                            "description": {
+                              "en_SG": "Assorted nuts"
+                            }
+                          },
+                          "parent_global_id": "afbf342a-add0-459e-8bcf-6d6a48f57bea",
+                          "active": false,
+                          "image_url": "https://images.deliveryhero.io/nuts.jpg"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/promotion.400ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/catalog.403ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/catalog.404ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v2/chains/{chain_id}/orders/{order_id}": {
+      "get": {
+        "operationId": "getOrderWithChain",
+        "tags": [
+          "Order"
+        ],
+        "servers": [
+          {
+            "url": "https://yemeksepeti.partner.deliveryhero.io",
+            "description": "Production environment"
+          },
+          {
+            "url": "https://sandbox.partner.deliveryhero.io",
+            "description": "Sandbox environment"
+          }
+        ],
+        "description": "Retrieve comprehensive information for a specific order. This endpoint provides detailed information about an order, including: \n\n  * Order status and fulfillment details\n  * Customer information (masked for privacy) \n  * Items ordered and their pricing \n  * Payment information \n  * Delivery details",
+        "summary": "Order Details",
+        "security": [
+          {
+            "oAuth2ClientCredentials": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "chain_id",
+            "in": "path",
+            "description": "Unique chain identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            }
+          },
+          {
+            "description": "Order id",
+            "in": "path",
+            "name": "order_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "example": "9d4a63b5-3e07-4440-96af-aa04797da3a0"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Order details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/order.Order"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/promotion.403ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Document not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/order.404ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateOrderWithChain",
+        "tags": [
+          "Order"
+        ],
+        "servers": [
+          {
+            "url": "https://yemeksepeti.partner.deliveryhero.io",
+            "description": "Production environment"
+          },
+          {
+            "url": "https://sandbox.partner.deliveryhero.io",
+            "description": "Sandbox environment"
+          }
+        ],
+        "description": "Update order information for seamless order management. This endpoint is crucial for integrating your 3rd party POS or Order Management System with our platform. Use it to update order statuses, modify items, and manage cancellations. This real-time interaction ensures accurate order data and efficient fulfillment.",
+        "summary": "Update Order",
+        "security": [
+          {
+            "oAuth2ClientCredentials": []
+          }
+        ],
+        "requestBody": {
+          "description": "Order Info",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/order.OrderToUpdate"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "chain_id",
+            "in": "path",
+            "description": "Unique chain identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            }
+          },
+          {
+            "description": "Order Id",
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "9d4a63b5-3e07-4440-96af-aa04797da3a0"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Order result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/order.Order"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/order.400ErrorResponse"
+                },
+                "examples": {
+                  "Not valid item status": {
+                    "summary": "Not valid item status",
+                    "value": {
+                      "code": "BAD_REQUEST",
+                      "message": "status: 'NEW' is not supported. Supported values are [NOT_PROCESSED, IN_CART, NOT_FOUND, REPLACED]"
+                    }
+                  },
+                  "Quantity is not a positive integer number": {
+                    "summary": "Negative item quantity field",
+                    "value": {
+                      "code": "BAD_REQUEST",
+                      "message": "quantity: Quantity cannot be negative"
+                    }
+                  },
+                  "Change the status of the cancelled order to READY_FOR_PICKUP": {
+                    "summary": "Change the status of the cancelled order to READY_FOR_PICKUP",
+                    "value": {
+                      "code": "BAD_REQUEST",
+                      "message": "Cannot fulfill order in status CANCELLED"
+                    }
+                  },
+                  "Product not in the catalog for replacement": {
+                    "summary": "Product not in the catalog for replacement",
+                    "value": {
+                      "code": "BAD_REQUEST",
+                      "message": "Provided item is not found in the catalog (SKU: 1550)"
+                    }
+                  },
+                  "Change of 'pricing_type' from 'KG' to 'UNIT'": {
+                    "summary": "Change of 'pricing_type' from 'KG' to 'UNIT'",
+                    "value": {
+                      "code": "BAD_REQUEST",
+                      "message": "Changing the pricing type from 'KG' to 'UNIT' is not allowed for weighted items (SKU: 1550)"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/promotion.403ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Document not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/order.404ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v2/chains/{chain_id}/vendors/{vendor_id}/orders": {
+      "get": {
+        "operationId": "getOrders",
+        "tags": [
+          "Order"
+        ],
+        "servers": [
+          {
+            "url": "https://yemeksepeti.partner.deliveryhero.io",
+            "description": "Production environment"
+          },
+          {
+            "url": "https://sandbox.partner.deliveryhero.io",
+            "description": "Sandbox environment"
+          }
+        ],
+        "description": "Retrieve a paginated history of orders for a specific vendor. This endpoint is ideal for reconciliation and analysis, providing detailed order information stored on our platform. Filter orders by a date range using the `start` and `end` parameters. You can also control pagination with `page_size` and `page`.",
+        "summary": "Vendor Orders",
+        "security": [
+          {
+            "oAuth2ClientCredentials": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "chain_id",
+            "in": "path",
+            "description": "Unique chain identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            }
+          },
+          {
+            "description": "Unique vendor identifier generated by our platform",
+            "in": "path",
+            "name": "vendor_id",
+            "required": true,
+            "example": "naez",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Deprecated, use `start_time` parameter instead\nStart CreatedAt datetime (ISO 8601). Maximum 60 days in the past.",
+            "in": "query",
+            "name": "start_created_at_datetime",
+            "deprecated": true,
+            "example": "2023-01-01T15:00:00",
+            "schema": {
+              "type": "string",
+              "format": "dateTime",
+              "default": "today at 00:00 time"
+            }
+          },
+          {
+            "description": "Deprecated, use `end_time` parameter instead\nEnd CreatedAt datetime (ISO 8601)",
+            "in": "query",
+            "name": "end_created_at_datetime",
+            "deprecated": true,
+            "example": "2023-01-01T16:00:00",
+            "schema": {
+              "type": "string",
+              "format": "dateTime",
+              "default": "Today at now time"
+            }
+          },
+          {
+            "description": "Start CreatedAt datetime (ISO 8601). Maximum 60 days in the past",
+            "in": "query",
+            "name": "start_time",
+            "example": "2023-01-01T15:00:00",
+            "schema": {
+              "type": "string",
+              "format": "dateTime",
+              "default": "today at 00:00 time"
+            }
+          },
+          {
+            "description": "End CreatedAt datetime (ISO 8601)",
+            "in": "query",
+            "name": "end_time",
+            "example": "2023-01-01T16:00:00",
+            "schema": {
+              "type": "string",
+              "format": "dateTime",
+              "default": "Today at now time"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "page_size",
+            "example": 10,
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "minimum": 1,
+              "maximum": 500
+            }
+          },
+          {
+            "description": "Page number",
+            "in": "query",
+            "name": "page",
+            "example": 1,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Order result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/order.PagedOrderHistory"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/promotion.403ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Document not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/order.404ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v2/chains/{chain_id}/promotion": {
+      "put": {
+        "operationId": "updatePromotion",
+        "tags": [
+          "Promotion"
+        ],
+        "description": "Create or update promotions to boost your sales and engage customers. This endpoint simplifies promotion management with its upsert functionality:\n\n  * **Create new promotions:** Define the promotion details, including the type, discounts, conditions, and target audience.\n  * **Update existing promotions:** Modify any aspect of your promotion, add or remove products, or deactivate it entirely.\n\n  The API intelligently determines whether to create a new promotion or update an existing one based on the unique combination of `name`, `vendors`, `condition.start_time`, and `condition.end_time`. \n\n  ☝️**Pro tip**: It's always more efficient to send a single promotion request with 1,000 items than to make 1,000 individual updates. Given the asynchronous nature of the API, this approach not only reduces redundant computations but also improves overall processing time and simplifies feedback handling.\n\n  🚧 **WORK IN PROGRESS** — The Same Item Bundle promotion type is currently under active development and will be available soon. The API contract has been updated and is not expected to change.",
+        "summary": "Manage Promotion",
+        "security": [
+          {
+            "oAuth2ClientCredentials": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "chain_id",
+            "in": "path",
+            "description": "Unique chain identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Updating promotion",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/promotion.UpdateRequest"
+              },
+              "examples": {
+                "Strikethrough promotion": {
+                  "summary": "Strikethrough promotion",
+                  "description": "Strikethrough with 10% off",
+                  "value": {
+                    "vendors": [
+                      "urd8"
+                    ],
+                    "type": "STRIKETHROUGH",
+                    "active": true,
+                    "reason": "COMPETITIVENESS",
+                    "display_name": {
+                      "en_GB": "Energy drinks 0.5l on sale"
+                    },
+                    "conditions": {
+                      "start_time": "2024-03-05T15:59:59Z",
+                      "end_time": "2024-03-05T16:59:59Z"
+                    },
+                    "discount": [
+                      {
+                        "discount_subtype": "PERCENTAGE",
+                        "discount_value": 10,
+                        "active": true,
+                        "sku": [
+                          "3671",
+                          "3672"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "Same item bundle promotion": {
+                  "summary": "Same item bundle promotion",
+                  "description": "Buy 2 of the same item to get the 3rd one with a 50% discount",
+                  "value": {
+                    "vendors": [
+                      "urd8"
+                    ],
+                    "type": "SAME_ITEM_BUNDLE",
+                    "active": true,
+                    "reason": "COMPETITIVENESS",
+                    "display_name": {
+                      "en_GB": "Buy 2 drinks 0.5l or 1l to get the third one with a 50% discount"
+                    },
+                    "conditions": {
+                      "start_time": "2024-03-05T15:59:59Z",
+                      "end_time": "2024-03-05T16:59:59Z",
+                      "purchased_quantity": 2,
+                      "discounted_quantity": 1
+                    },
+                    "discount": [
+                      {
+                        "discount_subtype": "PERCENTAGE",
+                        "discount_value": 50,
+                        "active": true,
+                        "sku": [
+                          "3671",
+                          "3672"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "Buy one get one free promotion": {
+                  "summary": "Buy one get one free promotion",
+                  "description": "Buy one get one free (aka BOGO) promotion",
+                  "value": {
+                    "vendors": [
+                      "urd8"
+                    ],
+                    "type": "SAME_ITEM_BUNDLE",
+                    "active": true,
+                    "reason": "COMPETITIVENESS",
+                    "display_name": {
+                      "en_GB": "Buy 0.5L or 1L energy drink to get one more for free"
+                    },
+                    "conditions": {
+                      "start_time": "2024-03-05T15:59:59Z",
+                      "end_time": "2024-03-05T16:59:59Z",
+                      "purchased_quantity": 1,
+                      "discounted_quantity": 1
+                    },
+                    "discount": [
+                      {
+                        "discount_subtype": "PERCENTAGE",
+                        "discount_value": 100,
+                        "active": true,
+                        "sku": [
+                          "3671",
+                          "3672"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successfully created job",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/promoAsyncSuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation errors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/promotion.400ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/promotion.403ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/promotion.409ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/promotion.429ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v2/chains/{chain_id}/promotion/jobs/{job_id}": {
+      "get": {
+        "operationId": "getPromotionStatus",
+        "tags": [
+          "Promotion"
+        ],
+        "description": "This endpoint provides the status of the promotion update job:\n- `QUEUED` if the job has not yet been processed.\n- `COMPLETED` if the job has finished processing.\n- `FAILED` if the job processing failed.\n- `DUPLICATE` if the job was skipped due to duplicate promotion entries.\n\nPlease note: for update cases (promotion already exists for a specific time interval for a given set of vendors), once processed, the job status will always be `COMPLETED` even if all items from the request are not valid. In contrast, for a new promotion, in this case, the job status will be `FAILED`\n\n`result` provides additional details about the job processing, such as any SKUs or vendors that will not be included in the promotion due to an error once the processing is complete.",
+        "summary": "Promotion Status",
+        "security": [
+          {
+            "oAuth2ClientCredentials": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "chain_id",
+            "in": "path",
+            "description": "Unique chain identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            }
+          },
+          {
+            "name": "job_id",
+            "in": "path",
+            "description": "Job ID from the response of the PUT `/promotion` endpoint",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "a946a2c7-f4e7-46ac-ae63-8a5497cb0ad9"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved the job status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/promotion.GetSuccessResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/promotion.403ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/promotion.429ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v2/chains/{chain_id}/vendors/{vendor_id}/status": {
+      "get": {
+        "description": "Gets availability status of the given vendor. The following statuses:\n* `CLOSED_TODAY` - the vendor was closed and will stay not operational for entire day \n* `CLOSED_UNTIL` - the vendor was closed till specific date-time. Specific closure time is specified in `closed_until` field\n* `CLOSED` - the vendor was closed without end date\n* `OPEN` - the vendor is operational",
+        "operationId": "getVendorStatus",
+        "tags": [
+          "Outlet Management"
+        ],
+        "summary": "Outlet Status",
+        "security": [
+          {
+            "oAuth2ClientCredentials": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "chain_id",
+            "in": "path",
+            "description": "Unique chain identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            }
+          },
+          {
+            "description": "Unique vendor identifier generated by our platform",
+            "in": "path",
+            "name": "vendor_id",
+            "required": true,
+            "example": "naez",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully extracted vendor availability status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storeManagement.GetStatusResponse"
+                },
+                "examples": {
+                  "Closed (technical problems)": {
+                    "description": "Closed outlet due to technical problems",
+                    "value": {
+                      "vendor_id": "naez",
+                      "status": "CLOSED_UNTIL",
+                      "closed_reason": "TECHNICAL_PROBLEM",
+                      "closed_until": "2024-09-30T10:00:36Z"
+                    }
+                  },
+                  "Closed (check-in required)": {
+                    "description": "Closed outlet due to check-in required",
+                    "value": {
+                      "vendor_id": "naez",
+                      "status": "CLOSED_UNTIL",
+                      "closed_reason": "CHECK_IN_REQUIRED",
+                      "checkin_interval": {
+                        "start_time": "2024-09-30T10:00:36Z",
+                        "end_time": "2024-09-30T10:30:36Z"
+                      },
+                      "closed_until": "2024-09-30T10:00:36Z"
+                    }
+                  },
+                  "Open": {
+                    "description": "Open outlet",
+                    "value": {
+                      "vendor_id": "naez",
+                      "status": "OPEN"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storeManagement.400ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storeManagement.403ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storeManagement.404ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "put": {
+        "description": "Updates an availability status of the given vendor. Supported statuses are:  \n* `CLOSED_TODAY` - vendor will be closed till the end of the day\n* `CLOSED_UNTIL` - vendor will be closed till the date specified in `closed_until` field\n* `OPEN` - open closed vendor if it's within opening hours according to schedule.\n* `CHECKIN` - use this status to acknowledge required check in. This status works only if checking feature has been enabled for the vendor\n\n**Check-in Feature Overview**  \nThe \"Check-in\" feature allows vendors to acknowledge their scheduled opening time. **By default, this feature is disabled and does not require a check-in status to be sent.** To activate the check-in flow, please contact your account manager.\n\n**How the Check-in Feature Works?**  \nThis feature enables you to confirm the upcoming opening of your shop up to 30 minutes before its scheduled opening hours. If the partner fails to acknowledge, the shop will remain closed even if it is scheduled to be open. However, the shop can still be opened by calling the API with a \"OPEN\" status.",
+        "operationId": "updateVendorStatus",
+        "tags": [
+          "Outlet Management"
+        ],
+        "summary": "Manage Outlet",
+        "security": [
+          {
+            "oAuth2ClientCredentials": []
+          }
+        ],
+        "requestBody": {
+          "description": "Updating availability status",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/storeManagement.updateVendorStatusRequest"
+              },
+              "examples": {
+                "Close outlet": {
+                  "description": "Close outlet due to technical problems",
+                  "value": {
+                    "status": "CLOSED_UNTIL",
+                    "closed_reason": "TECHNICAL_PROBLEM",
+                    "closed_until": "2024-09-30T10:00:36Z"
+                  }
+                },
+                "Open outlet": {
+                  "description": "Open outlet",
+                  "value": {
+                    "status": "OPEN"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "chain_id",
+            "in": "path",
+            "description": "Unique chain identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            }
+          },
+          {
+            "description": "Unique vendor identifier generated by our platform",
+            "in": "path",
+            "name": "vendor_id",
+            "required": true,
+            "example": "naez",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully updated vendor availability status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storeManagement.GetStatusResponse"
+                },
+                "examples": {
+                  "Closed": {
+                    "description": "Closed outlet due to technical problems",
+                    "value": {
+                      "vendor_id": "naez",
+                      "status": "CLOSED_UNTIL",
+                      "closed_reason": "TECHNICAL_PROBLEM",
+                      "closed_until": "2024-09-30T10:00:36Z"
+                    }
+                  },
+                  "Open": {
+                    "description": "Open outlet",
+                    "value": {
+                      "vendor_id": "naez",
+                      "status": "OPEN"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storeManagement.400ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storeManagement.403ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storeManagement.404ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    }
+  },
+  "x-webhooks": {
+    "order-events": {
+      "post": {
+        "operationId": "webhookOrder",
+        "tags": [
+          "Order"
+        ],
+        "description": "# Prerequisites\n\nSet Up a Webhook to receive Order Events:\n- *Step 1:* Develop a webhook to receive live order events.\n- *Step 2:* Ensure the webhook is ready to receive updates for any modifications during the order lifecycle (e.g., status changes, cancellations) and share the endpoint with platform/update in partner portal etc.\n\n# Webhook notification\n\nYou will receive a `POST` request webhook notifications regarding newly placed orders or order status changes. Depending on the integration type, next options are available:\n\n- *Partner Picking Device:*\n  - `RECEIVED` - The initial status of the order. This status means that the order processing has not yet started by the partner.\n  - `READY_FOR_PICKUP` - Order picking and packing is finished by the partner and is ready for pickup by a delivery rider.\n  - `DISPATCHED` - Order has been dispatched.\n  - `CANCELED` - Order is canceled by the customer, delivery rider or the partner.\n\n- *Pelican Picking Device:*\n  - `READY_FOR_PICKUP` - Order picking and packing is finished by the partner and is ready for pickup by a delivery rider.\n  - `CANCELED` - Order is canceled by the customer, delivery rider or the partner.\n\n*Please note*: to enhance API call security, a static token for webhook notifications can be added through the Vendor Portal.",
+        "summary": "Order Notification",
+        "security": [
+          {
+            "WebhookKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "description": "Order details",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/webhook.Order"
+              }
+            }
+          }
+        },
+        "responses": {
+          "2XX": {
+            "description": "Expected HTTP status code upon successful webhook reception."
+          },
+          "4XX": {
+            "description": "Webhook call will be retried up to 5 times"
+          },
+          "5XX": {
+            "description": "Webhook call will be retried up to 5 times"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "WebhookKeyAuth": {
+        "type": "apiKey",
+        "description": "To authenticate webhook requests, the Partner API includes a static token in the Authorization header. This token is defined during the webhook configuration",
+        "in": "header",
+        "name": "Authorization"
+      },
+      "oAuth2ClientCredentials": {
+        "type": "oauth2",
+        "description": "DH Partner API uses OAuth2 with the Client Credentials flow",
+        "flows": {
+          "clientCredentials": {
+            "tokenUrl": "/v2/oauth/token",
+            "scopes": {}
+          }
+        }
+      }
+    },
+    "responses": {
+      "UnauthorizedError": {
+        "description": "Unauthorized - Authentication is required or invalid",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/oAuth.ErrorResponse"
+            },
+            "examples": {
+              "Token missing": {
+                "value": {
+                  "error": "invalid_request",
+                  "error_description": "Authorization header missing"
+                }
+              },
+              "Invalid Token": {
+                "value": {
+                  "error": "invalid_token",
+                  "error_description": "Invalid access token or signature"
+                }
+              },
+              "Expired Token": {
+                "value": {
+                  "error": "invalid_token",
+                  "error_description": "The access token expired"
+                }
+              }
+            }
+          }
+        }
+      },
+      "InternalServerError": {
+        "description": "Internal Server Error - Something went wrong on the server side",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/common.ErrorResponse"
+            },
+            "examples": {
+              "Generic Error": {
+                "value": {
+                  "code": "INTERNAL_ERROR",
+                  "message": "Internal Server Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "NotImplemented": {
+        "description": "Not Implemented - The Add Products flow is not yet supported for this market. Contact your account manager for availability in your country.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/common.ErrorResponse"
+            },
+            "examples": {
+              "Market not supported": {
+                "value": {
+                  "code": "NOT_IMPLEMENTED",
+                  "message": "Add Products flow is not supported for this market"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "oAuth.ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "description": "Error code",
+            "type": "string"
+          },
+          "error_description": {
+            "description": "Error message",
+            "type": "string"
+          }
+        }
+      },
+      "common.ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "description": "Error code",
+            "type": "string"
+          },
+          "message": {
+            "description": "Error message",
+            "type": "string"
+          }
+        }
+      },
+      "promotion.400ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "description": "Error code",
+            "type": "string",
+            "example": "BAD_REQUEST"
+          },
+          "message": {
+            "description": "Error message",
+            "type": "string",
+            "example": "Invalid Parameter format"
+          }
+        }
+      },
+      "promotion.403ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "description": "Error code",
+            "type": "string",
+            "example": "FORBIDDEN"
+          },
+          "message": {
+            "description": "Error message",
+            "type": "string",
+            "example": "Access denied"
+          }
+        }
+      },
+      "promotion.404ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "description": "Error code",
+            "type": "string",
+            "example": "UNKNOWN_JOB_ID"
+          },
+          "message": {
+            "description": "Error message",
+            "type": "string",
+            "example": "The job id is unknown"
+          }
+        }
+      },
+      "promotion.409ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "description": "Error code",
+            "type": "string",
+            "example": "CONFLICT"
+          },
+          "message": {
+            "description": "Error message",
+            "type": "string",
+            "example": "Promotion is already in processing state"
+          }
+        }
+      },
+      "promotion.429ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "description": "Error code",
+            "type": "string",
+            "example": "TOO_MANY_REQUESTS"
+          },
+          "message": {
+            "description": "Error message",
+            "type": "string",
+            "example": "Too many requests. Please try later"
+          }
+        }
+      },
+      "order.400ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "description": "Error code",
+            "type": "string",
+            "example": "BAD_REQUEST"
+          },
+          "message": {
+            "description": "Error message",
+            "type": "string",
+            "example": "Bad request"
+          }
+        }
+      },
+      "order.404ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "description": "Error code",
+            "type": "string",
+            "example": "NOT_FOUND"
+          },
+          "message": {
+            "description": "Error message",
+            "type": "string",
+            "example": "Document not found"
+          }
+        }
+      },
+      "authentication.GenerateAccessToken": {
+        "type": "object",
+        "required": [
+          "grant_type",
+          "client_id",
+          "client_secret"
+        ],
+        "properties": {
+          "grant_type": {
+            "description": "The `grant_type` specifies the type of OAuth 2.0 grant being used for obtaining the access token.\nCurrently only `client_credentials` is supported.",
+            "type": "string",
+            "default": "client_credentials"
+          },
+          "client_id": {
+            "type": "string",
+            "example": "partner-x-client-id",
+            "description": "The `client_id` is a unique identifier assigned to the client application. \nThis value is used to authenticate the application requesting the access token.\nEnsure that this is kept secure and not exposed publicly."
+          },
+          "client_secret": {
+            "type": "string",
+            "example": "d9f0c3b7c1a4f8e1b5d2a6f9b4c8a7d9",
+            "description": "The `client_secret` is a confidential value known only to the client and the authorization server.\nIt is used in conjunction with the `client_id` to authenticate the client application. \nEnsure that this is kept secure and not exposed publicly."
+          }
+        }
+      },
+      "catalog.ProductAssignment": {
+        "type": "object",
+        "required": [
+          "vendors",
+          "products"
+        ],
+        "properties": {
+          "vendors": {
+            "description": "Set of vendor IDs. If `vendors = [\"*\"]`, products will be assigned to all vendors associated with the chain",
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "urd8"
+            ]
+          },
+          "products": {
+            "type": "array",
+            "description": "List of products to assign",
+            "items": {
+              "$ref": "#/components/schemas/catalog.ProductAssignmentProducts"
+            }
+          }
+        }
+      },
+      "catalog.ProductAssignmentProducts": {
+        "type": "object",
+        "required": [
+          "sku",
+          "title",
+          "price"
+        ],
+        "properties": {
+          "sku": {
+            "description": "Product SKU",
+            "type": "string",
+            "example": "3671"
+          },
+          "title": {
+            "description": "Product title (one per locale)\n- Keys are in the format of [ISO 639-1](https://en.wikipedia.org/wiki/ISO_639-1) language code and [ISO 3166-1](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2) country codes separated by `_` (e.g., 'en_SG')\n- Values are the corresponding titles",
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "example": {
+              "en_SE": "Canned / Jarred / Instant Meals",
+              "se_SE": "Konserverade / På burk / Snabbmat"
+            }
+          },
+          "barcodes": {
+            "description": "List of GTINs (barcodes) for the item. Is required if `is_sold_by_weight` is set as `false`.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 0,
+            "maxItems": 1,
+            "example": [
+              "6281100875093"
+            ]
+          },
+          "description": {
+            "description": "Product description (one per locale)\n- Keys are in the format of [ISO 639-1](https://en.wikipedia.org/wiki/ISO_639-1) language code and [ISO 3166-1](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2) country codes separated by `_` (e.g., 'en_SG')\n- Values are the corresponding descriptions",
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "example": {
+              "en_SE": "Organic Vegetable Broth, 300 g. No Added Sugar, Yeast & Flavour Enhancer",
+              "se_SE": "Ekologisk grönsaksbuljong, 300 g. Utan tillsatt socker, jäst och smakförstärkare"
+            }
+          },
+          "images": {
+            "description": "List of image URLs. Image must meet the following requirements:\n\n**Image Size Requirements**  \n- Minimum resolution: 400x400 pixels\n\n**Accepted Formats**  \n- JPEG (.jpg)  \n- PNG (.png)\n\n**Image Criteria**  \n- White background  \n- Product centered in frame  \n- Full item shown, including packaging",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "example": "https://images.deliveryhero.io/image.jpg"
+            }
+          },
+          "categories": {
+            "description": "Vendor category IDs",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "example": "18cad219-add0-459e-8bcf-6d6a48f57bea"
+            }
+          },
+          "price": {
+            "description": "Total price of the product in local currency",
+            "type": "number",
+            "example": 39.75
+          },
+          "is_sold_by_weight": {
+            "description": "set it as `true` if the product is sold by weight",
+            "type": "boolean",
+            "default": false,
+            "example": true
+          },
+          "weight_specifications": {
+            "$ref": "#/components/schemas/catalog.ProductAssignmentWeightedParameters"
+          }
+        }
+      },
+      "authentication.OAuthTokenSuccessResponse": {
+        "type": "object",
+        "description": "OAuth Token Response",
+        "properties": {
+          "access_token": {
+            "description": "The `access_token` is a JSON Web Token (JWT) that is used to authenticate requests to the Partner API. \nThis token must be included in the `Authorization` header as a Bearer token in each API request \nand valid for a limited time (as specified by the `expires_in` field).",
+            "type": "string",
+            "example": "eyJhbGciOiJQUzI1NiIsInR5cCI6IkpXVCJ9eyJ1dWlkIjoiVEVTVCJ9"
+          },
+          "token_type": {
+            "description": "The `token_type` indicates the type of the token used for authentication. \nCurrently only `Bearer` is supported, which means the `access_token` should be included in the `Authorization` header with the prefix `Bearer `.",
+            "type": "string",
+            "example": "Bearer"
+          },
+          "expires_in": {
+            "type": "integer",
+            "description": "Token expiration time in seconds. After this period, the token will no longer be valid and a new token will need to be issued.",
+            "default": 7200,
+            "example": 7200
+          }
+        }
+      },
+      "catalog.ProductAssignmentWeightedParameters": {
+        "type": "object",
+        "description": "Additional fields for weighted products",
+        "properties": {
+          "base_weight": {
+            "description": "Since products sold by weight do not have a fixed weight, their price is based on a specific reference weight, known as the 'base weight'.\nEg. Pineapple - 1 EUR/1 kg - where base weight is 1kg.\nRequired if `is_sold_by_weight = true`",
+            "type": "number",
+            "format": "float",
+            "example": 3.2
+          },
+          "base_weight_unit": {
+            "description": "Unit of the `base_weight` value. Optional; defaults to `KG` when omitted.\nIndependent of the other weight units and may differ from them.",
+            "default": "KG",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/catalog.WeightUnit"
+              }
+            ]
+          },
+          "average_weight_per_piece": {
+            "description": "Avg weight of the piece - indicates the approximate weight of an item that is sold by weight.\nEg. Pineapple - Average weight - 3kg.\nThis can be shown to the users to give them an idea of how heavy the product is.\nOptional; only present for weightable items that are ordered by piece.",
+            "type": "number",
+            "format": "float",
+            "example": 1.5
+          },
+          "average_weight_per_piece_unit": {
+            "description": "Unit of the `average_weight_per_piece` value. Optional; defaults to `KG` when omitted.\nIndependent of the other weight units and may differ from them.",
+            "default": "KG",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/catalog.WeightUnit"
+              }
+            ]
+          },
+          "minimum_starting_weight": {
+            "description": "The minimum orderable weight for the product - the smallest quantity a customer is allowed to order.\nDistinct from `base_weight`, which is the pricing reference weight.\nOptional; not present for all items.",
+            "type": "number",
+            "format": "float",
+            "example": 0.5
+          },
+          "minimum_starting_weight_unit": {
+            "description": "Unit of the `minimum_starting_weight` value. Optional; defaults to `KG` when omitted.\nIndependent of the other weight units and may differ from them.",
+            "default": "KG",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/catalog.WeightUnit"
+              }
+            ]
+          }
+        }
+      },
+      "catalog.WeightUnit": {
+        "description": "Unit of measurement for a weight value.",
+        "type": "string",
+        "enum": [
+          "KG",
+          "G"
+        ],
+        "example": "KG"
+      },
+      "catalog.ProductGetListWeightedParameters": {
+        "type": "object",
+        "description": "Additional fields for weighted products, returned on the catalog listing.",
+        "properties": {
+          "base_weight": {
+            "description": "Since products sold by weight do not have a fixed weight, their price is based on a specific reference weight, known as the 'base weight'.\nEg. Pineapple - 1 EUR/1 kg - where base weight is 1kg.",
+            "type": "number",
+            "format": "float",
+            "example": 1.5
+          },
+          "base_weight_unit": {
+            "description": "Unit of the `base_weight` value.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/catalog.WeightUnit"
+              }
+            ]
+          },
+          "average_weight_per_piece": {
+            "description": "Avg weight of the piece - indicates the approximate weight of an item that is sold by weight.\nEg. Pineapple - Average weight - 3kg.\nThis can be shown to the users to give them an idea of how heavy the product is.\nOptional; only present for weightable items that are ordered by piece.",
+            "type": "number",
+            "format": "float",
+            "example": 3.2
+          },
+          "average_weight_per_piece_unit": {
+            "description": "Unit of the `average_weight_per_piece` value. Independent of `base_weight_unit` and may differ from it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/catalog.WeightUnit"
+              }
+            ]
+          },
+          "minimum_starting_weight": {
+            "description": "The minimum orderable weight for the product. Distinct from `base_weight` (which is the pricing reference weight).\nOptional; not present for all items.",
+            "type": "number",
+            "format": "float",
+            "example": 0.5
+          },
+          "minimum_starting_weight_unit": {
+            "description": "Unit of the `minimum_starting_weight` value. Independent of the other weight units and may differ from them.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/catalog.WeightUnit"
+              }
+            ]
+          }
+        }
+      },
+      "catalog.ProductAssignmentSuccessResponse": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "description": "Job identifier. Can be used as a query parameter to get the job status",
+            "type": "string",
+            "example": "a946a2c7-f4e7-46ac-ae63-8a5497cb0ad9"
+          },
+          "job_status": {
+            "type": "string",
+            "example": "QUEUED",
+            "description": "Job status. Always equal to QUEUED due to the asynchronous nature of this endpoint"
+          },
+          "duplicated_products": {
+            "description": "This field is populated when the system detects an overlap of SKUs between the current API request and prior requests. Since product creation can sometimes require human intervention, it's crucial to prevent duplicate SKUs in multiple requests to minimize complexity and potential delays \n\nEach item in the list is a string in the format `vendor_id:SKU`. \n*These products were excluded from the request and will not be processed*",
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "vendor1:11111"
+            ]
+          }
+        }
+      },
+      "catalog.CategorySuccessSyncResponse": {
+        "type": "object",
+        "properties": {
+          "categories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/catalog.Category"
+            }
+          }
+        }
+      },
+      "catalog.ProductGetListSuccessSyncResponse": {
+        "type": "object",
+        "properties": {
+          "page_number": {
+            "type": "integer",
+            "example": 1
+          },
+          "total_pages": {
+            "type": "integer",
+            "example": 3
+          },
+          "page_size": {
+            "type": "integer",
+            "example": 92
+          },
+          "products": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/catalog.ProductGetList"
+            }
+          }
+        }
+      },
+      "catalog.ProductGetList": {
+        "type": "object",
+        "properties": {
+          "remote_product_id": {
+            "type": "string",
+            "example": "1234567890"
+          },
+          "sku": {
+            "type": "string",
+            "example": "55435436"
+          },
+          "barcodes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "example": "9783193610843"
+            }
+          },
+          "title": {
+            "type": "string",
+            "example": "TEST_NAME"
+          },
+          "translations": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "example": {
+              "en_GB": "TEST_TITLE_1"
+            }
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "example": "https://images.deliveryhero.io/image.jpg"
+            }
+          },
+          "price": {
+            "type": "number",
+            "format": "double",
+            "example": 30.1
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/catalog.Category"
+            }
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "is_sold_by_weight": {
+            "description": "`true` if the product is sold by weight, `false` otherwise.",
+            "type": "boolean",
+            "example": true
+          },
+          "weight_specifications": {
+            "description": "Additional weight fields for products sold by weight. Present only when `is_sold_by_weight` is `true`; omitted otherwise.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/catalog.ProductGetListWeightedParameters"
+              }
+            ]
+          }
+        }
+      },
+      "catalog.ItemLevelFeedback": {
+        "type": "object",
+        "properties": {
+          "sku": {
+            "type": "string",
+            "description": "Product SKU",
+            "example": "3451"
+          },
+          "barcodes": {
+            "type": "array",
+            "description": "List of GTINs (barcodes) for the product. Replaces the deprecated `barcode` field. Currently limited to 1 barcode.",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 0,
+            "maxItems": 1,
+            "example": [
+              "9783193610843"
+            ]
+          },
+          "platform_vendor_id": {
+            "type": "string",
+            "description": "The vendor identifier",
+            "example": "naez"
+          },
+          "status": {
+            "type": "string",
+            "description": "The current status of the product creation process",
+            "example": "Product creation failed"
+          },
+          "rejection_reasons": {
+            "type": "array",
+            "description": "A list of reasons explaining why the product creation failed. Each item provides detail about what part of the product data was rejected and why.",
+            "items": {
+              "$ref": "#/components/schemas/catalog.RejectionReasons"
+            }
+          }
+        }
+      },
+      "catalog.RejectionReasons": {
+        "type": "object",
+        "properties": {
+          "rejection_data": {
+            "type": "string",
+            "description": "The name of the product field that was rejected (e.g., 'images'). Indicates which part of the product data failed validation.",
+            "example": "images"
+          },
+          "rejection_reason": {
+            "type": "string",
+            "description": "The specific reason for the rejection of that data field (e.g., 'poor quality'). Provides context for troubleshooting or data correction.",
+            "example": "poor quality"
+          }
+        }
+      },
+      "catalog.ProductAdditionResult": {
+        "description": "Detailed information about the product addition job that is created through the POST /catalog endpoint. This includes item-level feedback and data available during or after job processing.",
+        "type": "object",
+        "properties": {
+          "duplicated_products": {
+            "description": "This field is populated when the system detects an overlap of SKUs between the current API request and prior requests. Since product creation can sometimes require human intervention, it's crucial to prevent duplicate SKUs in multiple requests to minimize complexity and potential delays \n\nEach item in the list is a string in the format `vendor_id:SKU`. \n*These products were excluded from the request and will not be processed*",
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "vendor1:11111"
+            ]
+          },
+          "item_level_feedback": {
+            "description": "This field provides detailed feedback for individual products in the request. Each item contains information about the specific product, including identifiers and any relevant status or feedback details.\nThis feedback allows clients to understand and address issues with specific products without needing to retry the entire request. It is especially useful in bulk operations where partial success is expected.\nEach item in the list follows the `catalog.ItemLevelFeedback` schema, which includes fields like `platform_vendor_id`, `sku`, `status` and `rejection_reasons`.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/catalog.ItemLevelFeedback"
+            }
+          }
+        }
+      },
+      "catalog.Category": {
+        "type": "object",
+        "properties": {
+          "global_id": {
+            "type": "string",
+            "example": "18cad219-add0-459e-8bcf-6d6a48f57bea"
+          },
+          "details": {
+            "$ref": "#/components/schemas/catalog.CategoryDetails"
+          },
+          "parent_global_id": {
+            "type": "string",
+            "description": "`global_id` of the parent category. This is crucial for constructing a hierarchical category tree",
+            "example": "afbf342a-add0-459e-8bcf-6d6a48f57bea",
+            "nullable": true
+          },
+          "active": {
+            "type": "boolean",
+            "example": true
+          },
+          "image_url": {
+            "description": "Category image",
+            "type": "string",
+            "example": "https://images.deliveryhero.io/image.jpg"
+          }
+        }
+      },
+      "catalog.CategoryDetails": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "object",
+            "description": "Category name (one per locale)\n- Keys are in the format of [ISO 639-1](https://en.wikipedia.org/wiki/ISO_639-1) language code and [ISO 3166-1](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2) country codes separated by `_` (e.g., 'en_SG')\n- Values are the corresponding names",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "example": {
+              "en_SG": "Chips & Dips"
+            }
+          },
+          "description": {
+            "type": "object",
+            "description": "Category description (one per locale)\n- Keys are in the format of [ISO 639-1](https://en.wikipedia.org/wiki/ISO_639-1) language code and [ISO 3166-1](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2) country codes separated by `_` (e.g., 'en_SG')\n- Values are the corresponding descriptions",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "example": {
+              "en_SG": "Great text and structure"
+            }
+          }
+        }
+      },
+      "catalog.EditProductsRequest": {
+        "type": "object",
+        "properties": {
+          "products": {
+            "type": "array",
+            "description": "array of products",
+            "items": {
+              "$ref": "#/components/schemas/catalog.EditProductRequest"
+            }
+          }
+        }
+      },
+      "catalog.EditProductRequest": {
+        "type": "object",
+        "required": [
+          "sku"
+        ],
+        "properties": {
+          "sku": {
+            "description": "SKU of the product",
+            "type": "string",
+            "example": "55435436"
+          },
+          "barcode": {
+            "description": "Barcode of the product",
+            "type": "string",
+            "example": "9783193610843"
+          },
+          "active": {
+            "description": "Is product active?",
+            "type": "boolean",
+            "example": true
+          },
+          "price": {
+            "type": "number",
+            "format": "double",
+            "example": 34.5,
+            "description": "Price of the product in local currency"
+          },
+          "quantity": {
+            "description": "Quantity of the products",
+            "type": "integer",
+            "example": 30,
+            "minimum": 0
+          },
+          "maximum_sales_quantity": {
+            "description": "Maximum sales quantity per order",
+            "type": "integer",
+            "example": 10
+          }
+        }
+      },
+      "catalog.ProductsExportSuccessResponse": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "description": "Job identifier. Will be also present in the payload sent to the webhook",
+            "type": "string",
+            "example": "a946a2c7-f4e7-46ac-ae63-8a5497cb0ad9"
+          },
+          "job_status": {
+            "type": "string",
+            "example": "QUEUED",
+            "description": "Job status. Always equal to QUEUED due to the asynchronous nature of this endpoint"
+          }
+        }
+      },
+      "catalog.ProductEditSuccessSyncResponse": {
+        "type": "object",
+        "properties": {
+          "sku": {
+            "description": "SKU of the updated product",
+            "type": "string",
+            "example": "3671"
+          }
+        }
+      },
+      "catalog.ProductEditSuccessAsyncResponse": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "description": "Job identifier. Can be used as a query parameter to get the job status",
+            "type": "string",
+            "example": "a946a2c7-f4e7-46ac-ae63-8a5497cb0ad9"
+          },
+          "job_status": {
+            "type": "string",
+            "example": "QUEUED",
+            "description": "Job status. Always equal to QUEUED due to the asynchronous nature of this endpoint"
+          }
+        }
+      },
+      "catalog.GetJobResultSuccessResponse": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "description": "Job identifier from the response of the POST `/catalog` endpoint",
+            "type": "string",
+            "example": "a946a2c7-f4e7-46ac-ae63-8a5497cb0ad9"
+          },
+          "job_status": {
+            "type": "string",
+            "example": "IN_PROGRESS",
+            "description": "Job status. One of: \n- `QUEUED` the job has not yet been processed\n- `IN_PROGRESS` the products/items are being added to your outlet.\n- `COMPLETED` the job is finished\n- `FAILED` the job processing failed",
+            "enum": [
+              "QUEUED",
+              "IN_PROGRESS",
+              "COMPLETED",
+              "FAILED"
+            ]
+          },
+          "created_at": {
+            "description": "Date and time when the job was created",
+            "type": "string",
+            "format": "dateTime",
+            "example": "2024-09-30T10:00:36.947Z"
+          },
+          "updated_at": {
+            "description": "Date and time of the most recent job status update",
+            "type": "string",
+            "format": "dateTime",
+            "example": "2024-09-30T10:05:36.947Z"
+          },
+          "result": {
+            "$ref": "#/components/schemas/catalog.ProductAdditionResult"
+          }
+        }
+      },
+      "catalog.400ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "description": "Error code",
+            "type": "string",
+            "example": "BAD_REQUEST"
+          },
+          "message": {
+            "description": "Error message",
+            "type": "string",
+            "example": "page_size should should be a number, but was 'abc'"
+          }
+        }
+      },
+      "catalog.400PostErrorResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "description": "Error code",
+            "type": "string"
+          },
+          "message": {
+            "description": "Error message",
+            "type": "string"
+          }
+        }
+      },
+      "storeManagement.400ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "description": "Error code",
+            "type": "string",
+            "example": "BAD_REQUEST"
+          },
+          "message": {
+            "description": "Error message",
+            "type": "string",
+            "example": "Invalid Parameter format"
+          }
+        }
+      },
+      "storeManagement.403ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "description": "Error code",
+            "type": "string",
+            "example": "FORBIDDEN"
+          },
+          "message": {
+            "description": "Error message",
+            "type": "string",
+            "example": "The authorization token does not have permission to operate in the requested vendorID"
+          }
+        }
+      },
+      "storeManagement.404ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "description": "Error code",
+            "type": "string",
+            "example": "NOT_FOUND"
+          },
+          "message": {
+            "description": "Error message",
+            "type": "string",
+            "example": "The Vendor is not found"
+          }
+        }
+      },
+      "catalog.403ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "description": "Error code",
+            "type": "string",
+            "example": "FORBIDDEN"
+          },
+          "message": {
+            "description": "Error message",
+            "type": "string",
+            "example": "The authorization token does not have permission to operate in the requested vendorID"
+          }
+        }
+      },
+      "catalog.404ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "description": "Error code",
+            "type": "string",
+            "example": "NOT_FOUND"
+          },
+          "message": {
+            "description": "Error message",
+            "type": "string",
+            "example": "The Vendor is not found"
+          }
+        }
+      },
+      "promoAsyncSuccessResponse": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "description": "Job identifier. Can be used as a query parameter to get the job status",
+            "type": "string",
+            "example": "a946a2c7-f4e7-46ac-ae63-8a5497cb0ad9"
+          },
+          "job_status": {
+            "type": "string",
+            "example": "QUEUED",
+            "description": "Job status. Always equal to QUEUED due to the asynchronous nature of this endpoint"
+          }
+        }
+      },
+      "storeManagement.GetStatusResponse": {
+        "type": "object",
+        "properties": {
+          "vendor_id": {
+            "description": "Unique vendor identifier generated by our platform",
+            "type": "string",
+            "example": "naez"
+          },
+          "status": {
+            "type": "string",
+            "example": "CLOSED_UNTIL",
+            "description": "Availability status",
+            "enum": [
+              "OPEN",
+              "CLOSED_TODAY",
+              "CLOSED_UNTIL",
+              "CLOSED"
+            ]
+          },
+          "closed_reason": {
+            "type": "string",
+            "example": "TECHNICAL_PROBLEM",
+            "description": "The reason why the vendor had been closed. Will be omitted if the vendor status is `OPEN`",
+            "enum": [
+              "TOO_BUSY_NO_DRIVERS",
+              "TOO_BUSY_KITCHEN",
+              "UPDATES_IN_MENU",
+              "UNREACHABLE",
+              "TECHNICAL_PROBLEM",
+              "CLOSED",
+              "OTHER",
+              "TOO_MANY_REJECTED_ORDERS",
+              "ORDER_FAILURE",
+              "COURIER_DELAYED_AT_PICKUP",
+              "RESTRICTED_VISIBILITY",
+              "BAD_WEATHER",
+              "HOLIDAY_SPECIAL_DAY",
+              "ONBOARDING",
+              "READY_TO_GO_ONLINE",
+              "OFFBOARDING",
+              "RETENTION",
+              "COMPLIANCE_ISSUES",
+              "OWNERSHIP_CHANGE",
+              "REFURBISHMENT",
+              "FOOD_HYGIENE",
+              "FRAUD",
+              "RELIGIOUS_OBSERVANCE",
+              "CHECK_IN_REQUIRED",
+              "CHECK_IN_FAILED",
+              "AREA_DISRUPTION"
+            ]
+          },
+          "closed_until": {
+            "description": "Date and time till the vendor will stay closed in UTC ([ISO 8601](https://datatracker.ietf.org/doc/html/rfc3339#section-5.8) format, UTC timezone). Filed will be omitted for all statuses, except `CLOSED_UNTIL`",
+            "type": "string",
+            "format": "dateTime",
+            "example": "2024-09-30T10:00:36Z",
+            "default": ""
+          },
+          "checkin_interval": {
+            "$ref": "#/components/schemas/storeManagement.CheckinInterval"
+          }
+        }
+      },
+      "storeManagement.CheckinInterval": {
+        "description": "Check-In interval. Will be omitted for all `closed_reason` except `CHECK_IN_REQUIRED`. It is expected that the partner will call `PUT /status` API with `checkin` status within this time frame, otherwise, the vendor will stay closed regardless of the schedule setup",
+        "type": "object",
+        "properties": {
+          "start_time": {
+            "description": "Date and time of the start of the check-in interval in UTC ([ISO 8601](https://datatracker.ietf.org/doc/html/rfc3339#section-5.8) format, UTC timezone)",
+            "type": "string",
+            "format": "dateTime",
+            "example": "2024-09-30T10:00:36Z"
+          },
+          "end_time": {
+            "description": "Date and time of the end of the check-in interval in UTC ([ISO 8601](https://datatracker.ietf.org/doc/html/rfc3339#section-5.8) format, UTC timezone)",
+            "type": "string",
+            "format": "dateTime",
+            "example": "2024-09-30T10:30:36Z"
+          }
+        }
+      },
+      "storeManagement.PrepTimeAdjustment": {
+        "description": "Preparation time adjustment details.  \nWill be omitted if no active increased preparation time is currently applied for the vendor.",
+        "type": "object",
+        "properties": {
+          "extra_preptime_minutes": {
+            "type": "integer",
+            "description": "Number of extra minutes currently added to the vendor’s preparation time.",
+            "example": 10
+          },
+          "start_time": {
+            "description": "Date and time when the preparation time adjustment started in UTC ([ISO 8601](https://datatracker.ietf.org/doc/html/rfc3339#section-5.8) format, UTC timezone).",
+            "type": "string",
+            "format": "date-time",
+            "example": "2025-10-28T10:00:00Z"
+          },
+          "end_time": {
+            "description": "Date and time when the preparation time adjustment will end in UTC ([ISO 8601](https://datatracker.ietf.org/doc/html/rfc3339#section-5.8) format, UTC timezone).",
+            "type": "string",
+            "format": "date-time",
+            "example": "2025-10-28T10:45:00Z"
+          }
+        }
+      },
+      "storeManagement.updateVendorStatusRequest": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "description": "Supported statuses are:\n* `CLOSED_TODAY` - vendor will be closed till the end of the day\n* `CLOSED_UNTIL` - vendor will be closed till the date specified in `closed_until` field\n* `OPEN` - open closed vendor if it's within opening hours according to schedule  \n* `CHECKIN` - use this status to acknowledge required check in. This status works only if checking feature has been enabled for the vendor",
+            "type": "string",
+            "enum": [
+              "CLOSED_TODAY",
+              "CLOSED_UNTIL",
+              "OPEN",
+              "CHECKIN"
+            ],
+            "example": "CLOSED_UNTIL"
+          },
+          "closed_reason": {
+            "type": "string",
+            "example": "TECHNICAL_PROBLEM",
+            "description": "The reason why the vendor had been closed. Will be omitted if the vendor status is `OPEN`",
+            "enum": [
+              "TOO_BUSY_NO_DRIVERS",
+              "TOO_BUSY_KITCHEN",
+              "UPDATES_IN_MENU",
+              "TECHNICAL_PROBLEM",
+              "CLOSED",
+              "OTHER",
+              "BAD_WEATHER",
+              "HOLIDAY_SPECIAL_DAY"
+            ]
+          },
+          "closed_until": {
+            "description": "Date and time till the vendor will stay closed in UTC ([ISO 8601](https://datatracker.ietf.org/doc/html/rfc3339#section-5.8) format, UTC timezone). Filed will be omitted for all statuses, except `CLOSED_UNTIL`",
+            "type": "string",
+            "format": "dateTime",
+            "example": "2024-09-30T10:00:36Z",
+            "default": ""
+          }
+        }
+      },
+      "promotion.GetSuccessResponse": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "description": "Job identifier from the response of the PUT `/promotion` endpoint",
+            "type": "string",
+            "example": "a946a2c7-f4e7-46ac-ae63-8a5497cb0ad9"
+          },
+          "job_status": {
+            "type": "string",
+            "example": "QUEUED",
+            "description": "Job status. One of: QUEUED, COMPLETED, FAILED, DUPLICATE",
+            "enum": [
+              "QUEUED",
+              "COMPLETED",
+              "FAILED",
+              "DUPLICATE"
+            ]
+          },
+          "created_at": {
+            "description": "Date and time when the job was created in UTC ([ISO 8601](https://datatracker.ietf.org/doc/html/rfc3339#section-5.8) format, UTC timezone)",
+            "type": "string",
+            "format": "dateTime",
+            "example": "2024-09-30T10:00:36Z"
+          },
+          "updated_at": {
+            "description": "Date and time of the most recent job status update in UTC ([ISO 8601](https://datatracker.ietf.org/doc/html/rfc3339#section-5.8) format, UTC timezone)",
+            "type": "string",
+            "format": "dateTime",
+            "example": "2024-09-30T10:05:36Z"
+          },
+          "result": {
+            "$ref": "#/components/schemas/promotion.GetStatusResult"
+          }
+        }
+      },
+      "promotion.GetStatusResult": {
+        "description": "Detailed information about the promotion job that is created through the PUT /promotion endpoint. This primarily includes errors related to SKUs and/or vendors that will not be included in the promotion once the job processing is complete.",
+        "type": "object",
+        "properties": {
+          "invalid_vendors": {
+            "description": "A list of invalid vendor IDs that will not be included in the promotion, typically due to incorrect IDs or vendors not belonging to the specified chain.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "dsfr"
+            ]
+          },
+          "missing_skus": {
+            "$ref": "#/components/schemas/promotion.GetStatusMissingSKU"
+          },
+          "invalid_discounted_skus": {
+            "$ref": "#/components/schemas/promotion.GetStatusInvalidDiscountedSKU"
+          }
+        }
+      },
+      "promotion.GetStatusMissingSKU": {
+        "description": "* Keys represent vendor IDs that encountered issues during the job processing.\n* Values represent the set of SKUs that could not be found for that vendor in the Catalog, as a result, will not be included in the promotion.",
+        "additionalProperties": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "v4ft": [
+            "3671",
+            "3672"
+          ]
+        }
+      },
+      "promotion.GetStatusInvalidDiscountedSKU": {
+        "description": "* Keys represent vendor IDs that encountered issues during the job processing.\n* Values represent the set of SKUs that had discounted price higher than the listed price.",
+        "additionalProperties": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "v4ft": [
+            "3671",
+            "3672"
+          ]
+        }
+      },
+      "promotion.UpdateRequest": {
+        "type": "object",
+        "required": [
+          "vendors",
+          "type",
+          "conditions",
+          "discount"
+        ],
+        "properties": {
+          "reason": {
+            "description": "Reason why the promotion is being run. Not displayed on platforms and is used for reporting purposes only. Supported options:\n- OVERSTOCK - Excess inventory to clear\n- DELISTING - SKUs to clear if no longer selling this SKU in the future\n- COMPETITIVENESS - Standard, regular promotions to make sure we offer good value and are competitive vs. competition\n- EXPIRING_SOON - Expiring stock to sell quickly\n- NMR - Suppliers paying for banners to gain visibility for their products (with or without discount)\n- TRADING - promotions to drive traffic/volume and achieve sales targets (more tactical, eg flash sales, basket discounts)",
+            "type": "string",
+            "enum": [
+              "OVERSTOCK",
+              "DELISTING",
+              "COMPETITIVENESS",
+              "EXPIRING_SOON",
+              "NMR",
+              "TRADING"
+            ],
+            "example": "EXPIRING_SOON",
+            "default": "COMPETITIVENESS"
+          },
+          "active": {
+            "description": "Set as `false` to deactivate the promotion",
+            "type": "boolean",
+            "example": true,
+            "default": true
+          },
+          "vendors": {
+            "description": "Set of vendor IDs relevant to the promotion. If `vendors = [\"*\"]` promotion will be applied to all vendors associated with the chain",
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "urd8"
+            ]
+          },
+          "type": {
+            "description": "Promotion type. Supported types: strikethrough and same item bundle",
+            "enum": [
+              "STRIKETHROUGH",
+              "SAME_ITEM_BUNDLE"
+            ],
+            "type": "string",
+            "example": "STRIKETHROUGH"
+          },
+          "display_name": {
+            "$ref": "#/components/schemas/promotion.DisplayName"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/promotion.Limits"
+          },
+          "conditions": {
+            "$ref": "#/components/schemas/promotion.Condition"
+          },
+          "discount": {
+            "type": "array",
+            "maxItems": 20000,
+            "description": "Setup of the discounted products. `SAME_ITEM_BUNDLE` type of promotions support only 1 type of `discount_value` and `discount_subtype`.\nThis means all items in `discount` array should have the same `discount_value` and `discount_subtype` for `SAME_ITEM_BUNDLE` type of promotions.",
+            "items": {
+              "$ref": "#/components/schemas/promotion.Discount"
+            }
+          }
+        }
+      },
+      "promotion.DisplayName": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "string",
+          "example": {
+            "en_GB": "campaign_name"
+          }
+        },
+        "description": "The name shown on the platform (if supported by platform) \n- Keys are in the format of [ISO 639-1](https://en.wikipedia.org/wiki/ISO_639-1) language code and [ISO 3166-1](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2) country codes separated by `_` (e.g., 'en_SG')\n- Values are the corresponding names"
+      },
+      "promotion.Condition": {
+        "type": "object",
+        "description": "Flexible setup of the conditions",
+        "required": [
+          "start_time",
+          "end_time"
+        ],
+        "properties": {
+          "start_time": {
+            "description": "Start datetime of the promotion in [ISO 8601](https://datatracker.ietf.org/doc/html/rfc3339#section-5.8) format. The timezone part can be omitted if datetime is provided in UTC (example: 2024-09-20T09:23:06Z). *Must be earlier than `end_time`*.",
+            "format": "date-time",
+            "type": "string",
+            "example": "2024-09-20T09:23:06+05:00"
+          },
+          "end_time": {
+            "description": "End datetime of the promotion in [ISO 8601](https://datatracker.ietf.org/doc/html/rfc3339#section-5.8) format. The timezone part can be omitted if datetime is provided in UTC (example: 2024-09-22T09:23:06Z). *Must be later than `start_time`*.",
+            "format": "date-time",
+            "type": "string",
+            "example": "2024-09-22T09:23:06+05:00"
+          },
+          "purchased_quantity": {
+            "description": "Required if `type` is `SAME_ITEM_BUNDLE`.\nNumber of products the user should put to the basket to enable the promotion for \\\"buy two get one free\\\" type of promotions for type = `SAME_ITEM_BUNDLE`",
+            "type": "integer",
+            "example": 2,
+            "default": 1,
+            "minimum": 0
+          },
+          "discounted_quantity": {
+            "description": "Required if `type` is `SAME_ITEM_BUNDLE`.\nNumber of products affected by promotion for \\\"buy two get one free\\\" type of promotions for type = `SAME_ITEM_BUNDLE`",
+            "type": "integer",
+            "example": 1,
+            "default": 1,
+            "minimum": 0
+          }
+        }
+      },
+      "promotion.Discount": {
+        "type": "object",
+        "required": [
+          "sku"
+        ],
+        "properties": {
+          "sku": {
+            "description": "Set of SKUs to add (if `discount.active = true`) or to remove (if `discount.active = false`) from the promotion",
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "3671"
+            ]
+          },
+          "discount_subtype": {
+            "description": "Type of the discount applied for a given set of products. Required if `active` is true. Supported values:\n- `PERCENTAGE`: if `discount_value` is set as `10`, then 10% off is shown. If the original price changes, the promo price will change as well\n- `ABSOLUTE`: if `discount_value` is set as `10`, then $10 off is shown (currency depends on the country and the vendor setup). If the original price changes, the promo price will change as well\n- `FINAL_PRICE`: if `discount_value` is set as `10`, the price will be shown as \"final price $10\". If the original price changes, the promo price will stay $10",
+            "type": "string",
+            "enum": [
+              "PERCENTAGE",
+              "ABSOLUTE",
+              "FINAL_PRICE"
+            ],
+            "example": "PERCENTAGE"
+          },
+          "discount_value": {
+            "description": "Value of the discount. Required if `active` is true. Validation rules differ depending on the `discount_subtype`:\n- `discount_subtype = PERCENTAGE`. `discount_value` is a positive double in the range of 1-100 and it can have up to 3 digits after the decimal point. For example: 12.435\n- `discount_subtype = ABSOLUTE`. `discount_value` is a positive double (higher local currency) and it can have up to 3 digits after the decimal point. For example: 123.435\n- `discount_subtype = FINAL_PRICE`. `discount_value` is a positive double (higher local currency) and it can have up to 3 digits after the decimal point. For example: 123.435\n\n*Please note*, for weighted products `discount_value` for FINAL_PRICE and ABSOLUTE `discount_subtype` should be sent for the `base_weight`",
+            "type": "number",
+            "example": 80
+          },
+          "active": {
+            "description": "If `true` - adds SKUs from `sku` field to the promotion\nIf `false` - removes SKUs from `sku` field to the promotion",
+            "type": "boolean",
+            "example": true,
+            "default": true
+          },
+          "max_quantity": {
+            "description": "How many times a promotion can be applied in total for each SKU",
+            "type": "integer",
+            "example": 10,
+            "default": null
+          }
+        }
+      },
+      "promotion.Limits": {
+        "type": "object",
+        "description": "Set of available limitations on promotion or order level",
+        "properties": {
+          "order_limit": {
+            "type": "integer",
+            "description": "How many times a promotion can be applied in 1 order. Unlimited by default",
+            "example": 2,
+            "default": null
+          },
+          "global_limit": {
+            "description": "How many times a promotion can be applied in total. Unlimited by default",
+            "type": "integer",
+            "example": 10,
+            "default": null,
+            "minimum": 1
+          }
+        }
+      },
+      "order.CancellationToUpdate": {
+        "properties": {
+          "reason": {
+            "description": "Cancellation reason is required if the order is canceled",
+            "type": "string",
+            "enum": [
+              "",
+              "CLOSED",
+              "ITEM_UNAVAILABLE",
+              "TOO_BUSY"
+            ],
+            "x-enum-varnames": [
+              "EMPTY",
+              "CLOSED",
+              "ITEM_UNAVAILABLE",
+              "TOO_BUSY"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "order.Customer": {
+        "properties": {
+          "_id": {
+            "description": "Customer id a generated by Yemeksepeti platform",
+            "type": "string",
+            "example": "phflgdea"
+          },
+          "delivery_address": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/order.CustomerDeliveryAddress"
+              }
+            ],
+            "description": "Customer Delivery address. Masked for identity protection"
+          },
+          "first_name": {
+            "description": "First Name of the customer.\nMasked for identity protection",
+            "type": "string",
+            "example": "***"
+          },
+          "last_name": {
+            "description": "Last Name of the customer.\nMasked for identity protection",
+            "type": "string",
+            "example": "***"
+          },
+          "national_id": {
+            "description": "National id of the customer.\nMasked for identity protection",
+            "type": "string",
+            "example": "***"
+          },
+          "phone_number": {
+            "description": "Phone number of the customer.\nMasked for identity protection",
+            "type": "string",
+            "example": "***"
+          },
+          "tax_id": {
+            "description": "Tax id of the customer.",
+            "type": "string",
+            "example": ""
+          }
+        },
+        "type": "object"
+      },
+      "order.CustomerDeliveryAddress": {
+        "properties": {
+          "apartment": {
+            "description": "Apartment name/number",
+            "type": "string",
+            "example": "Big Ap******"
+          },
+          "block": {
+            "description": "Block information",
+            "type": "string",
+            "example": "Bcasca******"
+          },
+          "building": {
+            "description": "Building name/number",
+            "type": "string",
+            "example": "******"
+          },
+          "city": {
+            "description": "City of the customer",
+            "type": "string",
+            "example": "Berlin"
+          },
+          "company": {
+            "description": "Company name",
+            "type": "string",
+            "example": "Delive******"
+          },
+          "country": {
+            "description": "Country of the customer",
+            "type": "string",
+            "example": "sg"
+          },
+          "entrance": {
+            "description": "Entrance of the building",
+            "type": "string",
+            "example": "******"
+          },
+          "floor": {
+            "description": "Floor information",
+            "type": "string",
+            "example": "******"
+          },
+          "formattedAddress": {
+            "description": "Formatted address",
+            "type": "string",
+            "example": ""
+          },
+          "instructions": {
+            "description": "Instructions of the address",
+            "type": "string",
+            "example": "Leave ******"
+          },
+          "intercom": {
+            "description": "Intercom details",
+            "type": "string",
+            "example": "7**0"
+          },
+          "latitude": {
+            "description": "Latitude of the customer",
+            "type": "number",
+            "example": 0
+          },
+          "longitude": {
+            "description": "Longitude of the customer",
+            "type": "number",
+            "example": 0
+          },
+          "number": {
+            "description": "Street no of the customer",
+            "type": "string",
+            "example": "******"
+          },
+          "street": {
+            "description": "Street address of the customer",
+            "type": "string",
+            "example": "Evergr******"
+          },
+          "suburb": {
+            "description": "Suburb of the customer",
+            "type": "string",
+            "example": "******"
+          },
+          "zipcode": {
+            "description": "Zipcode/Postcode",
+            "type": "string",
+            "example": "28****"
+          }
+        },
+        "type": "object"
+      },
+      "order.LoyaltyProgram": {
+        "properties": {
+          "loyalty_card": {
+            "description": "Loyalty card number",
+            "type": "string",
+            "example": "1231-avcd-as33-br23",
+            "nullable": true
+          },
+          "voucher_code": {
+            "description": "Applied voucher code",
+            "type": "string",
+            "example": "455123",
+            "nullable": true
+          }
+        },
+        "type": "object"
+      },
+      "webhook.Order": {
+        "properties": {
+          "accepted_for": {
+            "description": "Time stamp in UTC which indicates the estimated delivery time",
+            "type": "string",
+            "format": "dateTime",
+            "example": "2022-02-07T16:03:06Z",
+            "nullable": true
+          },
+          "promised_for": {
+            "description": "Time stamp in UTC which indicates the promised delivery time",
+            "type": "string",
+            "format": "dateTime",
+            "example": "2022-02-07T17:03:06Z"
+          },
+          "comment": {
+            "description": "Comment related to the order",
+            "type": "string",
+            "example": "My first order"
+          },
+          "external_order_id": {
+            "description": "Order id generated by Yemeksepeti Platform",
+            "type": "string",
+            "example": "order-78107"
+          },
+          "isPreorder": {
+            "description": "Indicator if the order is a pre-order",
+            "type": "boolean",
+            "example": false
+          },
+          "order_code": {
+            "description": "A shortened order number used by riders to identify orders while picking them up from partners. Partners are required to refer to this code while handing over orders to riders for delivery.",
+            "type": "string",
+            "example": "wxfr-2440-rtbs"
+          },
+          "order_id": {
+            "description": "Order id in UUID format. For eg, 9d4a63b5-3e07-4440-96af-aa04797da3a0",
+            "type": "string",
+            "example": "9d4a63b5-3e07-4440-96af-aa04797da3a0"
+          },
+          "order_type": {
+            "description": "This field defines order delivery type.\nDELIVERY or PICKUP are the possible values",
+            "type": "string",
+            "enum": [
+              "DELIVERY",
+              "PICKUP"
+            ]
+          },
+          "cancellation": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/order.OrderCancellation"
+              }
+            ],
+            "description": "Order cancellation information / if there is cancellation"
+          },
+          "client": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/order.OrderClient"
+              }
+            ],
+            "description": "Client/Store/Vendor information"
+          },
+          "customer": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/order.Customer"
+              }
+            ],
+            "description": "Object containing personal details of the customer. All the details inside are masked to protect customer identity"
+          },
+          "items": {
+            "description": "Array containing order item details",
+            "items": {
+              "$ref": "#/components/schemas/order.OrderItem"
+            },
+            "type": "array"
+          },
+          "payment": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/order.OrderPayment"
+              }
+            ],
+            "description": "Payment information of the order"
+          },
+          "status": {
+            "description": "Depending on the integration type, next options are available:\n\n- *Partner Picking Device:*\n  - `RECEIVED` - The initial status of the order. This status means that the order processing has not yet started by the partner.\n  - `READY_FOR_PICKUP` - Order picking and packing is finished by the partner and is ready for pickup by a delivery rider.\n  - `DISPATCHED` - Order has been dispatched.\n  - `CANCELED` - Order is canceled by the customer, delivery rider or the partner.\n\n- *Pelican Picking Device:*\n  - `READY_FOR_PICKUP` - Order picking and packing is finished by the partner and is ready for pickup by a delivery rider.\n  - `CANCELED` - Order is canceled by the customer, delivery rider or the partner.",
+            "enum": [
+              "RECEIVED",
+              "READY_FOR_PICKUP",
+              "DISPATCHED",
+              "CANCELLED"
+            ],
+            "type": "string"
+          },
+          "sys": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/order.OrderSys"
+              }
+            ],
+            "description": "Internal system fields"
+          },
+          "transport_type": {
+            "description": "This field defines transport type for the order. Available values are:\n - `VENDOR_DELIVERY` - Partner is responsible for delivering the order to the customer\n - `LOGISTICS_DELIVERY` - Yemeksepeti rider is responsible for delivering the order to the customer",
+            "type": "string",
+            "enum": [
+              "VENDOR_DELIVERY",
+              "LOGISTICS_DELIVERY"
+            ],
+            "example": "LOGISTICS_DELIVERY"
+          },
+          "promotion_status": {
+            "description": "Indicates the presence and status of promotion data in the item.promotion field.\n\nIn certain exceptional cases, the `item.promotion` data may be unavailable, resulting in an empty field. The `promotion_status` field is crucial because it allows you to distinguish between an empty `item.promotion` because:\n- No promotion was applied (`AVAILABLE`)\n- Promotion data was unavailable (`UNAVAILABLE`)\n\n☝️**Please note**: \n- **Accurate Order Totals:** Even if the item-level promotion details are missing (i.e., `promotion_status` is `UNAVAILABLE` and `item.promotion` is empty), the order totals (`order_total` and `sub_total` within the `payment` field) will still be accurate. These totals include any applicable discounts.\n- **Dynamic Status:** The `promotion_status` may change from `UNAVAILABLE` to `AVAILABLE` during the order lifecycle. The Partner API backend will attempt to retrieve the detailed promotion data again with every subsequent order status change.",
+            "type": "string",
+            "enum": [
+              "AVAILABLE",
+              "UNAVAILABLE"
+            ],
+            "example": "AVAILABLE"
+          }
+        },
+        "type": "object"
+      },
+      "order.Order": {
+        "properties": {
+          "accepted_for": {
+            "description": "Time stamp in UTC which indicates the estimated delivery time",
+            "type": "string",
+            "format": "dateTime",
+            "example": "2022-02-07T16:03:06Z",
+            "nullable": true
+          },
+          "promised_for": {
+            "description": "Time stamp in UTC which indicates the promised delivery time",
+            "type": "string",
+            "format": "dateTime",
+            "example": "2022-02-07T17:03:06Z"
+          },
+          "comment": {
+            "description": "Comment related to the order",
+            "type": "string",
+            "example": "My first order"
+          },
+          "external_order_id": {
+            "description": "Order id generated by Yemeksepeti Platform",
+            "type": "string",
+            "example": "order-78107"
+          },
+          "isPreorder": {
+            "description": "Indicator if the order is a pre-order",
+            "type": "boolean",
+            "example": false
+          },
+          "order_code": {
+            "description": "A shortened order number used by riders to identify orders while picking them up from partners. Partners are required to refer to this code while handing over orders to riders for delivery.",
+            "type": "string",
+            "example": "wxfr-2440-rtbs"
+          },
+          "order_id": {
+            "description": "Order id in UUID format. For eg, 9d4a63b5-3e07-4440-96af-aa04797da3a0",
+            "type": "string",
+            "example": "9d4a63b5-3e07-4440-96af-aa04797da3a0"
+          },
+          "order_type": {
+            "description": "This field defines order delivery type.\nDELIVERY or PICKUP are the possible values",
+            "type": "string",
+            "enum": [
+              "DELIVERY",
+              "PICKUP"
+            ]
+          },
+          "cancellation": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/order.OrderCancellation"
+              }
+            ],
+            "description": "Order cancellation information / if there is cancellation"
+          },
+          "client": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/order.OrderClient"
+              }
+            ],
+            "description": "Client/Store/Vendor information"
+          },
+          "customer": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/order.Customer"
+              }
+            ],
+            "description": "Object containing personal details of the customer. All the details inside are masked to protect customer identity"
+          },
+          "items": {
+            "description": "Array containing order item details",
+            "items": {
+              "$ref": "#/components/schemas/order.OrderItem"
+            },
+            "type": "array"
+          },
+          "payment": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/order.OrderPayment"
+              }
+            ],
+            "description": "Payment information of the order"
+          },
+          "status": {
+            "description": "Available statuses are:\n- `RECEIVED` - The initial status of the order. This status means that the order processing has not yet started by the partner\n- `READY_FOR_PICKUP` - Order picking and packing is finished by the partner and is ready for pickup by a delivery rider. This status is applicable only for `transport_type = LOGISTICS_DELIVERY`\n- `DISPATCHED` - Order picking and packing is finished, and also is dispatched to the delivery rider for last mile delivery to the customer. This status is applicable only for `transport_type = VENDOR_DELIVERY`\n- `CANCELLED` - Order is cancelled by the customer, delivery rider or the partner\n- `DELIVERED` - Order is delivered to the customer",
+            "type": "string",
+            "enum": [
+              "RECEIVED",
+              "READY_FOR_PICKUP",
+              "DISPATCHED",
+              "CANCELLED",
+              "DELIVERED"
+            ]
+          },
+          "sys": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/order.OrderSys"
+              }
+            ],
+            "description": "Internal system fields"
+          },
+          "transport_type": {
+            "description": "This field defines transport type for the order. Available values are:\n - `VENDOR_DELIVERY` - Partner is responsible for delivering the order to the customer\n - `LOGISTICS_DELIVERY` - Yemeksepeti rider is responsible for delivering the order to the customer",
+            "type": "string",
+            "enum": [
+              "VENDOR_DELIVERY",
+              "LOGISTICS_DELIVERY"
+            ],
+            "example": "LOGISTICS_DELIVERY"
+          },
+          "promotion_status": {
+            "description": "Indicates the presence and status of promotion data in the item.promotion field.\n\nIn certain exceptional cases, the `item.promotion` data may be unavailable, resulting in an empty field. The `promotion_status` field is crucial because it allows you to distinguish between an empty `item.promotion` because:\n- No promotion was applied (`AVAILABLE`)\n- Promotion data was unavailable (`UNAVAILABLE`)\n\n☝️**Please note**: \n- **Accurate Order Totals:** Even if the item-level promotion details are missing (i.e., `promotion_status` is `UNAVAILABLE` and `item.promotion` is empty), the order totals (`order_total` and `sub_total` within the `payment` field) will still be accurate. These totals include any applicable discounts.\n- **Dynamic Status:** The `promotion_status` may change from `UNAVAILABLE` to `AVAILABLE` during the order lifecycle. The Partner API backend will attempt to retrieve the detailed promotion data again with every subsequent order status change.",
+            "type": "string",
+            "enum": [
+              "AVAILABLE",
+              "UNAVAILABLE"
+            ],
+            "example": "AVAILABLE"
+          }
+        },
+        "type": "object"
+      },
+      "order.OrderCancellation": {
+        "properties": {
+          "cancelled_by": {
+            "description": "Who initiated the cancellation. Empty string for orders that are not cancelled. Supported options:\n- `CUSTOMER`\n- `VENDOR`\n- `TRANSPORT`\n- `FULFILMENT`\n- `PLATFORM`",
+            "type": "string",
+            "example": "CUSTOMER"
+          },
+          "post_picked_up": {
+            "description": "`post_picked_up` tracks if the cancellation was done after the order was fulfilled and picked_up by the rider",
+            "type": "boolean",
+            "example": false
+          },
+          "reason": {
+            "description": "Cancellation reason. Empty string for orders that are not cancelled. Supported options:\n- `TEST_ORDER`\n- `CLOSED`\n- `TOO_BUSY`\n- `ORDER_MODIFICATION_NOT_POSSIBLE`\n- `MISTAKE_ERROR`\n- `ADDRESS_INCOMPLETE_MISSTATED`\n- `FRAUD_PRANK`\n- `VOUCHER_NOT_APPLIED`\n- `MENU_ACCOUNT_SETTINGS`\n- `OUTSIDE_SERVICE_HOURS`\n- `ITEM_DAMAGED`\n- `TECHNICAL_PROBLEM`\n- `NO_COURIER`\n- `COURIER_ACCIDENT`\n- `UNPROFESSIONAL_BEHAVIOUR`\n- `UNABLE_TO_FIND`\n- `LATE_DELIVERY`\n- `WRONG_ORDER_ITEMS_DELIVERED`\n- `ITEM_UNAVAILABLE`\n- `WILL_NOT_WORK_WITH_PLATFORM`\n- `NEVER_DELIVERED`\n- `DELIVERY_ETA_TOO_LONG`\n- `OUTSIDE_DELIVERY_AREA`\n- `UNABLE_TO_PAY`\n- `DUPLICATE_ORDER`\n- `COURIER_UNREACHABLE`\n- `ITEM_INEDIBLE_EXPIRED`\n- `FOOD_QUALITY_SPILLAGE`\n- `NO_RESPONSE`\n- `NCR_DEAL_PROBLEM`",
+            "type": "string",
+            "example": "ITEM_UNAVAILABLE"
+          }
+        },
+        "type": "object"
+      },
+      "order.OrderClient": {
+        "properties": {
+          "chain_id": {
+            "description": "Internal Client/Store/Vendor ID defined under Yemeksepeti Q-Commerce Catalog",
+            "type": "string",
+            "example": "79d3a074-0f4c-44ac-892c-787fdfb04ba1"
+          },
+          "country_code": {
+            "description": "Client/Store/Vendor ISO alpha-2 country code (2 letters)",
+            "type": "string",
+            "example": "sg"
+          },
+          "external_partner_config_id": {
+            "description": "Client/Store/Vendor external partner config id",
+            "type": "string",
+            "example": "a5v3eh5"
+          },
+          "id": {
+            "description": "Internal Client/Store/Vendor ID / Vendor ID defined under Yemeksepeti Q-Commerce Catalog",
+            "type": "string",
+            "example": "5ae6a211-ba40-4c38-9fa2-74a1abec229c"
+          },
+          "name": {
+            "description": "Client/Store/Vendor name as defined in Yemeksepeti Platform",
+            "type": "string",
+            "example": "POS Test Vendor"
+          },
+          "store_id": {
+            "description": "External Client/Store/Vendor ID / partner matching internal id (to be entered in vendor portal. if nothing is entered, send nothing)",
+            "type": "string",
+            "example": "nbet"
+          }
+        },
+        "required": [
+          "country_code"
+        ],
+        "type": "object"
+      },
+      "order.OrderItem": {
+        "properties": {
+          "_id": {
+            "description": "Order item id in UUID format",
+            "type": "string",
+            "example": "9d4a61a5-3e07-4240-96af-aa04797dc3a0"
+          },
+          "barcode": {
+            "description": "GTIN(s) of the item",
+            "items": {
+              "type": "string",
+              "example": "6281100875093"
+            },
+            "type": "array"
+          },
+          "container_deposit": {
+            "description": "Packaging charge or bottle deposit for the item in local currency",
+            "type": "number",
+            "example": 0
+          },
+          "container": {
+            "description": "Container deposit metadata for the item, including material type and eco/returnable flags",
+            "$ref": "#/components/schemas/order.Container"
+          },
+          "instructions": {
+            "description": "General instructions if the product is out of stock. Some of the examples:\n- Remove it from my order\n- Cancel the entire order\n- Call me",
+            "type": "string",
+            "example": "Call me"
+          },
+          "name": {
+            "description": "Product Name as displayed to the customer while ordering. Product name will be sent either in English or the local language as selected by the customer while ordering",
+            "type": "string",
+            "example": "Test product"
+          },
+          "original_pricing": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/order.OrderItemOriginalPricing"
+              }
+            ],
+            "description": "Details of order items as ordered by the customer"
+          },
+          "pricing": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/order.OrderItemPricing"
+              }
+            ],
+            "description": "Details of order items as fulfilled by the partner"
+          },
+          "replaced_id": {
+            "description": "ReplacedID id of the replaced item in UUID format",
+            "type": "string",
+            "example": "9d4a63b5-3e07-4440-96af-aa04797da3a0",
+            "nullable": true
+          },
+          "sku": {
+            "description": "Internal item identifier of the supermarket as defined in Yemeksepeti catalog",
+            "type": "string",
+            "example": "HSMVTE"
+          },
+          "image_url": {
+            "description": "Item image sent from Yemeksepeti Platform",
+            "type": "string",
+            "example": "https://images.yemeksepeti.io/image.jpg"
+          },
+          "status": {
+            "description": "Item status. Possible values are:\n- `NOT_PROCESSED` - The item's default status when first recorded (`RECEIVED` order status)\n- `IN_CART` - Item is available in full or partial quantities for fulfillment\n- `NOT_FOUND` - Item is out of stock and hence will not be fulfilled\n- `REPLACED` - Item is out of stock and was replaced by another item. Please ensure that ID of the `REPLACED` item was added as `replaced_id` to the new item",
+            "enum": [
+              "NOT_PROCESSED",
+              "IN_CART",
+              "NOT_FOUND",
+              "REPLACED"
+            ],
+            "type": "string",
+            "example": "IN_CART"
+          },
+          "discount": {
+            "deprecated": true,
+            "readOnly": true,
+            "description": "This property is deprecated and returns a default value of 0. Please use the promotion object to access item-level discount data.",
+            "type": "number",
+            "default": 0
+          },
+          "promotion": {
+            "description": "Promotions applied to the `item`",
+            "items": {
+              "$ref": "#/components/schemas/order.OrderPromotion"
+            },
+            "type": "array",
+            "nullable": true
+          }
+        },
+        "type": "object"
+      },
+      "order.Container": {
+        "description": "Container deposit metadata for the item",
+        "properties": {
+          "deposit_value": {
+            "description": "Per-unit deposit amount in the order's local currency",
+            "type": "number",
+            "example": 0.25
+          },
+          "type": {
+            "description": "Container material type. Known values: GLASS, PLASTIC, METAL, UNSPECIFIED",
+            "type": "string",
+            "example": "GLASS"
+          },
+          "vat_percentage": {
+            "description": "VAT percentage applied to the deposit",
+            "type": "number",
+            "example": 19
+          },
+          "is_eco": {
+            "description": "Whether the container is eco-friendly",
+            "type": "boolean",
+            "example": true
+          },
+          "is_returnable": {
+            "description": "Whether the container is returnable",
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "type": "object"
+      },
+      "order.ItemReplacementPreferences": {
+        "description": "Pre-checkout Item Replacement preferences",
+        "properties": {
+          "reconciliation_option": {
+            "description": "Reconciliation_option. Possible values are:\n- `CUSTOMER_REPLACE` - The item can be replaced by one of the option mentioned in the `products` field\n- `PICKER_REPLACE` - The Picker can replace items on its own.\n- `REFUND` - The product can be removed and eventually refunded",
+            "enum": [
+              "CUSTOMER_REPLACE",
+              "PICKER_REPLACE",
+              "REFUND"
+            ],
+            "type": "string",
+            "example": "CUSTOMER_REPLACE"
+          },
+          "products": {
+            "description": "List of products",
+            "items": {
+              "$ref": "#/components/schemas/order.ItemReplacementPreferencesProducts"
+            },
+            "type": "array"
+          }
+        }
+      },
+      "order.ItemReplacementPreferencesProducts": {
+        "properties": {
+          "sku": {
+            "description": "Item identifier of the supermarket as defined in Yemeksepeti catalog",
+            "type": "string",
+            "example": "HSMVTE"
+          },
+          "name": {
+            "description": "Product Name as displayed to the customer while ordering. Product name will be sent either in English or the local language as selected by the customer while ordering",
+            "type": "string",
+            "example": "Test product"
+          },
+          "image_url": {
+            "type": "string",
+            "description": "Item image",
+            "example": "https://images.deliveryhero.io/image.jpg"
+          },
+          "max_quantity": {
+            "description": "Max quantity of items",
+            "type": "number",
+            "example": 1
+          },
+          "unit_price": {
+            "description": "Price of the item in local currency",
+            "type": "number",
+            "example": 39.75
+          }
+        }
+      },
+      "order.OrderPromotion": {
+        "properties": {
+          "name": {
+            "description": "The name of the promotion, added as `display_name` field of `PUT /promotion` endpoint",
+            "type": "string",
+            "example": "Drinks 0.5l and 1l on sale"
+          },
+          "type": {
+            "description": "Promotion type. Supported types: STRIKETHROUGH and SAME_ITEM_BUNDLE.",
+            "enum": [
+              "STRIKETHROUGH",
+              "SAME_ITEM_BUNDLE"
+            ],
+            "type": "string",
+            "example": "STRIKETHROUGH"
+          },
+          "discount_amount": {
+            "description": "Discount amount in local currency",
+            "type": "number",
+            "example": 2.25
+          },
+          "sponsorships": {
+            "description": "Shows a contribution of each sponsor to the `discount_amount`",
+            "items": {
+              "$ref": "#/components/schemas/order.OrderPromotionSponsorships"
+            },
+            "type": "array"
+          }
+        }
+      },
+      "order.OrderPromotionSponsorships": {
+        "properties": {
+          "sponsor": {
+            "description": "Type of the sponsor. Currently, only `VENDOR` is supported",
+            "enum": [
+              "VENDOR"
+            ],
+            "example": "VENDOR"
+          },
+          "amount": {
+            "description": "Contribution of the `sponsor` to the total `discount_amount`",
+            "type": "number",
+            "example": 2.25
+          }
+        }
+      },
+      "order.OrderItemOriginalPricing": {
+        "properties": {
+          "max_quantity": {
+            "description": "Max quantity of order items accepted from partner",
+            "type": "number",
+            "example": 1
+          },
+          "min_quantity": {
+            "description": "Min of order items as ordered by customer",
+            "type": "number",
+            "example": 0
+          },
+          "pricing_type": {
+            "description": "Quantity of order items as fulfilled by the partner",
+            "type": "string",
+            "example": "UNIT",
+            "enum": [
+              "UNIT",
+              "KG"
+            ]
+          },
+          "quantity": {
+            "description": "Quantity of order items as ordered by customer. For items with `pricing_type = UNIT`",
+            "type": "number",
+            "example": 1,
+            "nullable": true
+          },
+          "total_price": {
+            "description": "Total price of the order item in local currency",
+            "type": "number",
+            "example": 39.75
+          },
+          "unit_price": {
+            "description": "Price of the order item in local currency",
+            "type": "number",
+            "example": 39.75
+          },
+          "list_price": {
+            "description": "Price of an item before any discounts are applied.",
+            "type": "number",
+            "example": 39.75
+          },
+          "vat_percent": {
+            "description": "0% of all order items. Currently this field is a placeholder. We will send the actual values soon",
+            "type": "number",
+            "example": 0
+          },
+          "weight": {
+            "description": "Weight of order items as fulfilled by the partner. For items with `pricing_type = KG`",
+            "type": "number",
+            "nullable": true
+          },
+          "weighted_pieces": {
+            "description": "Target piece count for items sold by piece but priced by weight. For items with `pricing_type = KG`. Informational only; `quantity` remains 1.",
+            "type": "integer",
+            "example": 3,
+            "nullable": true
+          }
+        },
+        "type": "object"
+      },
+      "order.OrderItemPricing": {
+        "properties": {
+          "max_quantity": {
+            "description": "Max quantity of order items accepted from partner",
+            "type": "number",
+            "example": 1
+          },
+          "min_quantity": {
+            "description": "Min quantity of order items accepted from partner",
+            "type": "number",
+            "example": 0
+          },
+          "pricing_type": {
+            "description": "PricingType indicates whether the item is priced by UNIT or by KG",
+            "type": "string",
+            "enum": [
+              "UNIT",
+              "KG"
+            ],
+            "example": "UNIT"
+          },
+          "quantity": {
+            "description": "Quantity of order items as fulfilled by the partner. For items with `pricing_type = UNIT`",
+            "type": "number",
+            "example": 1,
+            "nullable": true
+          },
+          "total_price": {
+            "description": "Total price of the order item in local currency",
+            "type": "number",
+            "example": 39.75
+          },
+          "unit_price": {
+            "description": "Price of the order item in local currency",
+            "type": "number",
+            "example": 39.75
+          },
+          "vat_percent": {
+            "description": "0% of all order items. Currently this field is a placeholder. We will send the actual values soon.",
+            "type": "number",
+            "example": 0
+          },
+          "weight": {
+            "description": "Weight of order items as fulfilled by the partner.\nThis is only used to interface with vendors. It's not used internally nor with Shopper.\nFor items with `pricing_type = KG`.",
+            "type": "number",
+            "nullable": true
+          },
+          "weighted_pieces": {
+            "description": "Target piece count for items sold by piece but priced by weight. For items with `pricing_type = KG`. Informational only; `quantity` remains 1.",
+            "type": "integer",
+            "example": 3,
+            "nullable": true
+          }
+        },
+        "type": "object"
+      },
+      "order.OrderItemPricingToUpdate": {
+        "properties": {
+          "pricing_type": {
+            "description": "PricingType indicates whether the item is priced by `UNIT` or by `KG`.\nIt's not mandatory in the item update but if it's present, it should be consistent with the original pricing_type of the item",
+            "type": "string",
+            "enum": [
+              "UNIT",
+              "KG"
+            ],
+            "example": "UNIT"
+          },
+          "quantity": {
+            "description": "For items with `pricing_type = UNIT`, fulfillable quantity of the order item in units.\nQuantity entered in the field should be less than or equal to initial order quantity.\nIf the item is out of stock, 0 can be entered as the quantity",
+            "type": "number"
+          },
+          "unit_price": {
+            "description": "Unit price of the order item in local currency.",
+            "type": "number",
+            "example": 39.75
+          },
+          "weight": {
+            "description": "For items with `pricing_type = KG`, the quantity update expected from vendor should come from `weight` and not from `quantity`",
+            "type": "number"
+          },
+          "weighted_pieces": {
+            "description": "For items sold by piece but priced by weight (`pricing_type = KG`), the actual fulfilled piece count.\nInformational only; `quantity` remains 1 as with regular weighted items. Must be a positive integer.",
+            "type": "integer",
+            "example": 3
+          }
+        },
+        "type": "object"
+      },
+      "order.OrderItemToUpdate": {
+        "required": [
+          "status",
+          "pricing"
+        ],
+        "type": "object",
+        "properties": {
+          "_id": {
+            "description": "Order item id in UUID format",
+            "type": "string",
+            "example": "9d4a63b5-3e07-4440-96af-aa04797da3a0"
+          },
+          "pricing": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/order.OrderItemPricingToUpdate"
+              }
+            ],
+            "description": "Pricing Information of the order item"
+          },
+          "replaced_id": {
+            "description": "Order item id of the replaced item in UUID format. The replaced item must have REPLACED status. And the replacement item must have IN_CART status and not empty name.",
+            "type": "string",
+            "example": "9d4a63b5-3e07-4440-96af-aa04797da3a0"
+          },
+          "sku": {
+            "description": "SKU of the item",
+            "type": "string",
+            "example": "101049"
+          },
+          "status": {
+            "description": "Item status. Possible values are:\n- `IN_CART` - Item is available in full or partial quantities for fulfillment\n- `NOT_FOUND` - Item is out of stock and hence will not be fulfilled\n- `REPLACED` - Item is out of stock and was replaced by another item. Please ensure that ID of the `REPLACED` item was added as `replaced_id` to the new item\n\n*Please note*: updating all items with `NOT_FOUND` status will automatically cancel the order with `ITEM_UNAVAILABLE` cancellation reason",
+            "enum": [
+              "IN_CART",
+              "NOT_FOUND",
+              "REPLACED"
+            ],
+            "type": "string",
+            "example": "IN_CART"
+          }
+        }
+      },
+      "order.OrderPayment": {
+        "properties": {
+          "additional_fees": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "AdditionalFees represents any fee not explicitly included in the fields above",
+            "type": "object",
+            "nullable": true,
+            "example": {
+              "holiday_fee": 1
+            }
+          },
+          "collect_at_pickup": {
+            "description": "Cash amount the courier should collect from the customer at delivery. Only present for Vendor Delivery orders where cash collection is required.",
+            "type": "number",
+            "nullable": true,
+            "example": 20
+          },
+          "container_charge": {
+            "description": "Container charge in local currency",
+            "type": "number",
+            "example": 1
+          },
+          "delivery_fee": {
+            "description": "Delivery fee in local currency",
+            "type": "number",
+            "example": 1
+          },
+          "difference_to_minimum": {
+            "description": "Difference to minimum order value in local currency",
+            "type": "number",
+            "example": 0
+          },
+          "discount": {
+            "description": "Total discount applied to the order, expressed in the local currency.\nThis value is always negative, as discounts reduce the total cost for the customer.",
+            "type": "number",
+            "example": -1
+          },
+          "discounts": {
+            "description": "Detailed breakdown of all discounts applied to the order, each expressed in the local currency.\nAll discount values in this array are negative, reflecting that they reduce the customer's payment total.",
+            "items": {
+              "$ref": "#/components/schemas/order.OrderPaymentDiscount"
+            },
+            "type": "array"
+          },
+          "order_total": {
+            "description": "Final amount payable by the customer. Includes item-level promotions, order-level discounts, service fees, and any additional charges.",
+            "type": "number",
+            "example": 41.75
+          },
+          "service_fee": {
+            "description": "Service fee in local currency",
+            "type": "number",
+            "example": 0
+          },
+          "sub_total": {
+            "description": "Total value of all items in the order, including item-level promotions and taxes. Excludes any order-level discounts.",
+            "type": "number",
+            "example": 39.75
+          },
+          "total_taxes": {
+            "description": "Total order level taxes in local currency",
+            "type": "number",
+            "example": 1
+          },
+          "type": {
+            "description": "Payment type of the order",
+            "type": "string",
+            "example": "PAID"
+          }
+        },
+        "type": "object"
+      },
+      "order.OrderPaymentDiscount": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "First discount"
+          },
+          "value": {
+            "type": "number",
+            "example": -1
+          }
+        },
+        "type": "object"
+      },
+      "order.OrderSys": {
+        "description": "Internal system fields",
+        "properties": {
+          "created_at": {
+            "description": "Order creation date",
+            "type": "string",
+            "format": "dateTime",
+            "example": "2024-09-30T10:00:36.947Z"
+          },
+          "created_by": {
+            "description": "Order created by",
+            "type": "string",
+            "example": "User 1"
+          },
+          "update_status": {
+            "description": "Order fulfillment update status",
+            "type": "string",
+            "example": "",
+            "nullable": true
+          },
+          "updated_at": {
+            "description": "Order update date",
+            "type": "string",
+            "format": "dateTime",
+            "example": "2024-09-30T10:05:36.947Z"
+          },
+          "updated_by": {
+            "description": "Order updated by",
+            "type": "string",
+            "example": "User 1"
+          },
+          "webhook_status": {
+            "description": "Webhook latest status",
+            "type": "string",
+            "example": ""
+          }
+        },
+        "type": "object"
+      },
+      "order.OrderToUpdate": {
+        "required": [
+          "items",
+          "order_id",
+          "status"
+        ],
+        "properties": {
+          "cancellation": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/order.CancellationToUpdate"
+              }
+            ],
+            "type": "object"
+          },
+          "items": {
+            "type": "array",
+            "description": "Internal Store ID / Vendor ID defined under Q-Commerce by Catalog\nEither `item.id` or `item.sku` is required. If both are passed then `item.id` takes precedence over `item.sku`",
+            "items": {
+              "$ref": "#/components/schemas/order.OrderItemToUpdate"
+            }
+          },
+          "order_id": {
+            "description": "Order id in UUID format",
+            "type": "string",
+            "example": "9d4a63b5-3e07-4440-96af-aa04797da3a0"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "CANCELLED",
+              "DISPATCHED",
+              "READY_FOR_PICKUP",
+              "UPDATE_CART"
+            ],
+            "description": "This field defines order status. Some rules must be followed providing correct status:\n- If the order cannot be fulfilled, it can be cancelled\n- If the status is being updated as `CANCELLED`, an appropriate cancellation reason needs to be also entered\n- For `VENDOR_DELIVERY` transport_type\n  - Accepted values are `CANCELLED` or `DISPATCHED`\n  - Once the order is picked and dispatched for delivery, update the status as `DISPATCHED`\n  - Orders cannot be `CANCELLED` after the status is set to `DISPATCHED` and vice versa\n- For `LOGISTICS_DELIVERY` transport_type\n  - Accepted values are `CANCELLED` or `READY_FOR_PICKUP`\n  - Once the order is picked and ready for pickup, update the status as `READY_FOR_PICKUP`\n  - Orders cannot be `CANCELLED` after the status is set to “READY_FOR_PICKUP” and vice versa\n- `UPDATE_CART` status is used for item modifications. In contrast to other statuses, the Partner can call API with UPDATE_CART as many times as needed to ensure the order contains the correct set of items"
+          }
+        },
+        "type": "object"
+      },
+      "order.PagedOrderHistory": {
+        "properties": {
+          "orders": {
+            "description": "List of orders",
+            "items": {
+              "$ref": "#/components/schemas/order.Order"
+            },
+            "type": "array"
+          },
+          "page_number": {
+            "type": "integer",
+            "description": "Page number",
+            "example": 2
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Page size",
+            "example": 20
+          },
+          "total_pages": {
+            "description": "Total number of pages available",
+            "example": 15,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      }
+    }
+  }
+}

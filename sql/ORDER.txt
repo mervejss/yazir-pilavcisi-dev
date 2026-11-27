@@ -48,3 +48,4 @@
 47_maintenance_mode.sql
 48_admin_order_discount.sql
 49_admin_order_discount_amount.sql
+50_customer_dinein_table_order.sql

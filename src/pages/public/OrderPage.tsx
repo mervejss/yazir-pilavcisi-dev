@@ -10,6 +10,7 @@ import { PAYMENT_METHOD_LABELS } from '@/lib/constants';
 import QtyStepper from '@/components/ui/QtyStepper';
 import ProductImage from '@/components/ui/ProductImage';
 import Icon from '@/components/ui/Icon';
+import DineInPicker from '@/components/public/DineInPicker';
 import LocationPicker from '@/components/maps/LocationPicker';
 import VoiceDictateButton from '@/components/ui/VoiceDictateButton';
 import { normalizePhone } from '@/lib/staffCustomers';
@@ -32,6 +33,21 @@ export default function OrderPage() {
   // Sahip siparişi kapattıysa VEYA "çalışma saati dışında engelle" açıkken kapalıysak sipariş verilemez
   const orderBlocked = status.paused || (!!settings?.enforce_opening_hours && status.outsideHours);
   const cartTotal = total();
+
+  // ---- Sipariş türü: Restoranda yiyeceğim / Eve sipariş (QR ile gelindiyse masa zaten belli) ----
+  const [mode, setMode] = useState<'dine' | 'delivery' | null>(null);
+  const dine = !!tableToken || mode === 'dine';
+  const [tableNo, setTableNo] = useState<number | null>(null);
+  const [seat, setSeat] = useState<number | null>(null);
+  const [qrNo, setQrNo] = useState<number | null>(null);
+  useEffect(() => {
+    if (!tableToken) { setQrNo(null); return; }
+    supabase.rpc('resolve_table_qr', { p_token: tableToken }).then(({ data }) => {
+      const n = Number((data as any)?.table_number);
+      setQrNo(Number.isFinite(n) && n > 0 ? n : null);
+    });
+  }, [tableToken]);
+  const needTable = dine && !tableToken && tableNo == null;
   const selectedCartItems = items.filter((item) => selectedCartKeys.includes(item.key));
   useEffect(() => {
     setSelectedCartKeys((current) => current.filter((key) => items.some((item) => item.key === key)));
@@ -56,15 +72,15 @@ export default function OrderPage() {
   const [referral, setReferral] = useState<any>(null);
   const [loyalty, setLoyalty] = useState<any>(null);
   const [usePoints, setUsePoints] = useState(false);
-  const deliveryFee = settings && !tableToken ? (settings.free_delivery_threshold && cartTotal >= settings.free_delivery_threshold ? 0 : settings.delivery_fee) : 0;
+  const deliveryFee = settings && !dine ? (settings.free_delivery_threshold && cartTotal >= settings.free_delivery_threshold ? 0 : settings.delivery_fee) : 0;
   const couponDiscount = coupon ? Math.min(coupon.discount, cartTotal + deliveryFee) : 0;
   const afterCoupon = Math.max(cartTotal + deliveryFee - couponDiscount, 0);
   const pointValue = Number(loyalty?.point_value || 1);
   const pointsAvail = Number(loyalty?.points || 0);
-  const canUsePoints = !!loyalty?.enabled && !tableToken && !!user && pointsAvail >= Number(loyalty?.min_redeem || 1);
+  const canUsePoints = !!loyalty?.enabled && !dine && !!user && pointsAvail >= Number(loyalty?.min_redeem || 1);
   const pointsToUse = canUsePoints && usePoints ? Math.min(pointsAvail, Math.ceil(afterCoupon / pointValue)) : 0;
   const pointsDiscount = pointsToUse ? Math.min(pointsToUse * pointValue, afterCoupon) : 0;
-  const referralPercent = referral?.is_active ? Number(referral.discount || 0) : 0;
+  const referralPercent = !dine && referral?.is_active ? Number(referral.discount || 0) : 0;
   const productReferral = referralPercent > 0 && referral?.scope === 'product';
   // Ürün bazlı kampanyada her birim fiyat, SQL tarafındaki numeric(…,2) ile aynı şekilde yuvarlanır.
   const referralDiscount = productReferral
@@ -184,9 +200,34 @@ export default function OrderPage() {
       return;
     }
 
+    if (needTable) {
+      toast.error('Lütfen masanızı seçin');
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const useExtra = !tableToken && (!!coupon || pointsToUse > 0);
+      if (dine && !tableToken) {
+        // QR olmadan: masa numarası (+ sandalye) ile masa siparişi
+        const { data, error } = await supabase.rpc('place_table_order', {
+          p_table_number: tableNo,
+          p_items: items.map((i) => ({ variant_id: i.variantId, quantity: i.quantity })),
+          p_note: form.note || null,
+          p_seat: seat,
+          p_guest: form.name || null,
+        } as any);
+        if (error) {
+          if (/place_table_order|public_dining_tables/i.test(error.message || '') && /not exist|find the function|schema cache/i.test(error.message || '')) {
+            throw new Error('Masa siparişi için sql/50_customer_dinein_table_order.sql çalıştırılmalı.');
+          }
+          throw error;
+        }
+        setResult(data as unknown as OrderResult);
+        clearCart();
+        toast.success('Siparişiniz mutfağa iletildi!');
+        return;
+      }
+      const useExtra = !dine && (!!coupon || pointsToUse > 0);
       const { data, error } = await supabase.rpc('place_order_with_referral', {
         p_customer: {
           name: form.name,
@@ -201,13 +242,13 @@ export default function OrderPage() {
           variant_id: i.variantId,
           quantity: i.quantity,
         })),
-        p_payment: tableToken ? null : form.payment,
-        p_note: form.note || null,
+        p_payment: dine ? null : form.payment,
+        p_note: (tableToken && seat ? `🪑 Sandalye ${seat}${form.note ? ' · ' + form.note : ''}` : form.note) || null,
         p_table_token: tableToken || null,
         p_save_address: form.saveAddress && user != null,
         p_coupon: useExtra ? (coupon?.code || null) : null,
         p_use_points: useExtra ? pointsToUse : 0,
-        p_referral_code: !tableToken && referral?.is_active ? referral.code : null,
+        p_referral_code: !dine && referral?.is_active ? referral.code : null,
       } as any);
 
       if (error) throw error;
@@ -230,8 +271,12 @@ export default function OrderPage() {
           Sipariş No: <b>#{result.order_no}</b> · Toplam: <b>{tl(result.total)}</b>
         </p>
         <p className="muted" style={{ maxWidth: '480px', margin: '0 auto 1.5rem auto' }}>
-          Siparişiniz mutfağa iletildi ve hazırlanmaya başlandı. Tahmini teslimat süresi{' '}
-          <b>{settings?.estimated_delivery_min || 15}–{settings?.estimated_delivery_max || 25} dakika</b>dır.
+          {dine ? (
+            <>Siparişiniz mutfağa iletildi{(tableNo ?? qrNo) ? <> · <b>Masa {tableNo ?? qrNo}{seat ? ` · Sandalye ${seat}` : ''}</b></> : null}. Afiyet olsun!</>
+          ) : (
+            <>Siparişiniz mutfağa iletildi ve hazırlanmaya başlandı. Tahmini teslimat süresi{' '}
+            <b>{settings?.estimated_delivery_min || 15}–{settings?.estimated_delivery_max || 25} dakika</b>dır.</>
+          )}
         </p>
         <div className="os-actions">
           <Link className="btn gold" to={`/takip/${result.order_id}`}>
@@ -279,10 +324,34 @@ export default function OrderPage() {
   return (
     <main className="page two">
       <section>
-        <h1>{tableToken ? 'Masa Siparişini Tamamla' : 'Siparişi Tamamla'}</h1>
+        <h1>{dine ? 'Masa Siparişini Tamamla' : 'Siparişi Tamamla'}</h1>
+
+        {/* Sipariş türü seçimi */}
+        {!tableToken && mode === null && (
+          <div className="mode-pick" role="group" aria-label="Sipariş türü">
+            <button type="button" onClick={() => setMode('dine')}>
+              <span className="mp-ico" aria-hidden="true">🍽️</span>
+              <b>Restoranda yiyeceğim</b>
+              <small>Masa numaranızı seçin, adres gerekmez</small>
+            </button>
+            <button type="button" onClick={() => setMode('delivery')}>
+              <span className="mp-ico" aria-hidden="true">🛵</span>
+              <b>Eve sipariş edeceğim</b>
+              <small>Adrese teslim · ödeme kapıda</small>
+            </button>
+          </div>
+        )}
+        {!tableToken && mode !== null && (
+          <div className="mode-bar">
+            <b>{mode === 'dine' ? '🍽️ Restoranda yiyeceğim' : '🛵 Eve sipariş'}</b>
+            <button type="button" className="btn ghost sm" onClick={() => setMode(mode === 'dine' ? 'delivery' : 'dine')}>
+              {mode === 'dine' ? 'Eve sipariş ver' : 'Restoranda yiyeceğim'}
+            </button>
+          </div>
+        )}
 
         {/* Giriş Yapmamış Misafir İçin Önemli Bilgilendirme Uyarısı */}
-        {!user && !tableToken && (
+        {!user && !dine && (
           <div className="note alert-callout" style={{ marginBottom: '1.5rem', lineHeight: '1.6' }}>
             <b>⚠️ Misafir Olarak Sipariş Veriyorsunuz</b>
             <p style={{ margin: '0.3rem 0 0 0', fontSize: '0.92rem' }}>
@@ -298,8 +367,21 @@ export default function OrderPage() {
             <b>{status.label}.</b> {status.detail} Sepetiniz kaydedildi, açıldığımızda sipariş verebilirsiniz.
           </div>
         )}
+        {(mode !== null || !!tableToken) && (
         <form onSubmit={submit} className="form">
-          {!tableToken && (
+          {dine && (
+            <>
+              <DineInPicker tableNo={tableNo} setTableNo={setTableNo} seat={seat} setSeat={setSeat} lockedNo={tableToken ? (qrNo ?? 0) : null} />
+              <label>
+                <span className="fld-row">
+                  Adınız (İsteğe bağlı)
+                  <VoiceDictateButton value={form.name} onChange={(v) => setForm((f) => ({ ...f, name: v }))} title="Adınızı sesle yazdırın" />
+                </span>
+                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Garson size ismen seslensin" />
+              </label>
+            </>
+          )}
+          {!dine && (
             <>
               {/* Kayıtlı Adres Seçimi (Giriş Yapmış Müşteri İçin) */}
               {user && addresses.length > 0 && (
@@ -461,7 +543,7 @@ export default function OrderPage() {
             />
           </label>
 
-          {!tableToken && (
+          {!dine && (
             <fieldset>
               <legend>Ödeme Yöntemi</legend>
               {['cash_on_delivery', 'card_on_delivery', 'iban'].map((m) => (
@@ -489,9 +571,10 @@ export default function OrderPage() {
           )}
 
           <button type="submit" className="btn gold" disabled={submitting || orderBlocked} style={{ fontSize: '1.05rem', padding: '0.9em' }}>
-            {orderBlocked ? status.label : submitting ? 'Sipariş İletiliyor...' : `Siparişi Onayla · ${tl(grandTotal)}`}
+            {orderBlocked ? status.label : submitting ? 'Sipariş İletiliyor...' : dine ? `Siparişi Mutfağa Gönder · ${tl(grandTotal)}` : `Siparişi Onayla · ${tl(grandTotal)}`}
           </button>
         </form>
+        )}
       </section>
 
       {/* Sepet Özeti */}
@@ -558,7 +641,7 @@ export default function OrderPage() {
           ))}
         </div>
 
-        {!tableToken && (
+        {!dine && (
           <div className="coupon-box">
             {coupon ? (
               <div className="coupon-ok">
@@ -593,7 +676,7 @@ export default function OrderPage() {
           </label>
         )}
 
-        {settings && settings.delivery_fee > 0 && !tableToken && (
+        {settings && settings.delivery_fee > 0 && !dine && (
           <div className="crow">
             <span>Teslimat Ücreti</span>
             <span />
